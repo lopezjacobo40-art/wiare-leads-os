@@ -22,6 +22,22 @@ export default function Login({ onLogin }: { onLogin: (user: string) => void }) 
     }
   }
 
+  const labelStyle: React.CSSProperties = {
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'var(--color-text-primary)',
+    marginBottom: 6,
+    display: 'block',
+  }
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    height: 40,
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-md)',
+    padding: '0 12px',
+    fontSize: 14,
+  }
+
   return (
     <div
       style={{
@@ -30,44 +46,79 @@ export default function Login({ onLogin }: { onLogin: (user: string) => void }) 
         alignItems: 'center',
         justifyContent: 'center',
         background:
-          'radial-gradient(ellipse at top left, rgba(99,102,241,0.08), transparent 50%), radial-gradient(ellipse at bottom right, rgba(34,211,238,0.08), transparent 50%), var(--bg-base)',
+          'radial-gradient(circle, rgba(99,102,241,0.10) 1px, transparent 1px) 0 0 / 28px 28px, var(--color-surface)',
         padding: 24,
       }}
     >
       <motion.form
         onSubmit={submit}
-        className="card"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{ width: '100%', maxWidth: 380, padding: 40, display: 'flex', flexDirection: 'column', gap: 16 }}
+        transition={{ duration: 0.3 }}
+        style={{
+          width: '100%',
+          maxWidth: 380,
+          background: '#fff',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: 'var(--shadow-lg)',
+          padding: 40,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
+        {/* Logo + título */}
         <img
           src="/logo-wiare.png"
           alt="WIARE"
-          style={{ height: 48, objectFit: 'contain', alignSelf: 'center', marginBottom: 4 }}
+          style={{ height: 32, objectFit: 'contain', alignSelf: 'center' }}
         />
-        <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <h1 style={{ fontSize: 22 }}>Leads OS</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 4 }}>
-            Sistema interno de prospección
-          </p>
+        <p
+          style={{
+            textAlign: 'center',
+            fontSize: 12,
+            fontWeight: 500,
+            color: 'var(--color-text-tertiary)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.18em',
+            marginTop: 8,
+          }}
+        >
+          Leads OS
+        </p>
+
+        <div style={{ height: 1, background: 'var(--color-border)', margin: '32px 0' }} />
+
+        {/* Campos */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Usuario</label>
+          <input
+            placeholder="usuario"
+            value={usuario}
+            onChange={(e) => setUsuario(e.target.value)}
+            autoFocus
+            style={inputStyle}
+          />
         </div>
-        <input
-          placeholder="Usuario"
-          value={usuario}
-          onChange={(e) => setUsuario(e.target.value)}
-          autoFocus
-        />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={pass}
-          onChange={(e) => setPass(e.target.value)}
-        />
-        {error && <p style={{ color: 'var(--red)', fontSize: 14 }}>{error}</p>}
-        <button type="submit" className="btn-gradient">
-          Entrar →
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Contraseña</label>
+          <input
+            type="password"
+            placeholder="••••••••"
+            value={pass}
+            onChange={(e) => setPass(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+
+        {error && (
+          <p style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-error)' }} /> {error}
+          </p>
+        )}
+
+        <button type="submit" className="btn-primary" style={{ width: '100%', height: 40, marginTop: 8 }}>
+          Entrar
         </button>
       </motion.form>
     </div>

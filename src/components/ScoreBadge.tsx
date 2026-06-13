@@ -6,47 +6,54 @@ interface Props {
 export default function ScoreBadge({ score, size = 'md' }: Props) {
   if (score == null) {
     return (
-      <span style={{ ...base(size), background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}>
+      <span
+        className="badge"
+        style={{
+          ...sizeStyle(size),
+          background: 'var(--color-surface-2)',
+          color: 'var(--color-text-tertiary)',
+          border: '1px solid var(--color-border)',
+        }}
+      >
         Sin score
       </span>
     )
   }
 
-  let bg: string, color: string, label: string, pulse = false
+  let bg: string, color: string, border: string, label: string, pulse = false
   if (score <= 3) {
-    bg = 'rgba(239,68,68,0.12)'; color = 'var(--red)'; label = 'Frío'
+    bg = 'rgba(239,68,68,0.08)'; color = 'var(--color-error)'; border = 'rgba(239,68,68,0.15)'; label = 'Frío'
   } else if (score <= 6) {
-    bg = 'rgba(249,115,22,0.12)'; color = 'var(--orange)'; label = 'Templado'
+    bg = 'rgba(245,158,11,0.08)'; color = 'var(--color-warning)'; border = 'rgba(245,158,11,0.15)'; label = 'Templado'
   } else if (score <= 8) {
-    bg = 'rgba(34,197,94,0.12)'; color = 'var(--green)'; label = 'Caliente'
+    bg = 'rgba(34,197,94,0.08)'; color = 'var(--color-success)'; border = 'rgba(34,197,94,0.15)'; label = 'Caliente'
   } else {
-    bg = 'rgba(99,102,241,0.12)'; color = 'var(--accent-primary)'; label = '🔥 Top'; pulse = true
+    bg = 'var(--color-primary-subtle)'; color = 'var(--color-primary)'; border = 'rgba(99,102,241,0.2)'; label = 'Top'; pulse = true
   }
 
   return (
-    <span style={{ ...base(size), background: bg, color, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      {pulse && (
-        <span
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: color,
-            animation: 'pulse-dot 1.4s ease-in-out infinite',
-          }}
-        />
-      )}
+    <span
+      className="badge"
+      style={{ ...sizeStyle(size), background: bg, color, border: `1px solid ${border}` }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: color,
+          flexShrink: 0,
+          animation: pulse ? 'pulse-dot 1.4s ease-in-out infinite' : undefined,
+        }}
+      />
       {score} · {label}
     </span>
   )
 }
 
-function base(size: 'sm' | 'md'): React.CSSProperties {
+function sizeStyle(size: 'sm' | 'md'): React.CSSProperties {
   return {
-    fontSize: size === 'sm' ? 12 : 13,
-    fontWeight: 600,
-    padding: size === 'sm' ? '3px 8px' : '4px 10px',
-    borderRadius: 999,
-    whiteSpace: 'nowrap',
+    fontSize: size === 'sm' ? 11 : 12,
+    padding: size === 'sm' ? '2px 8px' : '3px 10px',
   }
 }

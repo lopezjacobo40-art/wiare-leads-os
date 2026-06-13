@@ -1,14 +1,16 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { House, MagnifyingGlass, Users, SignOut } from '@phosphor-icons/react'
+import { ChartBar, MagnifyingGlass, Users, SignOut } from '@phosphor-icons/react'
 
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: House, end: true },
+  { to: '/', label: 'Dashboard', icon: ChartBar, end: true },
   { to: '/extraer', label: 'Extraer leads', icon: MagnifyingGlass, end: false },
   { to: '/leads', label: 'Todos los leads', icon: Users, end: false },
 ]
 
 export default function Sidebar({ onLogout }: { onLogout: () => void }) {
   const navigate = useNavigate()
+  const user = sessionStorage.getItem('wiare_user') ?? ''
+  const inicial = user.charAt(0).toUpperCase() || 'W'
 
   const logout = () => {
     sessionStorage.removeItem('wiare_user')
@@ -26,21 +28,32 @@ export default function Sidebar({ onLogout }: { onLogout: () => void }) {
         bottom: 0,
         width: 220,
         background: '#fff',
-        borderRight: '1px solid var(--border)',
+        borderRight: '1px solid var(--color-border)',
         display: 'flex',
         flexDirection: 'column',
         padding: '24px 12px',
         zIndex: 10,
       }}
     >
+      {/* Header */}
       <div style={{ padding: '0 12px', marginBottom: 32 }}>
-        <img src="/logo-wiare.png" alt="WIARE" style={{ height: 36, objectFit: 'contain' }} />
-        <p style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 6, fontWeight: 500, letterSpacing: 0.5 }}>
-          LEADS OS
+        <img src="/logo-wiare.png" alt="WIARE" style={{ height: 28, objectFit: 'contain', display: 'block' }} />
+        <p
+          style={{
+            color: 'var(--color-text-tertiary)',
+            fontSize: 11,
+            marginTop: 8,
+            fontWeight: 500,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+          }}
+        >
+          Leads OS
         </p>
       </div>
 
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+      {/* Navegación */}
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
         {NAV.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
@@ -50,41 +63,74 @@ export default function Sidebar({ onLogout }: { onLogout: () => void }) {
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              padding: '11px 12px',
-              borderRadius: 10,
-              fontSize: 14,
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
               fontWeight: 500,
-              minHeight: 44,
-              color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              background: isActive ? 'rgba(99,102,241,0.1)' : 'transparent',
-              borderLeft: isActive ? '3px solid var(--accent-primary)' : '3px solid transparent',
+              minHeight: 36,
+              color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
               textDecoration: 'none',
+              transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
             })}
           >
-            <Icon size={20} weight="duotone" />
-            {label}
+            {({ isActive }) => (
+              <>
+                <Icon
+                  size={16}
+                  weight={isActive ? 'fill' : 'regular'}
+                  style={{ flexShrink: 0 }}
+                />
+                {label}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
 
-      <button
-        onClick={logout}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '11px 12px',
-          borderRadius: 10,
-          fontSize: 14,
-          fontWeight: 500,
-          background: 'transparent',
-          color: 'var(--text-secondary)',
-          textAlign: 'left',
-        }}
-      >
-        <SignOut size={20} weight="duotone" />
-        Cerrar sesión
-      </button>
+      {/* Footer — usuario + logout */}
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', marginBottom: 4 }}>
+          <span
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background: 'var(--gradient-brand)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              fontWeight: 600,
+              flexShrink: 0,
+            }}
+          >
+            {inicial}
+          </span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: 'var(--color-text-primary)',
+              textTransform: 'capitalize',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {user || 'WIARE'}
+          </span>
+        </div>
+        <button
+          onClick={logout}
+          className="btn-ghost"
+          style={{ width: '100%', justifyContent: 'flex-start', fontSize: 13, padding: '8px 12px', minHeight: 36 }}
+        >
+          <SignOut size={16} style={{ flexShrink: 0 }} />
+          Cerrar sesión
+        </button>
+      </div>
     </aside>
   )
 }

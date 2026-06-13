@@ -2,6 +2,9 @@ import type { Lead } from './supabaseClient'
 
 const KEY = import.meta.env.VITE_RETELL_API_KEY
 
+// Orden de preferencia de voces españolas naturales (Azure Neural vía Retell)
+const VOICE_FALLBACKS = ['es-ES-ElviraNeural', 'es-ES-AlvaroNeural', 'es-ES-IsidoraNeural']
+
 export async function crearAgentDemo(lead: Lead, systemPrompt: string): Promise<string> {
   // 1. Crear el LLM de Retell con el prompt
   const llmRes = await fetch('https://api.retellai.com/create-retell-llm', {
@@ -12,7 +15,7 @@ export async function crearAgentDemo(lead: Lead, systemPrompt: string): Promise<
     },
     body: JSON.stringify({
       general_prompt: systemPrompt,
-      begin_message: `Hola, gracias por llamar a ${lead.nombre}. Soy el asistente virtual, ¿en qué puedo ayudarte?`,
+      begin_message: `Hola, gracias por llamar a ${lead.nombre}. ¿En qué puedo ayudarte?`,
     }),
   })
   if (!llmRes.ok) {
@@ -21,24 +24,38 @@ export async function crearAgentDemo(lead: Lead, systemPrompt: string): Promise<
   }
   const llm = await llmRes.json()
 
-  // 2. Crear el agente vinculado al LLM
-  const res = await fetch('https://api.retellai.com/create-agent', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      agent_name: `Sofía — Demo ${lead.nombre}`,
-      voice_id: 'es-ES-ElviraNeural',
-      language: 'es-ES',
-      response_engine: { type: 'retell-llm', llm_id: llm.llm_id },
-    }),
-  })
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Retell agent error ${res.status}: ${err}`)
+  // 2. Crear el agente — probando voces en orden hasta que una funcione
+  let ultimoError = ''
+  for (const voiceId of VOICE_FALLBACKS) {
+    const res = await fetch('https://api.retellai.com/create-agent', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        agent_name: `Demo ${lead.nombre} — WIARE`,
+        voice_id: voiceId,
+        language: 'es-ES',
+        voice_speed: 1.0,
+        voice_temperature: 0.9,
+        responsiveness: 1.0,
+        interruption_sensitivity: 0.8,
+        enable_backchannel: true,
+        backchannel_frequency: 0.8,
+        response_engine: { type: 'retell-llm', llm_id: llm.llm_id },
+      }),
+    })
+
+    if (res.ok) {
+      const agent = await res.json()
+      return agent.agent_id
+    }
+
+    ultimoError = `${res.status}: ${await res.text()}`
+    // Si el fallo no es por la voz, no merece la pena seguir probando voces
+    if (!ultimoError.toLowerCase().includes('voice')) break
   }
-  const agent = await res.json()
-  return agent.agent_id
+
+  throw new Error(`Retell agent error ${ultimoError}`)
 }

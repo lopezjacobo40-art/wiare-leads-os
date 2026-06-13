@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, Sparkle, Trash, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
 import ScoreBadge from '../components/ScoreBadge'
@@ -121,18 +121,32 @@ export default function Leads() {
 
   const sinScoreCount = leads.filter((l) => l.score_cualificacion == null).length
 
+  const inputStyle: React.CSSProperties = {
+    height: 32,
+    minHeight: 32,
+    fontSize: 13,
+    padding: '0 12px',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-md)',
+  }
+
   if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 120 }}><div className="spinner" /></div>
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={{ fontSize: 28 }}>Todos los leads <span style={{ fontSize: 16, color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>({filtrados.length})</span></h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <h1 style={{ fontSize: 28 }}>
+          Todos los leads{' '}
+          <span style={{ fontSize: 16, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontWeight: 400 }}>
+            ({filtrados.length})
+          </span>
+        </h1>
         {sinScoreCount > 0 && !batch && (
-          <button className="btn-gradient" onClick={cualificarTodos}>
-            <Sparkle size={16} weight="fill" style={{ verticalAlign: -2, marginRight: 6 }} />
-            Cualificar todos sin score ({sinScoreCount})
+          <button className="btn-secondary" onClick={cualificarTodos}>
+            <Sparkle size={16} weight="fill" />
+            Cualificar selección ({sinScoreCount})
           </button>
         )}
       </div>
@@ -143,26 +157,43 @@ export default function Leads() {
         </div>
       )}
 
-      {error && <p style={{ color: 'var(--red)', marginBottom: 16, fontSize: 14 }}>⚠️ {error}</p>}
+      {error && (
+        <p style={{ color: 'var(--color-error)', marginBottom: 16, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-error)' }} /> {error}
+        </p>
+      )}
 
-      <div className="card" style={{ padding: 16, marginBottom: 20, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Filtros */}
+      <div
+        style={{
+          background: '#fff',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex',
+          gap: 12,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
         <input
           placeholder="Buscar por nombre…"
           value={busqueda}
           onChange={(e) => { setBusqueda(e.target.value); setPagina(1) }}
-          style={{ flex: '1 1 200px' }}
+          style={{ ...inputStyle, flex: '1 1 200px' }}
         />
-        <select value={sectorFiltro} onChange={(e) => { setSectorFiltro(e.target.value); setPagina(1) }}>
+        <select value={sectorFiltro} onChange={(e) => { setSectorFiltro(e.target.value); setPagina(1) }} style={inputStyle}>
           <option value="todos">Todos los sectores</option>
           {sectores.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={orden} onChange={(e) => setOrden(e.target.value)}>
+        <select value={orden} onChange={(e) => setOrden(e.target.value)} style={inputStyle}>
           <option value="recientes">Más recientes</option>
           <option value="score">Mayor score</option>
           <option value="resenas">Más reseñas</option>
           <option value="mrr">Mayor MRR</option>
         </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--color-text-secondary)' }}>
           Score ≥ {scoreMin}
           <input
             type="range"
@@ -170,81 +201,117 @@ export default function Leads() {
             max={10}
             value={scoreMin}
             onChange={(e) => { setScoreMin(Number(e.target.value)); setPagina(1) }}
-            style={{ width: 110, accentColor: 'var(--accent-primary)', minHeight: 44 }}
+            style={{ width: 110, accentColor: 'var(--color-primary)', minHeight: 'auto' }}
           />
         </label>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {['todas', ...FASES].map((f) => (
-          <button
-            key={f}
-            onClick={() => { setFaseFiltro(f); setPagina(1) }}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 999,
-              fontSize: 13,
-              fontWeight: 500,
-              background: faseFiltro === f ? 'var(--accent-primary)' : '#fff',
-              color: faseFiltro === f ? '#fff' : 'var(--text-secondary)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            {f === 'todas' ? 'Todas' : FASE_LABELS[f]}
-          </button>
-        ))}
+      {/* Tabs de fase */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+        {['todas', ...FASES].map((f) => {
+          const activo = faseFiltro === f
+          return (
+            <button
+              key={f}
+              onClick={() => { setFaseFiltro(f); setPagina(1) }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: 13,
+                fontWeight: 500,
+                border: 'none',
+                minHeight: 'auto',
+                background: activo ? 'var(--color-primary-subtle)' : 'transparent',
+                color: activo ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
+              }}
+            >
+              {f === 'todas' ? 'Todas' : FASE_LABELS[f]}
+            </button>
+          )
+        })}
       </div>
 
-      <div className="card" style={{ overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
-              {['Score', 'Nombre', 'Sector', 'Ciudad', 'Teléfono', 'Reseñas', 'Val.', 'Fase', 'Acciones'].map((h) => (
-                <th key={h} style={{ padding: '14px 16px', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visibles.map((lead) => (
-              <tr
-                key={lead.id}
-                style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-                onClick={() => navigate(`/leads/${lead.id}`)}
-              >
-                <td style={{ padding: '12px 16px' }}><ScoreBadge score={lead.score_cualificacion} size="sm" /></td>
-                <td style={{ padding: '12px 16px', fontWeight: 600, maxWidth: 220 }}>{lead.nombre}</td>
-                <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{lead.sector}</td>
-                <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{lead.ciudad}</td>
-                <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{lead.telefono ?? '—'}</td>
-                <td style={{ padding: '12px 16px' }}>{lead.num_resenas ?? '—'}</td>
-                <td style={{ padding: '12px 16px' }}>{lead.valoracion ? `⭐${lead.valoracion}` : '—'}</td>
-                <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{FASE_LABELS[lead.fase] ?? lead.fase}</td>
-                <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button title="Ver" className="btn-ghost" style={{ padding: 8, minHeight: 36 }} onClick={() => navigate(`/leads/${lead.id}`)}>
-                      <Eye size={16} />
-                    </button>
-                    <button
-                      title="Cualificar"
-                      className="btn-ghost"
-                      style={{ padding: 8, minHeight: 36, color: 'var(--accent-primary)' }}
-                      disabled={scoringId === lead.id || !!batch}
-                      onClick={() => cualificar(lead)}
-                    >
-                      {scoringId === lead.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Sparkle size={16} />}
-                    </button>
-                    <button title="Descartar" className="btn-ghost" style={{ padding: 8, minHeight: 36, color: 'var(--red)' }} onClick={() => descartar(lead)}>
-                      <Trash size={16} />
-                    </button>
-                  </div>
-                </td>
+      {/* Tabla */}
+      <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--color-surface-2)', borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                {['Score', 'Nombre', 'Sector', 'Ciudad', 'Teléfono', 'Reseñas', 'Val.', 'Fase', 'Acciones'].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: '0 16px',
+                      height: 36,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--color-text-secondary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-            {visibles.length === 0 && (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>No hay leads con esos filtros</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visibles.map((lead) => (
+                <tr
+                  key={lead.id}
+                  style={{
+                    height: 52,
+                    borderBottom: '1px solid var(--color-border)',
+                    cursor: 'pointer',
+                    transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
+                  }}
+                  onClick={() => navigate(`/leads/${lead.id}`)}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <td style={{ padding: '0 16px' }}><ScoreBadge score={lead.score_cualificacion} size="sm" /></td>
+                  <td style={{ padding: '0 16px', fontWeight: 500, maxWidth: 220, color: 'var(--color-text-primary)' }}>{lead.nombre}</td>
+                  <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.sector}</td>
+                  <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.ciudad}</td>
+                  <td style={{ padding: '0 16px', whiteSpace: 'nowrap' }}>{lead.telefono ?? '—'}</td>
+                  <td style={{ padding: '0 16px' }}>{lead.num_resenas ?? '—'}</td>
+                  <td style={{ padding: '0 16px' }}>
+                    {lead.valoracion ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Star size={13} weight="fill" style={{ color: 'var(--color-warning)' }} /> {lead.valoracion}
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{FASE_LABELS[lead.fase] ?? lead.fase}</td>
+                  <td style={{ padding: '0 16px' }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button title="Ver detalle" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36 }} onClick={() => navigate(`/leads/${lead.id}`)}>
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        title="Cualificar"
+                        className="btn-ghost"
+                        style={{ padding: 8, minHeight: 36, minWidth: 36 }}
+                        disabled={scoringId === lead.id || !!batch}
+                        onClick={() => cualificar(lead)}
+                      >
+                        {scoringId === lead.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Lightning size={16} />}
+                      </button>
+                      <button title="Descartar" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36, color: 'var(--color-error)' }} onClick={() => descartar(lead)}>
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {visibles.length === 0 && (
+                <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-secondary)' }}>No hay leads con esos filtros</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {totalPaginas > 1 && (
@@ -252,7 +319,7 @@ export default function Leads() {
           <button className="btn-ghost" disabled={paginaActual === 1} onClick={() => setPagina(paginaActual - 1)}>
             <CaretLeft size={16} />
           </button>
-          <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+          <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
             Página {paginaActual} de {totalPaginas}
           </span>
           <button className="btn-ghost" disabled={paginaActual === totalPaginas} onClick={() => setPagina(paginaActual + 1)}>

@@ -37,10 +37,10 @@ export default function Dashboard() {
   const maxSector = sectores[0]?.[1] ?? 1
 
   const metricas = [
-    { label: 'Total leads', value: leads.length, icon: Users, color: 'var(--accent-primary)' },
-    { label: 'Leads calientes', value: calientes, icon: Fire, color: 'var(--orange)' },
-    { label: 'Demos creadas', value: demos, icon: Microphone, color: 'var(--accent-cyan)' },
-    { label: 'MRR potencial', value: `${mrrTotal.toLocaleString('es-ES')}€`, icon: CurrencyEur, color: 'var(--green)' },
+    { label: 'Total leads', value: leads.length, icon: Users, color: 'var(--color-text-secondary)' },
+    { label: 'Leads calientes', value: calientes, icon: Fire, color: 'var(--color-warning)' },
+    { label: 'Demos creadas', value: demos, icon: Microphone, color: 'var(--color-primary)' },
+    { label: 'MRR potencial', value: `${mrrTotal.toLocaleString('es-ES')}€`, icon: CurrencyEur, color: 'var(--color-success)' },
   ]
 
   if (loading) {
@@ -50,8 +50,9 @@ export default function Dashboard() {
   return (
     <div>
       <h1 style={{ fontSize: 28, marginBottom: 24 }}>Dashboard</h1>
-      {error && <p style={{ color: 'var(--red)', marginBottom: 16 }}>Error: {error}</p>}
+      {error && <p style={{ color: 'var(--color-error)', marginBottom: 16 }}>Error: {error}</p>}
 
+      {/* Métricas */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
         {metricas.map((m, i) => (
           <motion.div
@@ -59,52 +60,54 @@ export default function Dashboard() {
             className="card"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 14 }}
+            transition={{ delay: i * 0.06, duration: 0.25 }}
+            style={{ padding: 24 }}
           >
             <div
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                background: `color-mix(in srgb, ${m.color} 12%, transparent)`,
+                width: 36,
+                height: 36,
+                borderRadius: 'var(--radius-md)',
+                background: `color-mix(in srgb, ${m.color} 10%, transparent)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: m.color,
-                flexShrink: 0,
+                marginBottom: 16,
               }}
             >
-              <m.icon size={24} weight="duotone" />
+              <m.icon size={16} weight="bold" />
             </div>
-            <div>
-              <p style={{ fontSize: 24, fontWeight: 700, fontFamily: 'var(--font-display)' }}>{m.value}</p>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{m.label}</p>
-            </div>
+            <p style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--color-text-primary)', lineHeight: 1.1 }}>
+              {m.value}
+            </p>
+            <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-secondary)', marginTop: 4 }}>{m.label}</p>
           </motion.div>
         ))}
       </div>
 
-      <h2 style={{ fontSize: 18, marginBottom: 16 }}>Pipeline</h2>
+      {/* Pipeline */}
+      <h2 style={{ fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-body)', marginBottom: 16 }}>Pipeline de leads</h2>
       <KanbanBoard leads={leads} />
 
+      {/* Paneles inferiores */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginTop: 32 }}>
         <div className="card" style={{ padding: 24 }}>
           <h2 style={{ fontSize: 16, marginBottom: 18 }}>Leads por sector</h2>
-          {sectores.length === 0 && <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Sin datos todavía</p>}
+          {sectores.length === 0 && <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>Sin datos todavía</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {sectores.map(([sector, count]) => (
               <div key={sector}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                   <span style={{ fontWeight: 500 }}>{sector}</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>{count}</span>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>{count}</span>
                 </div>
-                <div style={{ height: 8, borderRadius: 999, background: 'var(--bg-surface)' }}>
+                <div style={{ height: 8, borderRadius: 999, background: 'var(--color-surface-2)' }}>
                   <div
                     style={{
                       height: '100%',
                       width: `${(count / maxSector) * 100}%`,
-                      background: 'var(--gradient-main)',
+                      background: 'var(--gradient-brand)',
                       borderRadius: 999,
                       transition: 'width 0.5s ease',
                     }}
@@ -117,15 +120,15 @@ export default function Dashboard() {
 
         <div className="card" style={{ padding: 24 }}>
           <h2 style={{ fontSize: 16, marginBottom: 18 }}>Últimas extracciones</h2>
-          {extracciones.length === 0 && <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Sin extracciones todavía</p>}
+          {extracciones.length === 0 && <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>Sin extracciones todavía</p>}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <tbody>
               {extracciones.map((e) => (
-                <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <tr key={e.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                   <td style={{ padding: '10px 0', fontWeight: 500 }}>{e.sector}</td>
-                  <td style={{ padding: '10px 0', color: 'var(--text-secondary)' }}>{e.ciudad}</td>
+                  <td style={{ padding: '10px 0', color: 'var(--color-text-secondary)' }}>{e.ciudad}</td>
                   <td style={{ padding: '10px 0', textAlign: 'right' }}>{e.total_leads} leads</td>
-                  <td style={{ padding: '10px 0', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                  <td style={{ padding: '10px 0', textAlign: 'right', color: 'var(--color-text-secondary)' }}>
                     {new Date(e.created_at).toLocaleDateString('es-ES')}
                   </td>
                 </tr>
