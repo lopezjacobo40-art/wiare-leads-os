@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree } from '@phosphor-icons/react'
+import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
 import ScoreBadge from '../components/ScoreBadge'
 import LoadingBar from '../components/LoadingBar'
+import EmptyState from '../components/EmptyState'
+import PageHeader from '../components/PageHeader'
+import PageTransition from '../components/PageTransition'
+import ExportSheet from '../components/ExportSheet'
+import { useToast } from '../components/Toast'
 
 const PAGE_SIZE = 25
 
 export default function Leads() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -62,6 +68,15 @@ export default function Leads() {
   const paginaActual = Math.min(pagina, totalPaginas)
   const visibles = filtrados.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE)
 
+  const hayFiltros = busqueda !== '' || sectorFiltro !== 'todos' || faseFiltro !== 'todas' || scoreMin > 0
+  const limpiarFiltros = () => {
+    setBusqueda('')
+    setSectorFiltro('todos')
+    setFaseFiltro('todas')
+    setScoreMin(0)
+    setPagina(1)
+  }
+
   const cualificar = async (lead: Lead) => {
     setScoringId(lead.id)
     setError('')
@@ -79,8 +94,9 @@ export default function Leads() {
         .eq('id', lead.id)
       if (err) throw err
       await cargar()
+      toast(`${lead.nombre} cualificado`, 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cualificar')
+      toast(err instanceof Error ? err.message : 'Error al cualificar', 'error')
     } finally {
       setScoringId(null)
     }
@@ -129,18 +145,24 @@ export default function Leads() {
       )
     } catch (err) {
       // p.ej. límite diario alcanzado
-      setError(err instanceof Error ? err.message : 'Error en el batch')
+      const msg = err instanceof Error ? err.message : 'Error en el batch'
+      setError(msg)
+      toast(msg, 'error')
     }
 
     setBatch(null)
     await cargar()
+    toast(`${sinScore.length} leads cualificados`, 'success')
   }
 
   const descartar = async (lead: Lead) => {
     if (!confirm(`¿Descartar "${lead.nombre}"? Se eliminará de la lista.`)) return
     const { error: err } = await supabase.from('leads_os').delete().eq('id', lead.id)
-    if (err) setError(err.message)
-    else await cargar()
+    if (err) toast(err.message, 'error')
+    else {
+      await cargar()
+      toast(`${lead.nombre} descartado`, 'info')
+    }
   }
 
   const sinScoreCount = leads.filter((l) => l.score_cualificacion == null).length
@@ -159,21 +181,22 @@ export default function Leads() {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={{ fontSize: 28 }}>
-          Todos los leads{' '}
-          <span style={{ fontSize: 16, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontWeight: 400 }}>
-            ({filtrados.length})
-          </span>
-        </h1>
-        {sinScoreCount > 0 && !batch && (
-          <button className="btn-secondary" onClick={cualificarTodos}>
-            <Sparkle size={16} weight="fill" />
-            Cualificar selección ({sinScoreCount})
-          </button>
-        )}
-      </div>
+    <PageTransition>
+      <PageHeader
+        titulo="Todos los leads"
+        subtitulo={`${filtrados.length} ${filtrados.length === 1 ? 'lead' : 'leads'} en el pipeline`}
+        acciones={
+          <>
+            <ExportSheet leads={filtrados} />
+            {sinScoreCount > 0 && !batch && (
+              <button className="btn-secondary" onClick={cualificarTodos}>
+                <Sparkle size={16} weight="fill" />
+                Cualificar selección ({sinScoreCount})
+              </button>
+            )}
+          </>
+        }
+      />
 
       {batch && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
@@ -344,7 +367,23 @@ export default function Leads() {
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <td style={{ padding: '0 16px' }}><ScoreBadge score={lead.score_cualificacion} size="sm" /></td>
+                  <td style={{ padding: '0 16px' }}>
+                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <ScoreBadge score={lead.score_cualificacion} size="sm" />
+                      {lead.score_cualificacion != null && (
+                        <div style={{ width: 44, height: 3, borderRadius: 'var(--radius-full)', background: 'var(--color-surface-2)', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${lead.score_cualificacion * 10}%`,
+                              height: '100%',
+                              borderRadius: 'var(--radius-full)',
+                              background: 'var(--gradient-brand)',
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td style={{ padding: '0 16px', fontWeight: 500, maxWidth: 220, color: 'var(--color-text-primary)' }}>{lead.nombre}</td>
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.sector}</td>
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.ciudad}</td>
@@ -393,7 +432,27 @@ export default function Leads() {
                 </tr>
               ))}
               {visibles.length === 0 && (
-                <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-secondary)' }}>No hay leads con esos filtros</td></tr>
+                <tr>
+                  <td colSpan={9} style={{ padding: 0 }}>
+                    {hayFiltros ? (
+                      <EmptyState
+                        icon={MagnifyingGlass}
+                        titulo="No hay leads con estos filtros"
+                        descripcion="Prueba a ampliar la búsqueda o limpia los filtros activos."
+                        accion={{ label: 'Limpiar filtros', onClick: limpiarFiltros }}
+                        compacto
+                      />
+                    ) : (
+                      <EmptyState
+                        icon={Users}
+                        titulo="Aún no hay leads"
+                        descripcion="Extrae negocios locales de Google Maps para empezar."
+                        accion={{ label: 'Extraer leads →', onClick: () => navigate('/extraer') }}
+                        compacto
+                      />
+                    )}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
@@ -413,6 +472,6 @@ export default function Leads() {
           </button>
         </div>
       )}
-    </div>
+    </PageTransition>
   )
 }

@@ -17,6 +17,7 @@ import { MapPin } from '@phosphor-icons/react'
 import { supabase, type Lead } from '../lib/supabaseClient'
 import { FASES, FASE_LABELS } from '../lib/supabaseClient'
 import ScoreBadge from './ScoreBadge'
+import { useToast } from './Toast'
 
 const FASE_COLOR: Record<string, string> = {
   nuevo: '#A1A1AA',
@@ -193,10 +194,12 @@ function Column({
               padding: 16,
               textAlign: 'center',
               fontSize: 12,
+              fontWeight: 400,
+              fontFamily: 'var(--font-body)',
               color: 'var(--color-text-tertiary)',
             }}
           >
-            Vacío
+            Sin leads en esta fase
           </div>
         )}
       </div>
@@ -206,9 +209,9 @@ function Column({
 
 export default function KanbanBoard({ leads: leadsProp }: { leads: Lead[] }) {
   const navigate = useNavigate()
+  const toast = useToast()
   const [leads, setLeads] = useState<Lead[]>(leadsProp)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => setLeads(leadsProp), [leadsProp])
 
@@ -245,11 +248,10 @@ export default function KanbanBoard({ leads: leadsProp }: { leads: Lead[] }) {
     if (error) {
       // Revertir si falla
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, fase: lead.fase } : l)))
-      setToast('Error al mover el lead')
+      toast('Error al mover el lead', 'error')
     } else {
-      setToast(`Movido a ${FASE_LABELS[destinoFase] ?? destinoFase}`)
+      toast(`Movido a ${FASE_LABELS[destinoFase] ?? destinoFase}`, 'success')
     }
-    setTimeout(() => setToast(null), 3000)
   }
 
   return (
@@ -276,29 +278,6 @@ export default function KanbanBoard({ leads: leadsProp }: { leads: Lead[] }) {
           {activeLead ? <LeadCardGhost lead={activeLead} /> : null}
         </DragOverlay>
       </DndContext>
-
-      {/* Toast */}
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 24,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'var(--color-text-primary)',
-            color: '#fff',
-            padding: '10px 20px',
-            borderRadius: 'var(--radius-full)',
-            fontSize: 13,
-            fontWeight: 500,
-            boxShadow: 'var(--shadow-lg)',
-            zIndex: 100,
-            animation: 'toast-in 250ms cubic-bezier(0.34,1.56,0.64,1)',
-          }}
-        >
-          {toast}
-        </div>
-      )}
     </>
   )
 }

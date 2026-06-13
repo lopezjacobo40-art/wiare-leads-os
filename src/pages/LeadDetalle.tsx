@@ -1,15 +1,62 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Microphone, FileText, CurrencyEur, Note,
   Phone, Globe, MapPin, Star, Clock,
   Waveform, Broadcast, ArrowClockwise, CheckCircle, PencilSimple,
 } from '@phosphor-icons/react'
-import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
+import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { generarSystemPrompt, generarPropuesta } from '../lib/claudeApi'
 import { crearAgentDemo } from '../lib/retellApi'
 import ScoreBadge from '../components/ScoreBadge'
 import PropuestaViewer from '../components/PropuestaViewer'
+import FaseSelector from '../components/FaseSelector'
+import PageTransition from '../components/PageTransition'
+import { useToast } from '../components/Toast'
+
+// Fila de dato del negocio (4D): icono semántico + label uppercase + valor, separadas por border-bottom.
+function DatoFila({
+  icon: Icon,
+  color,
+  label,
+  children,
+}: {
+  icon: typeof Phone
+  color: string
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        padding: '10px 0',
+        borderBottom: '1px solid var(--color-border)',
+      }}
+    >
+      <Icon size={14} weight="fill" style={{ color, flexShrink: 0, marginTop: 3 }} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: 'var(--color-text-tertiary)',
+            marginBottom: 2,
+          }}
+        >
+          {label}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 400, color: 'var(--color-text-primary)', lineHeight: 1.4, wordBreak: 'break-word' }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 type Tab = 'demo' | 'propuesta' | 'costes' | 'notas'
 
@@ -45,6 +92,7 @@ const promptTextareaStyle: React.CSSProperties = {
 export default function LeadDetalle() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const toast = useToast()
   const [lead, setLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('demo')
@@ -85,8 +133,14 @@ export default function LeadDetalle() {
   const actualizar = async (campos: Partial<Lead>) => {
     if (!lead) return
     const { error: err } = await supabase.from('leads_os').update(campos).eq('id', lead.id)
-    if (err) { setError(err.message); return }
+    if (err) { setError(err.message); toast(err.message, 'error'); return }
     setLead({ ...lead, ...campos })
+  }
+
+  const cambiarFase = async (fase: string) => {
+    if (!lead || fase === lead.fase) return
+    await actualizar({ fase })
+    toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
   }
 
   if (loading) {
@@ -120,8 +174,11 @@ export default function LeadDetalle() {
         system_prompt_sofia: promptDraft,
         fase: ['nuevo', 'cualificado'].includes(lead.fase) ? 'demo_creada' : lead.fase,
       })
+      toast('Demo desplegada en Retell', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desplegando en Retell')
+      const msg = err instanceof Error ? err.message : 'Error desplegando en Retell'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setDesplegando(false)
     }
@@ -134,8 +191,11 @@ export default function LeadDetalle() {
       const md = await generarPropuesta(lead)
       await actualizar({ propuesta_md: md })
       setPropuestaDraft(md)
+      toast('Propuesta generada', 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error generando propuesta')
+      const msg = err instanceof Error ? err.message : 'Error generando propuesta'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setGenerandoPropuesta(false)
     }
@@ -150,11 +210,8 @@ export default function LeadDetalle() {
   const mrr = lead.mrr_estimado ?? 190
   const margen = mrr - costes.total
 
-  const datoStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, lineHeight: 1.5 }
-  const iconStyle = { color: 'var(--color-text-secondary)', flexShrink: 0, marginTop: 2 }
-
   return (
-    <div>
+    <PageTransition>
       {/* Header */}
       <div className="no-print" style={{ marginBottom: 28 }}>
         <button
@@ -167,14 +224,7 @@ export default function LeadDetalle() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <h1 style={{ fontSize: 24, fontWeight: 700 }}>{lead.nombre}</h1>
           <ScoreBadge score={lead.score_cualificacion} />
-          <select
-            value={lead.fase}
-            onChange={(e) => actualizar({ fase: e.target.value })}
-            className="btn-secondary"
-            style={{ minHeight: 36, padding: '0 12px', fontWeight: 500, cursor: 'pointer' }}
-          >
-            {FASES.map((f) => <option key={f} value={f}>{FASE_LABELS[f]}</option>)}
-          </select>
+          <FaseSelector fase={lead.fase} onChange={cambiarFase} />
         </div>
       </div>
 
@@ -186,47 +236,56 @@ export default function LeadDetalle() {
 
       <div className="detalle-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: 24, alignItems: 'start' }}>
         {/* Columna izquierda — datos */}
-        <div className="card no-print" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <h2 style={{ fontSize: 15, marginBottom: 4 }}>Datos del negocio</h2>
-          {lead.direccion && <div style={datoStyle}><MapPin size={17} style={iconStyle} /> {lead.direccion}</div>}
+        <div className="card no-print" style={{ padding: 24 }}>
+          <h2 style={{ fontSize: 15, marginBottom: 8 }}>Datos del negocio</h2>
+          {lead.direccion && (
+            <DatoFila icon={MapPin} color="var(--color-primary)" label="Dirección">{lead.direccion}</DatoFila>
+          )}
           {lead.telefono && (
-            <div style={datoStyle}><Phone size={17} style={iconStyle} /> <a href={`tel:${lead.telefono.replace(/\s/g, '')}`}>{lead.telefono}</a></div>
+            <DatoFila icon={Phone} color="var(--color-success)" label="Teléfono">
+              <a href={`tel:${lead.telefono.replace(/\s/g, '')}`}>{lead.telefono}</a>
+            </DatoFila>
           )}
           {lead.web && (
-            <div style={datoStyle}><Globe size={17} style={iconStyle} /> <a href={lead.web} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all' }}>{lead.web}</a></div>
+            <DatoFila icon={Globe} color="var(--color-cyan)" label="Web">
+              <a href={lead.web} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all' }}>{lead.web}</a>
+            </DatoFila>
           )}
           {lead.google_maps_url && (
-            <div style={datoStyle}><MapPin size={17} style={iconStyle} /> <a href={lead.google_maps_url} target="_blank" rel="noreferrer">Ver en Google Maps</a></div>
+            <DatoFila icon={MapPin} color="var(--color-error)" label="Ubicación">
+              <a href={lead.google_maps_url} target="_blank" rel="noreferrer">Ver en Google Maps</a>
+            </DatoFila>
           )}
-          <div style={datoStyle}>
-            <Star size={17} weight="fill" style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: 2 }} />
-            <span>{lead.valoracion ?? '—'} · {lead.num_resenas ?? 0} reseñas</span>
-          </div>
+          <DatoFila icon={Star} color="var(--color-warning)" label="Reputación">
+            {lead.valoracion ?? '—'} · {lead.num_resenas ?? 0} reseñas
+          </DatoFila>
           {lead.horario && lead.horario.length > 0 && (
-            <div style={datoStyle}>
-              <Clock size={17} style={iconStyle} />
+            <DatoFila icon={Clock} color="var(--color-text-secondary)" label="Horario">
               <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
                 {lead.horario.map((h, i) => <div key={i}>{h}</div>)}
               </div>
-            </div>
+            </DatoFila>
+          )}
+          <DatoFila icon={CurrencyEur} color="var(--color-success)" label="MRR estimado">
+            <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+              {lead.mrr_estimado != null ? `${lead.mrr_estimado}€/mes` : 'Sin cualificar'}
+            </span>
+          </DatoFila>
+          {lead.motivo_score && (
+            <DatoFila icon={Note} color="var(--color-primary)" label="Motivo score">
+              <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{lead.motivo_score}</span>
+            </DatoFila>
+          )}
+          {lead.volumen_llamadas && (
+            <DatoFila icon={Phone} color="var(--color-text-secondary)" label="Volumen llamadas">
+              <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{lead.volumen_llamadas}</span>
+            </DatoFila>
           )}
           {lead.descripcion && (
-            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', paddingTop: 12, lineHeight: 1.5 }}>
               {lead.descripcion}
             </p>
           )}
-          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <p style={{ fontSize: 13 }}>
-              <strong>MRR estimado:</strong>{' '}
-              <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>{lead.mrr_estimado != null ? `${lead.mrr_estimado}€/mes` : 'Sin cualificar'}</span>
-            </p>
-            {lead.motivo_score && (
-              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}><strong>Motivo score:</strong> {lead.motivo_score}</p>
-            )}
-            {lead.volumen_llamadas && (
-              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}><strong>Volumen llamadas:</strong> {lead.volumen_llamadas}</p>
-            )}
-          </div>
         </div>
 
         {/* Columna derecha — tabs */}
@@ -448,6 +507,6 @@ export default function LeadDetalle() {
           </div>
         </div>
       </div>
-    </div>
+    </PageTransition>
   )
 }

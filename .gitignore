@@ -24,3 +24,11 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Google OAuth2 credentials (Sheets export)
+credentials.json
+token.json
+
+# Claude Code skills (artefactos del entorno, no del proyecto)
+.agents/
+skills-lock.json

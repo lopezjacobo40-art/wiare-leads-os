@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { DownloadSimple, CheckSquare } from '@phosphor-icons/react'
+import { DownloadSimple, CheckSquare, CheckCircle } from '@phosphor-icons/react'
 
 interface Props {
   markdown: string
@@ -98,9 +99,39 @@ const ESTILOS = `
 }
 `
 
+type EstadoPDF = 'idle' | 'downloading' | 'done'
+
 export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnviada }: Props) {
   const secciones = splitSecciones(markdown)
   const fecha = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+  const [pdfEstado, setPdfEstado] = useState<EstadoPDF>('idle')
+
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById('propuesta-contenido')
+    if (!element) return
+    setPdfEstado('downloading')
+
+    // El .d.ts oficial de html2pdf.js no incluye `pagebreak` (sí soportado en runtime),
+    // por eso tipamos las opciones de forma laxa.
+    const opciones = {
+      margin: [10, 10, 10, 10] as [number, number, number, number],
+      filename: `Propuesta-WIARE-${nombreNegocio.replace(/\s+/g, '-')}.pdf`,
+      image: { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+      pagebreak: { mode: 'avoid-all' },
+    }
+
+    try {
+      // Carga html2pdf.js bajo demanda (code-splitting): mantiene el bundle inicial ligero.
+      const { default: html2pdf } = await import('html2pdf.js')
+      await html2pdf().set(opciones).from(element).save()
+      setPdfEstado('done')
+      setTimeout(() => setPdfEstado('idle'), 2500)
+    } catch {
+      setPdfEstado('idle')
+    }
+  }
 
   return (
     <div>
@@ -108,8 +139,20 @@ export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnvia
 
       {/* ── ZONA A: Controles ── */}
       <div className="no-print" style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        <button className="btn-secondary" onClick={() => window.print()}>
-          <DownloadSimple size={16} /> Descargar PDF
+        <button className="btn-secondary" onClick={handleDownloadPDF} disabled={pdfEstado === 'downloading'}>
+          {pdfEstado === 'downloading' ? (
+            <>
+              <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> Generando PDF…
+            </>
+          ) : pdfEstado === 'done' ? (
+            <>
+              <CheckCircle size={16} weight="fill" style={{ color: 'var(--color-success)' }} /> PDF descargado
+            </>
+          ) : (
+            <>
+              <DownloadSimple size={16} /> Descargar PDF
+            </>
+          )}
         </button>
         {onMarcarEnviada && (
           <button className="btn-secondary" onClick={onMarcarEnviada}>
@@ -119,7 +162,7 @@ export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnvia
       </div>
 
       {/* ── ZONA B: Documento ── */}
-      <div className="propuesta-doc">
+      <div className="propuesta-doc" id="propuesta-contenido">
         <header className="propuesta-header">
           <div className="propuesta-header-top">
             <img

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { ChartBar, MagnifyingGlass, Users, SignOut, Warning } from '@phosphor-icons/react'
 import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
+import { supabase } from '../lib/supabaseClient'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: ChartBar, end: true },
@@ -15,6 +16,18 @@ interface SidebarProps {
   onClose?: () => void
 }
 
+// "hace X" en español, a partir de una fecha ISO.
+function tiempoRelativo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'hace un momento'
+  if (min < 60) return `hace ${min} min`
+  const horas = Math.floor(min / 60)
+  if (horas < 24) return `hace ${horas} ${horas === 1 ? 'hora' : 'horas'}`
+  const dias = Math.floor(horas / 24)
+  return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`
+}
+
 export default function Sidebar({ onLogout, open = false, onClose }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -22,8 +35,23 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
   const inicial = user.charAt(0).toUpperCase() || 'W'
 
   const [uso, setUso] = useState<UsoHoy | null>(null)
+  const [totalLeads, setTotalLeads] = useState<number | null>(null)
+  const [ultimaExtraccion, setUltimaExtraccion] = useState<string | null>(null)
+
   useEffect(() => {
     getUsoHoy().then(setUso).catch(() => {})
+    // Total de leads (solo el count, sin traer filas)
+    supabase
+      .from('leads_os')
+      .select('*', { count: 'exact', head: true })
+      .then(({ count }) => setTotalLeads(count ?? 0))
+    // Última extracción
+    supabase
+      .from('extracciones_os')
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => setUltimaExtraccion(data?.[0]?.created_at ?? null))
   }, [location.pathname])
 
   const logout = () => {
@@ -74,38 +102,63 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
 
       {/* Navegación */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-        {NAV.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '8px 12px',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              minHeight: 36,
-              color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-              background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
-              textDecoration: 'none',
-              transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
-            })}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon
-                  size={16}
-                  weight={isActive ? 'fill' : 'regular'}
-                  style={{ flexShrink: 0 }}
-                />
-                {label}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {NAV.map(({ to, label, icon: Icon, end }) => {
+          const badge = to === '/leads' && totalLeads != null ? totalLeads : null
+          const subtexto =
+            to === '/extraer' && ultimaExtraccion ? tiempoRelativo(ultimaExtraccion) : null
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              style={({ isActive }) => ({
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                minHeight: 36,
+                color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
+                textDecoration: 'none',
+                transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
+              })}
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon size={16} weight={isActive ? 'fill' : 'regular'} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
+                    {label}
+                    {subtexto && (
+                      <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>
+                        {subtexto}
+                      </span>
+                    )}
+                  </span>
+                  {badge != null && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        minWidth: 20,
+                        textAlign: 'center',
+                        padding: '1px 6px',
+                        borderRadius: 'var(--radius-full)',
+                        background: isActive ? 'var(--color-primary)' : 'var(--color-surface-2)',
+                        color: isActive ? '#fff' : 'var(--color-text-secondary)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {badge}
+                    </span>
+                  )}
+                </>
+              )}
+            </NavLink>
+          )
+        })}
       </nav>
 
       {/* Footer — usuario + logout */}

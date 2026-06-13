@@ -1,10 +1,43 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Users, Fire, Microphone, CurrencyEur } from '@phosphor-icons/react'
 import { supabase, type Lead, type Extraccion } from '../lib/supabaseClient'
 import KanbanBoard from '../components/KanbanBoard'
+import EmptyState from '../components/EmptyState'
+import PageHeader from '../components/PageHeader'
+import PageTransition from '../components/PageTransition'
+
+// Mini spark-line decorativa (5 barras, alturas placeholder que simulan tendencia semanal).
+function Sparkline({ alturas }: { alturas: number[] }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 22 }}>
+      {alturas.map((h, i) => (
+        <span
+          key={i}
+          style={{
+            width: 4,
+            height: `${h}%`,
+            borderRadius: 2,
+            background: 'var(--color-primary)',
+            opacity: 0.3,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+// Patrones de tendencia (solo visual) por tarjeta.
+const SPARK_PATTERNS: number[][] = [
+  [40, 55, 45, 70, 90],
+  [30, 50, 40, 65, 85],
+  [50, 45, 60, 55, 80],
+  [35, 60, 50, 75, 95],
+]
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [leads, setLeads] = useState<Lead[]>([])
   const [extracciones, setExtracciones] = useState<Extraccion[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,9 +80,25 @@ export default function Dashboard() {
     return <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 120 }}><div className="spinner" /></div>
   }
 
+  if (!error && leads.length === 0) {
+    return (
+      <PageTransition>
+        <PageHeader titulo="Dashboard" subtitulo="Resumen del pipeline de leads" />
+        <div className="card" style={{ padding: 0 }}>
+          <EmptyState
+            icon={Users}
+            titulo="Aún no hay leads extraídos"
+            descripcion="Extrae tus primeros negocios locales de Google Maps para empezar a construir el pipeline."
+            accion={{ label: 'Extraer primeros leads →', onClick: () => navigate('/extraer') }}
+          />
+        </div>
+      </PageTransition>
+    )
+  }
+
   return (
-    <div>
-      <h1 style={{ fontSize: 28, marginBottom: 24 }}>Dashboard</h1>
+    <PageTransition>
+      <PageHeader titulo="Dashboard" subtitulo="Resumen del pipeline de leads" />
       {error && <p style={{ color: 'var(--color-error)', marginBottom: 16 }}>Error: {error}</p>}
 
       {/* Métricas */}
@@ -63,20 +112,22 @@ export default function Dashboard() {
             transition={{ delay: i * 0.06, duration: 0.25 }}
             style={{ padding: 24 }}
           >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 'var(--radius-md)',
-                background: `color-mix(in srgb, ${m.color} 10%, transparent)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: m.color,
-                marginBottom: 16,
-              }}
-            >
-              <m.icon size={16} weight="bold" />
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 'var(--radius-md)',
+                  background: `color-mix(in srgb, ${m.color} 10%, transparent)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: m.color,
+                }}
+              >
+                <m.icon size={16} weight="bold" />
+              </div>
+              <Sparkline alturas={SPARK_PATTERNS[i] ?? SPARK_PATTERNS[0]} />
             </div>
             <p style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--color-text-primary)', lineHeight: 1.1 }}>
               {m.value}
@@ -137,6 +188,6 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
-    </div>
+    </PageTransition>
   )
 }
