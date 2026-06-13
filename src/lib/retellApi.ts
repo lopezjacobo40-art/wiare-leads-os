@@ -2,8 +2,19 @@ import type { Lead } from './supabaseClient'
 
 const KEY = import.meta.env.VITE_RETELL_API_KEY
 
-// Orden de preferencia de voces españolas naturales (Azure Neural vía Retell)
-const VOICE_FALLBACKS = ['es-ES-ElviraNeural', 'es-ES-AlvaroNeural', 'es-ES-IsidoraNeural']
+// Orden de preferencia de voces españolas naturales
+const VOICE_FALLBACKS = ['es-ES-XimenaNeural', 'es-ES-ElviraNeural', 'es-ES-AlvaroNeural', 'es-ES-IsidoraNeural']
+
+// Diagnóstico: lista las voces disponibles en la cuenta de Retell.
+// Retell NO usa los nombres de Azure directamente — tiene sus propios voice_id.
+export async function listarVoces(): Promise<unknown> {
+  const response = await fetch('https://api.retellai.com/list-voices', {
+    headers: {
+      Authorization: `Bearer ${import.meta.env.VITE_RETELL_API_KEY}`,
+    },
+  })
+  return response.json()
+}
 
 export async function crearAgentDemo(lead: Lead, systemPrompt: string): Promise<string> {
   // 1. Crear el LLM de Retell con el prompt

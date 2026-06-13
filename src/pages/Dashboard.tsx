@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Users, Fire, Microphone, CurrencyEur } from '@phosphor-icons/react'
 import { supabase, type Lead, type Extraccion } from '../lib/supabaseClient'
+import { listarVoces } from '../lib/retellApi'
 import KanbanBoard from '../components/KanbanBoard'
 
 export default function Dashboard() {
@@ -47,9 +48,22 @@ export default function Dashboard() {
     return <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 120 }}><div className="spinner" /></div>
   }
 
+  // Diagnóstico temporal — quitar tras identificar los voice_id válidos
+  const verVoces = async () => {
+    try {
+      const voces = await listarVoces()
+      console.log('Voces disponibles en Retell:', voces)
+    } catch (err) {
+      console.error('Error listando voces de Retell:', err)
+    }
+  }
+
   return (
     <div>
-      <h1 style={{ fontSize: 28, marginBottom: 24 }}>Dashboard</h1>
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: 28 }}>Dashboard</h1>
+        <button className="btn-secondary" onClick={verVoces}>Ver voces disponibles</button>
+      </div>
       {error && <p style={{ color: 'var(--color-error)', marginBottom: 16 }}>Error: {error}</p>}
 
       {/* Métricas */}
