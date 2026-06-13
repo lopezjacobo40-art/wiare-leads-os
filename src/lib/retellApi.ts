@@ -2,8 +2,8 @@ import type { Lead } from './supabaseClient'
 
 const KEY = import.meta.env.VITE_RETELL_API_KEY
 
-// Orden de preferencia de voces españolas naturales
-const VOICE_FALLBACKS = ['es-ES-XimenaNeural', 'es-ES-ElviraNeural', 'es-ES-AlvaroNeural', 'es-ES-IsidoraNeural']
+// Voz española de la cuenta de Retell
+const VOICE_FALLBACKS = ['custom-Carolina']
 
 // Diagnóstico: lista las voces disponibles en la cuenta de Retell.
 // Retell NO usa los nombres de Azure directamente — tiene sus propios voice_id.
