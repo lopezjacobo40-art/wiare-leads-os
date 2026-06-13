@@ -5,17 +5,6 @@ const KEY = import.meta.env.VITE_RETELL_API_KEY
 // Voz española de la cuenta de Retell
 const VOICE_FALLBACKS = ['custom-Carolina']
 
-// Diagnóstico: lista las voces disponibles en la cuenta de Retell.
-// Retell NO usa los nombres de Azure directamente — tiene sus propios voice_id.
-export async function listarVoces(): Promise<unknown> {
-  const response = await fetch('https://api.retellai.com/list-voices', {
-    headers: {
-      Authorization: `Bearer ${import.meta.env.VITE_RETELL_API_KEY}`,
-    },
-  })
-  return response.json()
-}
-
 export async function crearAgentDemo(lead: Lead, systemPrompt: string): Promise<string> {
   // 1. Crear el LLM de Retell con el prompt
   const llmRes = await fetch('https://api.retellai.com/create-retell-llm', {
