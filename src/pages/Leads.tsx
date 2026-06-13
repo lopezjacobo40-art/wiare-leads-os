@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
+import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
 import ScoreBadge from '../components/ScoreBadge'
 import LoadingBar from '../components/LoadingBar'
 
 const PAGE_SIZE = 25
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export default function Leads() {
   const navigate = useNavigate()
@@ -25,6 +25,7 @@ export default function Leads() {
   const [scoringId, setScoringId] = useState<string | null>(null)
   const [batch, setBatch] = useState<{ actual: number; total: number } | null>(null)
   const [menuFilaId, setMenuFilaId] = useState<string | null>(null) // acciones extra abiertas en móvil
+  const [confirmBatch, setConfirmBatch] = useState<number | null>(null) // nº de leads pendientes de confirmar
 
   const cargar = async () => {
     const { data, error: err } = await supabase
@@ -85,30 +86,52 @@ export default function Leads() {
     }
   }
 
-  const cualificarTodos = async () => {
+  // Abre confirmación si el batch es grande; si no, ejecuta directamente
+  const cualificarTodos = () => {
+    const sinScore = leads.filter((l) => l.score_cualificacion == null)
+    if (sinScore.length === 0) return
+    if (sinScore.length > BATCH_CONFIRM_THRESHOLD) {
+      setConfirmBatch(sinScore.length)
+    } else {
+      ejecutarBatch()
+    }
+  }
+
+  const ejecutarBatch = async () => {
+    setConfirmBatch(null)
     const sinScore = leads.filter((l) => l.score_cualificacion == null)
     if (sinScore.length === 0) return
     setBatch({ actual: 0, total: sinScore.length })
     setError('')
-    for (let i = 0; i < sinScore.length; i++) {
-      setBatch({ actual: i + 1, total: sinScore.length })
-      try {
-        const r = await scoreLead(sinScore[i])
-        await supabase
-          .from('leads_os')
-          .update({
-            score_cualificacion: r.score,
-            motivo_score: r.motivo,
-            volumen_llamadas: r.volumen,
-            mrr_estimado: r.mrr,
-            fase: sinScore[i].fase === 'nuevo' ? 'cualificado' : sinScore[i].fase,
-          })
-          .eq('id', sinScore[i].id)
-      } catch {
-        // continúa con el siguiente lead
-      }
-      await delay(500)
+
+    try {
+      // Máx 5 llamadas en paralelo, 500ms entre grupos (rate limit)
+      await processBatch(
+        sinScore,
+        async (lead) => {
+          try {
+            const r = await scoreLead(lead)
+            await supabase
+              .from('leads_os')
+              .update({
+                score_cualificacion: r.score,
+                motivo_score: r.motivo,
+                volumen_llamadas: r.volumen,
+                mrr_estimado: r.mrr,
+                fase: lead.fase === 'nuevo' ? 'cualificado' : lead.fase,
+              })
+              .eq('id', lead.id)
+          } catch {
+            // continúa con el siguiente lead
+          }
+        },
+        (done, total) => setBatch({ actual: done, total })
+      )
+    } catch (err) {
+      // p.ej. límite diario alcanzado
+      setError(err instanceof Error ? err.message : 'Error en el batch')
     }
+
     setBatch(null)
     await cargar()
   }
@@ -155,6 +178,44 @@ export default function Leads() {
       {batch && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
           <LoadingBar progress={(batch.actual / batch.total) * 100} label={`Cualificando lead ${batch.actual} de ${batch.total}…`} />
+        </div>
+      )}
+
+      {/* Modal de confirmación para batches grandes */}
+      {confirmBatch != null && (
+        <div
+          onClick={() => setConfirmBatch(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+            padding: 24,
+            animation: 'fade-in 150ms cubic-bezier(0.4,0,0.2,1)',
+          }}
+        >
+          <div
+            className="card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ padding: 28, maxWidth: 380, width: '100%' }}
+          >
+            <h2 style={{ fontSize: 18, marginBottom: 12 }}>Cualificar {confirmBatch} leads</h2>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 6 }}>
+              Vas a cualificar <strong style={{ color: 'var(--color-text-primary)' }}>{confirmBatch} leads</strong> con Claude.
+            </p>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 24 }}>
+              Coste estimado: <strong style={{ color: 'var(--color-text-primary)' }}>
+                ~{estimarCoste('score', confirmBatch).toFixed(2)}€
+              </strong>
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => setConfirmBatch(null)}>Cancelar</button>
+              <button className="btn-primary" onClick={ejecutarBatch}>Confirmar y cualificar</button>
+            </div>
+          </div>
         </div>
       )}
 

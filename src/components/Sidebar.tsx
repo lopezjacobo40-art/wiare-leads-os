@@ -1,5 +1,7 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { ChartBar, MagnifyingGlass, Users, SignOut } from '@phosphor-icons/react'
+import { useEffect, useState } from 'react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { ChartBar, MagnifyingGlass, Users, SignOut, Warning } from '@phosphor-icons/react'
+import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: ChartBar, end: true },
@@ -15,8 +17,14 @@ interface SidebarProps {
 
 export default function Sidebar({ onLogout, open = false, onClose }: SidebarProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const user = sessionStorage.getItem('wiare_user') ?? ''
   const inicial = user.charAt(0).toUpperCase() || 'W'
+
+  const [uso, setUso] = useState<UsoHoy | null>(null)
+  useEffect(() => {
+    getUsoHoy().then(setUso).catch(() => {})
+  }, [location.pathname])
 
   const logout = () => {
     sessionStorage.removeItem('wiare_user')
@@ -134,6 +142,37 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
             {user || 'WIARE'}
           </span>
         </div>
+
+        {uso && (() => {
+          const ratio = Math.max(
+            uso.limiteScore ? uso.score / uso.limiteScore : 0,
+            uso.limiteContent ? uso.content / uso.limiteContent : 0
+          )
+          const alLimite = ratio >= 1
+          const cerca = ratio >= 0.8
+          const color = alLimite
+            ? 'var(--color-error)'
+            : cerca
+            ? 'var(--color-warning)'
+            : 'var(--color-text-tertiary)'
+          return (
+            <p
+              style={{
+                fontSize: 11,
+                fontWeight: 400,
+                color,
+                padding: '0 12px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              {alLimite && <Warning size={12} weight="fill" />}
+              Hoy: {uso.score} scores · {uso.content} contenidos
+            </p>
+          )
+        })()}
+
         <button
           onClick={logout}
           className="btn-ghost"

@@ -1,4 +1,5 @@
 import type { Lead } from './supabaseClient'
+import { guardedCall } from './tokenGuard'
 
 const API_URL = 'https://api.anthropic.com/v1/messages'
 const KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -45,7 +46,7 @@ Criterios: +3 si >100 reseñas, +2 sin web, +2 si val>4,
 Responde SOLO JSON sin markdown:
 {"score":0-10, "motivo":"1 frase", "volumen":"bajo/medio/alto/muy_alto", "mrr":90-390}`
 
-  const text = await callClaude('claude-haiku-4-5', 300, prompt)
+  const text = await guardedCall('score', () => callClaude('claude-haiku-4-5', 300, prompt))
   const json = text.replace(/```json|```/g, '').trim()
   const parsed = JSON.parse(json)
   return {
@@ -85,7 +86,7 @@ Requisitos:
 6. Si no puede resolver: recoge datos y promete llamada
 Genera SOLO el system prompt.`
 
-  return callClaude('claude-sonnet-4-6', 1500, prompt)
+  return guardedCall('content', () => callClaude('claude-sonnet-4-6', 1500, prompt))
 }
 
 export async function generarPropuesta(lead: Lead): Promise<string> {
@@ -114,5 +115,5 @@ Setup: 790€ | Mantenimiento: ${mrr}€/mes
 [CTA directo]
 Tono: directo, números reales, sin florituras.`
 
-  return callClaude('claude-sonnet-4-6', 2000, prompt)
+  return guardedCall('content', () => callClaude('claude-sonnet-4-6', 2000, prompt))
 }
