@@ -96,7 +96,6 @@ Reseñas: ${lead.num_resenas ?? 0}, Valoración: ${lead.valoracion ?? 'N/D'}
 MRR recomendado: ${mrr}€/mes
 Precio WIARE: 790€ setup + ${mrr}€/mes
 Sin permanencia. Activación 7 días.
-Logo disponible en: /logo-wiare.png
 
 Estructura OBLIGATORIA en Markdown:
 # Propuesta WIARE — ${lead.nombre}

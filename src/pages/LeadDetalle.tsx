@@ -8,6 +8,7 @@ import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { generarSystemPrompt, generarPropuesta } from '../lib/claudeApi'
 import { crearAgentDemo } from '../lib/retellApi'
 import ScoreBadge from '../components/ScoreBadge'
+import PropuestaViewer from '../components/PropuestaViewer'
 
 type Tab = 'demo' | 'propuesta' | 'costes' | 'notas'
 
@@ -26,42 +27,6 @@ function calcularCostes(mrr: number) {
   const supabaseCoste = Math.round(t * 10)
   const twilio = 1
   return { retell, elevenlabs, supabase: supabaseCoste, twilio, total: retell + elevenlabs + supabaseCoste + twilio }
-}
-
-// Render mínimo de Markdown a HTML (sin librerías externas)
-function mdToHtml(md: string): string {
-  const esc = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const lines = esc.split('\n')
-  let html = ''
-  let inTable = false
-  let inList = false
-  const inline = (s: string) =>
-    s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>')
-
-  for (const line of lines) {
-    if (/^\s*\|/.test(line)) {
-      if (/^\s*\|[\s\-:|]+\|\s*$/.test(line)) continue
-      const cells = line.split('|').slice(1, -1).map((c) => inline(c.trim()))
-      if (!inTable) { html += '<table>'; inTable = true; html += `<tr>${cells.map((c) => `<th>${c}</th>`).join('')}</tr>`; continue }
-      html += `<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`
-      continue
-    }
-    if (inTable) { html += '</table>'; inTable = false }
-    if (/^[-*] /.test(line.trim())) {
-      if (!inList) { html += '<ul>'; inList = true }
-      html += `<li>${inline(line.trim().slice(2))}</li>`
-      continue
-    }
-    if (inList) { html += '</ul>'; inList = false }
-    if (line.startsWith('### ')) html += `<h3>${inline(line.slice(4))}</h3>`
-    else if (line.startsWith('## ')) html += `<h2>${inline(line.slice(3))}</h2>`
-    else if (line.startsWith('# ')) html += `<h1>${inline(line.slice(2))}</h1>`
-    else if (line.trim() === '') html += ''
-    else html += `<p>${inline(line)}</p>`
-  }
-  if (inTable) html += '</table>'
-  if (inList) html += '</ul>'
-  return html
 }
 
 export default function LeadDetalle() {
@@ -322,7 +287,6 @@ export default function LeadDetalle() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {lead.propuesta_md ? (
                   <>
-                    <img src="/logo-wiare.png" alt="WIARE" className="print-logo" />
                     {editandoPropuesta ? (
                       <>
                         <textarea value={propuestaDraft} onChange={(e) => setPropuestaDraft(e.target.value)} rows={20} style={{ width: '100%', fontFamily: 'monospace', fontSize: 13 }} />
@@ -338,17 +302,17 @@ export default function LeadDetalle() {
                       </>
                     ) : (
                       <>
-                        <div
-                          className="propuesta-md"
-                          style={{ fontSize: 14, lineHeight: 1.65 }}
-                          dangerouslySetInnerHTML={{ __html: mdToHtml(lead.propuesta_md) }}
+                        <PropuestaViewer
+                          markdown={lead.propuesta_md}
+                          nombreNegocio={lead.nombre}
+                          onMarcarEnviada={
+                            lead.fase !== 'propuesta_enviada' && lead.fase !== 'cerrado'
+                              ? () => actualizar({ fase: 'propuesta_enviada' })
+                              : undefined
+                          }
                         />
                         <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                           <button className="btn-ghost" onClick={() => { setPropuestaDraft(lead.propuesta_md ?? ''); setEditandoPropuesta(true) }}>✏️ Editar</button>
-                          <button className="btn-ghost" onClick={() => window.print()}>⬇️ Descargar PDF</button>
-                          {lead.fase !== 'propuesta_enviada' && lead.fase !== 'cerrado' && (
-                            <button className="btn-gradient" onClick={() => actualizar({ fase: 'propuesta_enviada' })}>✅ Marcar como enviada</button>
-                          )}
                           <button className="btn-ghost" onClick={generarProp} disabled={generandoPropuesta}>
                             {generandoPropuesta ? 'Regenerando…' : '🔄 Regenerar'}
                           </button>
