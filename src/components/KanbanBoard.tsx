@@ -138,7 +138,7 @@ function Column({
   const color = FASE_COLOR[fase] ?? '#A1A1AA'
 
   return (
-    <div style={{ width: 220, flex: '0 0 220px' }}>
+    <div className="kanban-col" style={{ width: 220, flex: '0 0 220px' }}>
       {/* Header columna */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 10px' }}>
         <span
@@ -261,7 +261,7 @@ export default function KanbanBoard({ leads: leadsProp }: { leads: Lead[] }) {
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
+        <div className="kanban-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
           {FASES.map((fase) => (
             <Column
               key={fase}

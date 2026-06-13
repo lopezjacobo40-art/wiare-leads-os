@@ -7,7 +7,13 @@ const NAV = [
   { to: '/leads', label: 'Todos los leads', icon: Users, end: false },
 ]
 
-export default function Sidebar({ onLogout }: { onLogout: () => void }) {
+interface SidebarProps {
+  onLogout: () => void
+  open?: boolean
+  onClose?: () => void
+}
+
+export default function Sidebar({ onLogout, open = false, onClose }: SidebarProps) {
   const navigate = useNavigate()
   const user = sessionStorage.getItem('wiare_user') ?? ''
   const inicial = user.charAt(0).toUpperCase() || 'W'
@@ -19,8 +25,14 @@ export default function Sidebar({ onLogout }: { onLogout: () => void }) {
   }
 
   return (
+    <>
+    <div
+      className={`sidebar-overlay${open ? ' open' : ''}`}
+      onClick={onClose}
+      aria-hidden="true"
+    />
     <aside
-      className="sidebar"
+      className={`sidebar${open ? ' open' : ''}`}
       style={{
         position: 'fixed',
         top: 0,
@@ -132,5 +144,6 @@ export default function Sidebar({ onLogout }: { onLogout: () => void }) {
         </button>
       </div>
     </aside>
+    </>
   )
 }

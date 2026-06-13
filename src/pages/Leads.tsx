@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
 import ScoreBadge from '../components/ScoreBadge'
@@ -24,6 +24,7 @@ export default function Leads() {
 
   const [scoringId, setScoringId] = useState<string | null>(null)
   const [batch, setBatch] = useState<{ actual: number; total: number } | null>(null)
+  const [menuFilaId, setMenuFilaId] = useState<string | null>(null) // acciones extra abiertas en móvil
 
   const cargar = async () => {
     const { data, error: err } = await supabase
@@ -238,9 +239,20 @@ export default function Leads() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--color-surface-2)', borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
-                {['Score', 'Nombre', 'Sector', 'Ciudad', 'Teléfono', 'Reseñas', 'Val.', 'Fase', 'Acciones'].map((h) => (
+                {[
+                  { label: 'Score' },
+                  { label: 'Nombre' },
+                  { label: 'Sector' },
+                  { label: 'Ciudad' },
+                  { label: 'Teléfono' },
+                  { label: 'Reseñas', cls: 'col-resenas' },
+                  { label: 'Val.', cls: 'col-valoracion' },
+                  { label: 'Fase' },
+                  { label: 'Acciones' },
+                ].map((h) => (
                   <th
-                    key={h}
+                    key={h.label}
+                    className={h.cls}
                     style={{
                       padding: '0 16px',
                       height: 36,
@@ -252,7 +264,7 @@ export default function Leads() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {h}
+                    {h.label}
                   </th>
                 ))}
               </tr>
@@ -276,8 +288,8 @@ export default function Leads() {
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.sector}</td>
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.ciudad}</td>
                   <td style={{ padding: '0 16px', whiteSpace: 'nowrap' }}>{lead.telefono ?? '—'}</td>
-                  <td style={{ padding: '0 16px' }}>{lead.num_resenas ?? '—'}</td>
-                  <td style={{ padding: '0 16px' }}>
+                  <td className="col-resenas" style={{ padding: '0 16px' }}>{lead.num_resenas ?? '—'}</td>
+                  <td className="col-valoracion" style={{ padding: '0 16px' }}>
                     {lead.valoracion ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         <Star size={13} weight="fill" style={{ color: 'var(--color-warning)' }} /> {lead.valoracion}
@@ -286,21 +298,34 @@ export default function Leads() {
                   </td>
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{FASE_LABELS[lead.fase] ?? lead.fase}</td>
                   <td style={{ padding: '0 16px' }} onClick={(e) => e.stopPropagation()}>
-                    <div style={{ display: 'flex', gap: 4 }}>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                       <button title="Ver detalle" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36 }} onClick={() => navigate(`/leads/${lead.id}`)}>
                         <Eye size={16} />
                       </button>
                       <button
                         title="Cualificar"
-                        className="btn-ghost"
+                        className={`btn-ghost acciones-extra${menuFilaId === lead.id ? ' show' : ''}`}
                         style={{ padding: 8, minHeight: 36, minWidth: 36 }}
                         disabled={scoringId === lead.id || !!batch}
                         onClick={() => cualificar(lead)}
                       >
                         {scoringId === lead.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Lightning size={16} />}
                       </button>
-                      <button title="Descartar" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36, color: 'var(--color-error)' }} onClick={() => descartar(lead)}>
+                      <button
+                        title="Descartar"
+                        className={`btn-ghost acciones-extra${menuFilaId === lead.id ? ' show' : ''}`}
+                        style={{ padding: 8, minHeight: 36, minWidth: 36, color: 'var(--color-error)' }}
+                        onClick={() => descartar(lead)}
+                      >
                         <X size={16} />
+                      </button>
+                      <button
+                        title="Más acciones"
+                        className="btn-ghost acciones-menu-btn"
+                        style={{ padding: 8, minHeight: 36, minWidth: 36 }}
+                        onClick={() => setMenuFilaId(menuFilaId === lead.id ? null : lead.id)}
+                      >
+                        <DotsThree size={18} weight="bold" />
                       </button>
                     </div>
                   </td>

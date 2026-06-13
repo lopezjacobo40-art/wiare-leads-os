@@ -184,7 +184,7 @@ export default function LeadDetalle() {
         </p>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: 24, alignItems: 'start' }}>
+      <div className="detalle-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: 24, alignItems: 'start' }}>
         {/* Columna izquierda — datos */}
         <div className="card no-print" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <h2 style={{ fontSize: 15, marginBottom: 4 }}>Datos del negocio</h2>
@@ -233,7 +233,7 @@ export default function LeadDetalle() {
         <div>
           {/* Tabs lineales */}
           <div
-            className="no-print"
+            className="no-print detalle-tabs"
             style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}
           >
             {TABS.map(({ id: t, label, icon: Icon }) => {
@@ -299,7 +299,7 @@ export default function LeadDetalle() {
                     </button>
                     {promptDraft && lead.system_prompt_sofia !== promptDraft && (
                       <>
-                        <textarea value={promptDraft} onChange={(e) => setPromptDraft(e.target.value)} style={promptTextareaStyle} />
+                        <textarea className="prompt-textarea" value={promptDraft} onChange={(e) => setPromptDraft(e.target.value)} style={promptTextareaStyle} />
                         <button className="btn-primary" onClick={desplegarRetell} disabled={desplegando} style={{ alignSelf: 'flex-start' }}>
                           <Broadcast size={16} /> {desplegando ? 'Desplegando…' : 'Desplegar en Retell'}
                         </button>
@@ -310,7 +310,7 @@ export default function LeadDetalle() {
                   <>
                     <h2 style={{ fontSize: 17 }}>System prompt de Sofía</h2>
                     <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Revisa y edita antes de desplegar.</p>
-                    <textarea value={promptDraft} onChange={(e) => setPromptDraft(e.target.value)} style={promptTextareaStyle} />
+                    <textarea className="prompt-textarea" value={promptDraft} onChange={(e) => setPromptDraft(e.target.value)} style={promptTextareaStyle} />
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <button className="btn-primary" onClick={desplegarRetell} disabled={desplegando}>
                         <Broadcast size={16} /> {desplegando ? 'Desplegando…' : 'Desplegar en Retell'}
@@ -326,7 +326,7 @@ export default function LeadDetalle() {
                     <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
                       Genera un system prompt personalizado para {lead.nombre} y despliégalo como agente de voz en Retell AI.
                     </p>
-                    <button className="btn-primary" onClick={generarDemo} disabled={generandoPrompt} style={{ alignSelf: 'flex-start' }}>
+                    <button className="btn-primary detalle-btn-full" onClick={generarDemo} disabled={generandoPrompt} style={{ alignSelf: 'flex-start' }}>
                       <Waveform size={16} /> {generandoPrompt ? 'Generando con Claude…' : 'Generar demo'}
                     </button>
                   </>
@@ -380,7 +380,7 @@ export default function LeadDetalle() {
                     <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
                       Genera una propuesta personalizada con ROI calculado para {lead.nombre}.
                     </p>
-                    <button className="btn-primary" onClick={generarProp} disabled={generandoPropuesta} style={{ alignSelf: 'flex-start' }}>
+                    <button className="btn-primary detalle-btn-full" onClick={generarProp} disabled={generandoPropuesta} style={{ alignSelf: 'flex-start' }}>
                       <FileText size={16} /> {generandoPropuesta ? 'Generando con Claude…' : 'Generar propuesta'}
                     </button>
                   </>
