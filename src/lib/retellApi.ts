@@ -30,7 +30,7 @@ export async function crearAgentDemo(lead: Lead, systemPrompt: string): Promise<
     },
     body: JSON.stringify({
       agent_name: `Sofía — Demo ${lead.nombre}`,
-      voice_id: '11labs-dalia',
+      voice_id: 'es-ES-ElviraNeural',
       language: 'es-ES',
       response_engine: { type: 'retell-llm', llm_id: llm.llm_id },
     }),
