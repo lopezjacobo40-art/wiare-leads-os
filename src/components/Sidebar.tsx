@@ -103,12 +103,12 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
       }}
     >
       {/* Header — logo + label LEADS OS */}
-      <div style={{ padding: '24px 20px 0' }}>
+      <div style={{ padding: '24px 20px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <img
           src="/logo-wiare.png"
           alt="WIARE"
-          style={{ height: 32, objectFit: 'contain', display: 'block' }}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          style={{ height: '28px', width: 'auto', display: 'block' }}
+          onError={(e) => { e.currentTarget.style.display = 'none' }}
         />
         <p
           style={{
