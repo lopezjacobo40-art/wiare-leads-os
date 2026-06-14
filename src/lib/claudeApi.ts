@@ -1,10 +1,27 @@
 import type { Lead } from './supabaseClient'
 import { guardedCall } from './tokenGuard'
+import { SECTORES, RESISTENCIAS, type Resistencia } from './simuladorData'
+import { WIARE_CONTEXTO } from './wiareContexto'
+import { ANGULOS, TONOS as TONOS_CONTENIDO, LONGITUDES, type AnguloId, type TonoContenido, type LongitudId } from './contenidoData'
 
 const API_URL = 'https://api.anthropic.com/v1/messages'
 const KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
 
 async function callClaude(model: string, maxTokens: number, prompt: string): Promise<string> {
+  return callClaudeChat(model, maxTokens, [{ role: 'user', content: prompt }])
+}
+
+/* Mensaje de una conversación multi-turno. */
+export type ChatMsg = { role: 'user' | 'assistant'; content: string }
+
+/* Variante multi-turno: acepta el historial completo y un system prompt opcional.
+   Base del Simulador de ventas y el Consultor IA. */
+async function callClaudeChat(
+  model: string,
+  maxTokens: number,
+  messages: ChatMsg[],
+  system?: string
+): Promise<string> {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: {
@@ -16,7 +33,8 @@ async function callClaude(model: string, maxTokens: number, prompt: string): Pro
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }],
+      ...(system ? { system } : {}),
+      messages,
     }),
   })
   if (!res.ok) {
@@ -194,4 +212,125 @@ Setup: 790€ | Mantenimiento: ${mrr}€/mes
 Tono: directo, números reales, sin florituras.`
 
   return guardedCall('content', () => callClaude('claude-sonnet-4-6', 2000, prompt))
+}
+
+/* ─────────────────────────────────────────────
+   SIMULADOR DE VENTAS
+   La IA encarna un cliente resistente de un sector dado.
+   modo 'responder' → siguiente réplica del cliente.
+   modo 'evaluar'   → feedback final del rendimiento del vendedor.
+   ───────────────────────────────────────────── */
+export async function simularRespuestaCliente(
+  sectorId: string,
+  resistencia: Resistencia,
+  historial: ChatMsg[],
+  modo: 'responder' | 'evaluar'
+): Promise<string> {
+  const sector = SECTORES.find((s) => s.id === sectorId) ?? SECTORES[0]
+  const res = RESISTENCIAS[resistencia]
+
+  const systemResponder = `Estás haciendo un ROLEPLAY de entrenamiento de ventas.
+Encarnas a un POSIBLE CLIENTE de WIARE, una agencia que vende un agente de voz IA + CRM
+a negocios locales en España (790€ de setup + 90-390€/mes, sin permanencia).
+
+TU PERSONAJE: ${sector.perfil}
+NIVEL: ${res.label}. ${res.instruccion}
+
+OBJECIONES QUE PUEDES USAR (no todas a la vez, de forma natural):
+${sector.objeciones.map((o) => `- "${o}"`).join('\n')}
+
+REGLAS:
+- Responde SIEMPRE en primera persona como el cliente, en español de España, natural y coloquial.
+- Mensajes cortos (1-4 frases), como una conversación real por teléfono.
+- NO ayudes al vendedor ni le des pistas. Reacciona a lo que dice.
+- Si el vendedor maneja bien tus objeciones y aporta valor real, ve cediendo de forma realista según tu nivel.
+- Si te convence del todo, acepta agendar una demo y dilo claramente.
+- Nunca rompas el personaje ni hables como IA.`
+
+  const systemEvaluar = `Eres un COACH de ventas senior. Acabas de observar un roleplay
+donde un vendedor de WIARE (agente de voz IA + CRM para negocios locales) intentaba
+convencer a un cliente del sector "${sector.label}" (nivel ${res.label}).
+
+Evalúa el desempeño del VENDEDOR (los mensajes con role "user" del historial).
+Responde en Markdown, en español, conciso y accionable:
+
+## Nota: X/10
+
+## Lo que hiciste bien
+[2-3 puntos concretos citando lo que dijo]
+
+## Lo que fallaste
+[2-3 puntos: objeciones no cerradas, oportunidades perdidas]
+
+## Tu próxima jugada
+[1-2 consejos concretos para mejorar el cierre]
+
+Sé honesto y directo. Si el pitch fue flojo, dilo. Sin florituras.`
+
+  if (modo === 'evaluar') {
+    // Para evaluar, convertimos el historial en una transcripción legible.
+    const transcripcion = historial
+      .map((m) => `${m.role === 'user' ? 'VENDEDOR' : 'CLIENTE'}: ${m.content}`)
+      .join('\n')
+    return guardedCall('content', () =>
+      callClaudeChat(
+        'claude-haiku-4-5',
+        800,
+        [{ role: 'user', content: `Transcripción del roleplay:\n\n${transcripcion}\n\nEvalúa al vendedor.` }],
+        systemEvaluar
+      )
+    )
+  }
+
+  return guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5', 350, historial, systemResponder)
+  )
+}
+
+/* ─────────────────────────────────────────────
+   CONSULTOR IA
+   Chat interno con todo el contexto de WIARE precargado.
+   ───────────────────────────────────────────── */
+export async function consultarIA(historial: ChatMsg[]): Promise<string> {
+  return guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5', 700, historial, WIARE_CONTEXTO)
+  )
+}
+
+/* ─────────────────────────────────────────────
+   GENERADOR DE CONTENIDO
+   Post de LinkedIn sobre casos de uso de WIARE para captación orgánica.
+   Sonnet por calidad de redacción (contenido publicable).
+   ───────────────────────────────────────────── */
+export async function generarPostLinkedIn(
+  anguloId: AnguloId,
+  tono: TonoContenido,
+  longitud: LongitudId
+): Promise<string> {
+  const angulo = ANGULOS.find((a) => a.id === anguloId) ?? ANGULOS[0]
+  const t = TONOS_CONTENIDO[tono]
+  const l = LONGITUDES[longitud]
+
+  const prompt = `Escribe un post de LinkedIn para captación orgánica de WIARE.
+
+SOBRE WIARE: agencia española que instala un agente de voz IA + CRM para negocios locales
+(clínicas, restaurantes, inmobiliarias, talleres…). Atiende llamadas 24/7, coge citas/reservas
+y registra cada lead. Precio: 790€ setup + 90-390€/mes, sin permanencia, activo en 7 días.
+
+ÁNGULO DEL POST: ${angulo.label}
+${angulo.enfoque}
+
+TONO: ${t.instruccion}
+LONGITUD: ${l.instruccion}
+
+REGLAS:
+- Español de España. Primera línea = gancho que para el scroll.
+- Frases cortas, mucho espacio en blanco entre líneas (estilo LinkedIn).
+- Cero emojis. Sin hashtags genéricos de relleno (máximo 2-3 hashtags relevantes al final, opcionales).
+- No suenes a anuncio. Aporta una idea o perspectiva, y cierra con un CTA suave.
+- Nada de inventar cifras de clientes ni testimonios falsos.
+
+Devuelve SOLO el texto del post, listo para copiar y pegar. Sin comillas ni explicaciones.`
+
+  return guardedCall('content', () => callClaude('claude-sonnet-4-6', 900, prompt))
 }

@@ -1,13 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix } from '@phosphor-icons/react'
+import {
+  ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix,
+  MapTrifold, Headset, PenNib, ChatCircleDots,
+} from '@phosphor-icons/react'
+import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
 import { supabase } from '../lib/supabaseClient'
 
-const NAV = [
+interface NavItem {
+  to: string
+  label: string
+  icon: PhosphorIcon
+  end: boolean
+}
+
+const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: ChartBar, end: true },
   { to: '/extraer', label: 'Extraer leads', icon: MagnifyingGlass, end: false },
   { to: '/leads', label: 'Todos los leads', icon: Users, end: false },
+]
+
+// Sección "Mi agencia": construcción y herramientas internas de WIARE.
+const MI_AGENCIA: NavItem[] = [
+  { to: '/roadmap', label: 'Roadmap', icon: MapTrifold, end: false },
+  { to: '/simulador', label: 'Simulador', icon: Headset, end: false },
+  { to: '/contenido', label: 'Contenido', icon: PenNib, end: false },
+  { to: '/consultor', label: 'Consultor IA', icon: ChatCircleDots, end: false },
 ]
 
 interface SidebarProps {
@@ -132,108 +151,26 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
         </p>
       </div>
 
-      {/* Label de grupo de navegación */}
-      <p
-        style={{
-          color: 'var(--color-text-tertiary)',
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          padding: '16px 20px 8px',
-        }}
-      >
-        Menú
-      </p>
-
       {/* Navegación */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-        {NAV.map(({ to, label, icon: Icon, end }) => {
-          const badge = to === '/leads' && totalLeads != null ? totalLeads : null
+        <GrupoLabel>Menú</GrupoLabel>
+        {NAV.map((item) => {
+          const badge = item.to === '/leads' && totalLeads != null ? totalLeads : undefined
           const subtexto =
-            to === '/extraer' && ultimaExtraccion ? tiempoRelativo(ultimaExtraccion) : null
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              style={({ isActive }) => ({
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 16px',
-                margin: '2px 8px',
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 500,
-                minHeight: 44,
-                color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
-                borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent',
-                textDecoration: 'none',
-                transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
-              })}
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon size={16} weight={isActive ? 'fill' : 'regular'} style={{ flexShrink: 0 }} />
-                  <span style={{ flex: 1, display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
-                    {label}
-                    {subtexto && (
-                      <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>
-                        {subtexto}
-                      </span>
-                    )}
-                  </span>
-                  {badge != null && (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        minWidth: 20,
-                        textAlign: 'center',
-                        padding: '1px 6px',
-                        borderRadius: 'var(--radius-full)',
-                        background: isActive ? 'var(--color-primary)' : 'var(--color-surface-2)',
-                        color: isActive ? '#fff' : 'var(--color-text-secondary)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {badge}
-                    </span>
-                  )}
-                </>
-              )}
-            </NavLink>
-          )
+            item.to === '/extraer' && ultimaExtraccion ? tiempoRelativo(ultimaExtraccion) : undefined
+          return <NavRow key={item.to} item={item} badge={badge} subtexto={subtexto} />
         })}
+
+        <GrupoLabel>Mi agencia</GrupoLabel>
+        {MI_AGENCIA.map((item) => (
+          <NavRow key={item.to} item={item} />
+        ))}
+
         {user === 'jacobo' && (
-          <NavLink
-            to="/configuracion"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '10px 16px',
-              margin: '2px 8px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 500,
-              minHeight: 44,
-              color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-              background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
-              borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent',
-              textDecoration: 'none',
-              transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
-            })}
-          >
-            {({ isActive }) => (
-              <>
-                <GearSix size={16} weight={isActive ? 'fill' : 'regular'} style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, minWidth: 0 }}>Configuración</span>
-              </>
-            )}
-          </NavLink>
+          <>
+            <GrupoLabel>Sistema</GrupoLabel>
+            <NavRow item={{ to: '/configuracion', label: 'Configuración', icon: GearSix, end: false }} />
+          </>
         )}
       </nav>
 
@@ -325,5 +262,82 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
       </div>
     </aside>
     </>
+  )
+}
+
+/* Etiqueta de grupo de navegación (MENÚ / MI AGENCIA / SISTEMA). */
+function GrupoLabel({ children }: { children: ReactNode }) {
+  return (
+    <p
+      style={{
+        color: 'var(--color-text-tertiary)',
+        fontSize: 10,
+        fontWeight: 500,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        padding: '16px 20px 8px',
+      }}
+    >
+      {children}
+    </p>
+  )
+}
+
+/* Fila de navegación: estilo compartido por todos los grupos.
+   Soporta badge numérico (leads) y subtexto (última extracción). */
+function NavRow({ item, badge, subtexto }: { item: NavItem; badge?: number; subtexto?: string }) {
+  const { to, label, icon: Icon, end } = item
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      style={({ isActive }) => ({
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 16px',
+        margin: '2px 8px',
+        borderRadius: 8,
+        fontSize: 13,
+        fontWeight: 500,
+        minHeight: 44,
+        color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+        background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
+        borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent',
+        textDecoration: 'none',
+        transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
+      })}
+    >
+      {({ isActive }) => (
+        <>
+          <Icon size={16} weight={isActive ? 'fill' : 'regular'} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
+            {label}
+            {subtexto && (
+              <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>
+                {subtexto}
+              </span>
+            )}
+          </span>
+          {badge != null && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                minWidth: 20,
+                textAlign: 'center',
+                padding: '1px 6px',
+                borderRadius: 'var(--radius-full)',
+                background: isActive ? 'var(--color-primary)' : 'var(--color-surface-2)',
+                color: isActive ? '#fff' : 'var(--color-text-secondary)',
+                flexShrink: 0,
+              }}
+            >
+              {badge}
+            </span>
+          )}
+        </>
+      )}
+    </NavLink>
   )
 }

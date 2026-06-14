@@ -200,6 +200,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   animation: spin 0.7s linear infinite;
 }
 
+/* Giro lento para el icono de fase "en progreso" del Roadmap */
+.roadmap-spin { animation: spin 2.5s linear infinite; }
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 4px; }
@@ -217,6 +220,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (max-width: 767px) {
   /* Métricas de lead web: 4 → 2 columnas en móvil */
   .lead-web-metrics { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Generador de contenido: panel + resultado apilados en móvil */
+  .contenido-grid { grid-template-columns: 1fr !important; }
 
   /* ── Sidebar como drawer ── */
   .sidebar {
