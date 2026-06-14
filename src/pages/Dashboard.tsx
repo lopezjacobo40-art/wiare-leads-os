@@ -7,34 +7,7 @@ import KanbanBoard from '../components/KanbanBoard'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
-
-// Mini spark-line decorativa (5 barras, alturas placeholder que simulan tendencia semanal).
-function Sparkline({ alturas }: { alturas: number[] }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 22 }}>
-      {alturas.map((h, i) => (
-        <span
-          key={i}
-          style={{
-            width: 4,
-            height: `${h}%`,
-            borderRadius: 2,
-            background: 'var(--color-primary)',
-            opacity: 0.3,
-          }}
-        />
-      ))}
-    </div>
-  )
-}
-
-// Patrones de tendencia (solo visual) por tarjeta.
-const SPARK_PATTERNS: number[][] = [
-  [40, 55, 45, 70, 90],
-  [30, 50, 40, 65, 85],
-  [50, 45, 60, 55, 80],
-  [35, 60, 50, 75, 95],
-]
+import Skeleton from '../components/Skeleton'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -77,7 +50,18 @@ export default function Dashboard() {
   ]
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 120 }}><div className="spinner" /></div>
+    return (
+      <PageTransition>
+        <PageHeader titulo="Dashboard" subtitulo="Resumen del pipeline de leads" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton.Card key={i} />)}
+        </div>
+        <Skeleton.Line width={160} height={16} style={{ marginBottom: 16 }} />
+        <div style={{ display: 'flex', gap: 14 }}>
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton.Rect key={i} width={220} height={200} radius={14} />)}
+        </div>
+      </PageTransition>
+    )
   }
 
   if (!error && leads.length === 0) {
@@ -112,7 +96,7 @@ export default function Dashboard() {
             transition={{ delay: i * 0.06, duration: 0.25 }}
             style={{ padding: 24 }}
           >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ marginBottom: 16 }}>
               <div
                 style={{
                   width: 36,
@@ -127,7 +111,6 @@ export default function Dashboard() {
               >
                 <m.icon size={16} weight="bold" />
               </div>
-              <Sparkline alturas={SPARK_PATTERNS[i] ?? SPARK_PATTERNS[0]} />
             </div>
             <p style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-display)', color: 'var(--color-text-primary)', lineHeight: 1.1 }}>
               {m.value}

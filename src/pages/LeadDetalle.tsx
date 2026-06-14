@@ -12,6 +12,7 @@ import ScoreBadge from '../components/ScoreBadge'
 import PropuestaViewer from '../components/PropuestaViewer'
 import FaseSelector from '../components/FaseSelector'
 import PageTransition from '../components/PageTransition'
+import Skeleton from '../components/Skeleton'
 import { useToast } from '../components/Toast'
 
 // Fila de dato del negocio (4D): icono semántico + label uppercase + valor, separadas por border-bottom.
@@ -144,7 +145,15 @@ export default function LeadDetalle() {
   }
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 120 }}><div className="spinner" /></div>
+    return (
+      <PageTransition>
+        <div style={{ marginBottom: 28 }}>
+          <Skeleton.Line width={80} height={16} style={{ marginBottom: 16 }} />
+          <Skeleton.Line width={280} height={28} />
+        </div>
+        <Skeleton.Detalle />
+      </PageTransition>
+    )
   }
   if (!lead) {
     return <p style={{ color: 'var(--color-error)' }}>Lead no encontrado. {error}</p>
@@ -293,6 +302,8 @@ export default function LeadDetalle() {
           {/* Tabs lineales */}
           <div
             className="no-print detalle-tabs"
+            role="tablist"
+            aria-label="Secciones del lead"
             style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}
           >
             {TABS.map(({ id: t, label, icon: Icon }) => {
@@ -300,6 +311,10 @@ export default function LeadDetalle() {
               return (
                 <button
                   key={t}
+                  role="tab"
+                  aria-selected={activo}
+                  id={`tab-${t}`}
+                  aria-controls="tabpanel-detalle"
                   onClick={() => setTab(t)}
                   style={{
                     display: 'flex',
@@ -324,7 +339,7 @@ export default function LeadDetalle() {
             })}
           </div>
 
-          <div className="card" style={{ padding: 28 }}>
+          <div className="card" id="tabpanel-detalle" role="tabpanel" aria-labelledby={`tab-${tab}`} style={{ padding: 28 }}>
             {/* ── TAB DEMO ── */}
             {tab === 'demo' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

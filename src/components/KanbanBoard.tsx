@@ -4,6 +4,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -11,7 +12,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useSortable, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { MapPin } from '@phosphor-icons/react'
 import { supabase, type Lead } from '../lib/supabaseClient'
@@ -19,12 +20,14 @@ import { FASES, FASE_LABELS } from '../lib/supabaseClient'
 import ScoreBadge from './ScoreBadge'
 import { useToast } from './Toast'
 
+// Color por fase. Cada hex corresponde 1:1 con un token de globals.css
+// (se mantiene en hex porque rgbaFromHex() deriva los fondos translúcidos a partir de él).
 const FASE_COLOR: Record<string, string> = {
-  nuevo: '#A1A1AA',
-  cualificado: '#F59E0B',
-  demo_creada: '#6366F1',
-  propuesta_enviada: '#8B5CF6',
-  cerrado: '#22C55E',
+  nuevo: '#A1A1AA',            // --color-text-tertiary
+  cualificado: '#F59E0B',      // --color-warning
+  demo_creada: '#6366F1',      // --color-primary
+  propuesta_enviada: '#8B5CF6', // violeta (sin token equivalente)
+  cerrado: '#22C55E',          // --color-success
 }
 
 function rgbaFromHex(hex: string, alpha: number): string {
@@ -59,6 +62,7 @@ function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (id: string) => void }
     <div
       ref={setNodeRef}
       style={style}
+      aria-label={`${lead.nombre}, fase ${FASE_LABELS[lead.fase] ?? lead.fase}. Pulsa espacio para seleccionar y las flechas para mover entre fases.`}
       {...attributes}
       {...listeners}
       onClick={() => onOpen(lead.id)}
@@ -216,7 +220,8 @@ export default function KanbanBoard({ leads: leadsProp }: { leads: Lead[] }) {
   useEffect(() => setLeads(leadsProp), [leadsProp])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   const activeLead = activeId ? leads.find((l) => l.id === activeId) ?? null : null

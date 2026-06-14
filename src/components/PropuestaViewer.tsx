@@ -99,7 +99,7 @@ const ESTILOS = `
 }
 `
 
-type EstadoPDF = 'idle' | 'downloading' | 'done'
+type EstadoPDF = 'idle' | 'downloading' | 'done' | 'error'
 
 export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnviada }: Props) {
   const secciones = splitSecciones(markdown)
@@ -117,7 +117,7 @@ export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnvia
       margin: [10, 10, 10, 10] as [number, number, number, number],
       filename: `Propuesta-WIARE-${nombreNegocio.replace(/\s+/g, '-')}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
       pagebreak: { mode: 'avoid-all' },
     }
@@ -127,9 +127,11 @@ export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnvia
       const { default: html2pdf } = await import('html2pdf.js')
       await html2pdf().set(opciones).from(element).save()
       setPdfEstado('done')
-      setTimeout(() => setPdfEstado('idle'), 2500)
-    } catch {
-      setPdfEstado('idle')
+      setTimeout(() => setPdfEstado('idle'), 3000)
+    } catch (error) {
+      console.error('PDF error:', error)
+      setPdfEstado('error')
+      setTimeout(() => setPdfEstado('idle'), 3000)
     }
   }
 
@@ -147,6 +149,10 @@ export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnvia
           ) : pdfEstado === 'done' ? (
             <>
               <CheckCircle size={16} weight="fill" style={{ color: 'var(--color-success)' }} /> PDF descargado
+            </>
+          ) : pdfEstado === 'error' ? (
+            <>
+              <DownloadSimple size={16} style={{ color: 'var(--color-error)' }} /> Error — reintentar
             </>
           ) : (
             <>
@@ -166,9 +172,10 @@ export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnvia
         <header className="propuesta-header">
           <div className="propuesta-header-top">
             <img
-              src="/logo-wiare-blanco.png"
+              src="/logo-wiare.png"
               alt="WIARE"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo-wiare.png' }}
+              style={{ filter: 'brightness(0) invert(1)' }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
             />
             <div className="propuesta-header-meta">
               {fecha}

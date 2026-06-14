@@ -66,7 +66,7 @@ body {
   font-family: var(--font-body);
   background: var(--color-surface);
   color: var(--color-text-primary);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -167,6 +167,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* ── Animaciones (transform/opacity únicamente) ── */
 @keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.35); } }
 @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+@keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toast-slide-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
@@ -300,3 +301,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   @page { size: A4; margin: 0; }
 }
 .print-logo { display: none; }
+
+/* ── Accesibilidad: respetar prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spinner { animation: none !important; }
+}

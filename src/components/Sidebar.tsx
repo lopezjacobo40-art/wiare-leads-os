@@ -85,7 +85,12 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
     >
       {/* Header */}
       <div style={{ padding: '0 12px', marginBottom: 32 }}>
-        <img src="/logo-wiare.png" alt="WIARE" style={{ height: 28, objectFit: 'contain', display: 'block' }} />
+        <img
+          src="/logo-wiare.png"
+          alt="WIARE"
+          style={{ height: 28, objectFit: 'contain', display: 'block' }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
         <p
           style={{
             color: 'var(--color-text-tertiary)',

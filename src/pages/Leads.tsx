@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users } from '@phosphor-icons/react'
+import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
@@ -10,6 +10,7 @@ import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
 import ExportSheet from '../components/ExportSheet'
+import Skeleton from '../components/Skeleton'
 import { useToast } from '../components/Toast'
 
 const PAGE_SIZE = 25
@@ -32,6 +33,7 @@ export default function Leads() {
   const [batch, setBatch] = useState<{ actual: number; total: number } | null>(null)
   const [menuFilaId, setMenuFilaId] = useState<string | null>(null) // acciones extra abiertas en móvil
   const [confirmBatch, setConfirmBatch] = useState<number | null>(null) // nº de leads pendientes de confirmar
+  const [leadADescartar, setLeadADescartar] = useState<Lead | null>(null) // lead pendiente de confirmar descarte
 
   const cargar = async () => {
     const { data, error: err } = await supabase
@@ -156,13 +158,13 @@ export default function Leads() {
   }
 
   const descartar = async (lead: Lead) => {
-    if (!confirm(`¿Descartar "${lead.nombre}"? Se eliminará de la lista.`)) return
     const { error: err } = await supabase.from('leads_os').delete().eq('id', lead.id)
     if (err) toast(err.message, 'error')
     else {
       await cargar()
       toast(`${lead.nombre} descartado`, 'info')
     }
+    setLeadADescartar(null)
   }
 
   const sinScoreCount = leads.filter((l) => l.score_cualificacion == null).length
@@ -177,7 +179,18 @@ export default function Leads() {
   }
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 120 }}><div className="spinner" /></div>
+    return (
+      <PageTransition>
+        <PageHeader titulo="Todos los leads" subtitulo="Cargando pipeline…" />
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton.Row key={i} />)}
+            </tbody>
+          </table>
+        </div>
+      </PageTransition>
+    )
   }
 
   return (
@@ -237,6 +250,45 @@ export default function Leads() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setConfirmBatch(null)}>Cancelar</button>
               <button className="btn-primary" onClick={ejecutarBatch}>Confirmar y cualificar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación para descartar un lead */}
+      {leadADescartar && (
+        <div
+          onClick={() => setLeadADescartar(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-descartar"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+            padding: 24,
+            animation: 'fade-in 150ms cubic-bezier(0.4,0,0.2,1)',
+          }}
+        >
+          <div
+            className="card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ padding: 28, maxWidth: 380, width: '100%' }}
+          >
+            <h2 id="titulo-descartar" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Descartar lead</h2>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 24 }}>
+              ¿Seguro que quieres descartar <strong style={{ color: 'var(--color-text-primary)' }}>{leadADescartar.nombre}</strong>?
+              Se eliminará del pipeline de forma permanente.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => setLeadADescartar(null)}>Cancelar</button>
+              <button className="btn-danger" onClick={() => descartar(leadADescartar)}>
+                <Trash size={16} /> Descartar
+              </button>
             </div>
           </div>
         </div>
@@ -399,10 +451,11 @@ export default function Leads() {
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{FASE_LABELS[lead.fase] ?? lead.fase}</td>
                   <td style={{ padding: '0 16px' }} onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                      <button title="Ver detalle" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36 }} onClick={() => navigate(`/leads/${lead.id}`)}>
+                      <button aria-label={`Ver detalle de ${lead.nombre}`} title="Ver detalle" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36 }} onClick={() => navigate(`/leads/${lead.id}`)}>
                         <Eye size={16} />
                       </button>
                       <button
+                        aria-label={`Cualificar ${lead.nombre} con IA`}
                         title="Cualificar"
                         className={`btn-ghost acciones-extra${menuFilaId === lead.id ? ' show' : ''}`}
                         style={{ padding: 8, minHeight: 36, minWidth: 36 }}
@@ -412,14 +465,16 @@ export default function Leads() {
                         {scoringId === lead.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Lightning size={16} />}
                       </button>
                       <button
+                        aria-label={`Descartar ${lead.nombre}`}
                         title="Descartar"
                         className={`btn-ghost acciones-extra${menuFilaId === lead.id ? ' show' : ''}`}
                         style={{ padding: 8, minHeight: 36, minWidth: 36, color: 'var(--color-error)' }}
-                        onClick={() => descartar(lead)}
+                        onClick={() => setLeadADescartar(lead)}
                       >
                         <X size={16} />
                       </button>
                       <button
+                        aria-label={`Más acciones para ${lead.nombre}`}
                         title="Más acciones"
                         className="btn-ghost acciones-menu-btn"
                         style={{ padding: 8, minHeight: 36, minWidth: 36 }}

@@ -72,6 +72,7 @@ export default function Login({ onLogin }: { onLogin: (user: string) => void }) 
           src="/logo-wiare.png"
           alt="WIARE"
           style={{ height: 32, objectFit: 'contain', alignSelf: 'center' }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
         <p
           style={{
@@ -91,8 +92,11 @@ export default function Login({ onLogin }: { onLogin: (user: string) => void }) 
 
         {/* Campos */}
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Usuario</label>
+          <label htmlFor="usuario" style={labelStyle}>Usuario</label>
           <input
+            id="usuario"
+            name="username"
+            autoComplete="username"
             placeholder="usuario"
             value={usuario}
             onChange={(e) => setUsuario(e.target.value)}
@@ -101,9 +105,12 @@ export default function Login({ onLogin }: { onLogin: (user: string) => void }) 
           />
         </div>
         <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Contraseña</label>
+          <label htmlFor="password" style={labelStyle}>Contraseña</label>
           <input
+            id="password"
+            name="password"
             type="password"
+            autoComplete="current-password"
             placeholder="••••••••"
             value={pass}
             onChange={(e) => setPass(e.target.value)}
