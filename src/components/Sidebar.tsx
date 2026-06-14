@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { ChartBar, MagnifyingGlass, Users, SignOut, Warning } from '@phosphor-icons/react'
+import { ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix } from '@phosphor-icons/react'
 import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
 import { supabase } from '../lib/supabaseClient'
 
@@ -200,6 +200,38 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
           )
         })}
       </nav>
+
+      {/* Configuración — solo visible para el admin (jacobo) */}
+      {user === 'jacobo' && (
+        <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 0' }}>
+          <NavLink
+            to="/configuracion"
+            style={({ isActive }) => ({
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 16px',
+              margin: '2px 8px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 500,
+              minHeight: 44,
+              color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
+              borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent',
+              textDecoration: 'none',
+              transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
+            })}
+          >
+            {({ isActive }) => (
+              <>
+                <GearSix size={16} weight={isActive ? 'fill' : 'regular'} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 0 }}>Configuración</span>
+              </>
+            )}
+          </NavLink>
+        </div>
+      )}
 
       {/* Footer — usuario + uso + logout */}
       <div style={{ borderTop: '1px solid var(--color-border)', padding: '16px 20px' }}>

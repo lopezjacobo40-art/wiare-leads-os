@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Extraccion from './pages/Extraccion'
 import Leads from './pages/Leads'
 import LeadDetalle from './pages/LeadDetalle'
+import Configuracion from './pages/Configuracion'
 import Sidebar from './components/Sidebar'
 
 function Shell({ onLogout }: { onLogout: () => void }) {
@@ -36,6 +37,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/extraer" element={<Extraccion />} />
           <Route path="/leads" element={<Leads />} />
           <Route path="/leads/:id" element={<LeadDetalle />} />
+          <Route path="/configuracion" element={<Configuracion />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
