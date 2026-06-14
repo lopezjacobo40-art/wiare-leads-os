@@ -32,3 +32,4 @@ token.json
 # Claude Code skills (artefactos del entorno, no del proyecto)
 .agents/
 skills-lock.json
+.claude/

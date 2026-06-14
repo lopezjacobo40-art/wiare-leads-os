@@ -142,6 +142,23 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .btn-gradient:hover:not(:disabled) { transform: translateY(-1px); opacity: 0.92; }
 
+/* ── Checkbox de fila en Leads: oculto salvo hover de la fila o selección activa ── */
+.lead-checkbox { opacity: 0; transition: opacity 150ms cubic-bezier(0.4,0,0.2,1); }
+.lead-row:hover .lead-checkbox,
+.lead-checkbox:checked,
+.lead-checkbox:focus-visible { opacity: 1; }
+@media (hover: none) {
+  /* En táctil no hay hover: el checkbox siempre visible para poder seleccionar */
+  .lead-checkbox { opacity: 1; }
+}
+
+/* ── Hover de los botones de la barra de acciones en lote (fondo negro) ── */
+.lote-bar-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2) !important; }
+
+/* ── Drag handle de las cards del Kanban: visible solo al hover ── */
+.kanban-drag-handle { opacity: 0; transition: opacity 150ms cubic-bezier(0.4,0,0.2,1); }
+.kanban-card:hover .kanban-drag-handle { opacity: 1; }
+
 /* ── Sidebar nav hover (solo items inactivos) ── */
 .sidebar nav a:not([aria-current='page']):hover {
   background: var(--color-surface-2) !important;
@@ -172,6 +189,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toast-slide-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes toast-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(24px); } }
+@keyframes quickview-in { from { transform: translateX(480px); } to { transform: translateX(0); } }
+@keyframes lote-bar-in { from { opacity: 0; transform: translate(-50%, 80px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 .spinner {
   width: 22px; height: 22px;

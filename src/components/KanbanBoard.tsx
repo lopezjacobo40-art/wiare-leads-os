@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core'
 import { useSortable, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { MapPin } from '@phosphor-icons/react'
+import { MapPin, Microphone, FileText, DotsNine } from '@phosphor-icons/react'
 import { supabase, type Lead } from '../lib/supabaseClient'
 import { FASES, FASE_LABELS } from '../lib/supabaseClient'
 import ScoreBadge from './ScoreBadge'
@@ -38,8 +38,102 @@ function rgbaFromHex(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
+/* Pill de estado muy compacto */
+function EstadoPill({ icon: Icon, label, color, bg }: { icon: typeof Microphone; label: string; color: string; bg: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 3,
+        padding: '1px 6px',
+        borderRadius: 'var(--radius-full)',
+        fontSize: 10,
+        fontWeight: 500,
+        background: bg,
+        color,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <Icon size={10} weight="fill" /> {label}
+    </span>
+  )
+}
+
+/* ── Contenido visual de la card (compartido entre card real y ghost) ── */
+function CardContenido({ lead }: { lead: Lead }) {
+  const tienePropuesta = !!lead.propuesta_md
+  return (
+    <>
+      {/* Fila 1: nombre (2 líneas máx) */}
+      <p
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: 'var(--color-text-primary)',
+          lineHeight: 1.3,
+          marginBottom: 6,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}
+      >
+        {lead.nombre}
+      </p>
+
+      {/* Fila 2: ciudad + sector badge */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+        {lead.ciudad ? (
+          <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+            <MapPin size={11} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.ciudad}</span>
+          </span>
+        ) : <span />}
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 500,
+            color: 'var(--color-text-secondary)',
+            background: 'var(--color-surface-2)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-full)',
+            padding: '1px 8px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          {lead.sector}
+        </span>
+      </div>
+
+      {/* Fila 3: score + MRR (separador arriba) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
+        <ScoreBadge score={lead.score_cualificacion} size="sm" />
+        {lead.mrr_estimado != null && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-success)', fontVariantNumeric: 'tabular-nums' }}>
+            {lead.mrr_estimado}€/mes
+          </span>
+        )}
+      </div>
+
+      {/* Indicadores de estado */}
+      {(lead.agent_id_retell || tienePropuesta) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+          {lead.agent_id_retell && (
+            <EstadoPill icon={Microphone} label="Demo" color="var(--color-primary)" bg="var(--color-primary-subtle)" />
+          )}
+          {tienePropuesta && (
+            <EstadoPill icon={FileText} label="Propuesta" color="var(--color-success)" bg="rgba(34,197,94,0.1)" />
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
 /* ── Card del lead ── */
-function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (id: string) => void }) {
+function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (lead: Lead) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
   })
@@ -48,10 +142,11 @@ function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (id: string) => void }
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
+    position: 'relative',
     background: '#fff',
     border: '1px solid var(--color-border)',
     borderRadius: 'var(--radius-md)',
-    padding: '12px 16px',
+    padding: '14px 16px',
     boxShadow: 'var(--shadow-sm)',
     marginBottom: 8,
     cursor: 'grab',
@@ -61,37 +156,21 @@ function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (id: string) => void }
   return (
     <div
       ref={setNodeRef}
+      className="kanban-card"
       style={style}
       aria-label={`${lead.nombre}, fase ${FASE_LABELS[lead.fase] ?? lead.fase}. Pulsa espacio para seleccionar y las flechas para mover entre fases.`}
       {...attributes}
       {...listeners}
-      onClick={() => onOpen(lead.id)}
+      onClick={() => onOpen(lead)}
     >
-      <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', lineHeight: 1.3, marginBottom: 6 }}>
-        {lead.nombre}
-      </p>
-      {lead.ciudad && (
-        <p
-          style={{
-            fontSize: 11,
-            color: 'var(--color-text-secondary)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            marginBottom: 8,
-          }}
-        >
-          <MapPin size={12} /> {lead.ciudad}
-        </p>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <ScoreBadge score={lead.score_cualificacion} size="sm" />
-        {lead.mrr_estimado != null && (
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-success)' }}>
-            {lead.mrr_estimado}€/mes
-          </span>
-        )}
-      </div>
+      {/* Drag handle (visible al hover) */}
+      <DotsNine
+        size={14}
+        weight="bold"
+        className="kanban-drag-handle"
+        style={{ position: 'absolute', top: 12, right: 12, color: 'var(--color-text-tertiary)' }}
+      />
+      <CardContenido lead={lead} />
     </div>
   )
 }
@@ -104,27 +183,14 @@ function LeadCardGhost({ lead }: { lead: Lead }) {
         background: '#fff',
         border: '1px solid var(--color-primary)',
         borderRadius: 'var(--radius-md)',
-        padding: '12px 16px',
+        padding: '14px 16px',
         boxShadow: 'var(--shadow-lg)',
         transform: 'scale(1.02)',
         cursor: 'grabbing',
         width: 220,
       }}
     >
-      <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', lineHeight: 1.3, marginBottom: 6 }}>
-        {lead.nombre}
-      </p>
-      {lead.ciudad && (
-        <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-          <MapPin size={12} /> {lead.ciudad}
-        </p>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <ScoreBadge score={lead.score_cualificacion} size="sm" />
-        {lead.mrr_estimado != null && (
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-success)' }}>{lead.mrr_estimado}€/mes</span>
-        )}
-      </div>
+      <CardContenido lead={lead} />
     </div>
   )
 }
@@ -137,7 +203,7 @@ function Column({
 }: {
   fase: string
   leads: Lead[]
-  onOpen: (id: string) => void
+  onOpen: (lead: Lead) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: fase })
   const color = FASE_COLOR[fase] ?? '#A1A1AA'
@@ -211,7 +277,7 @@ function Column({
   )
 }
 
-export default function KanbanBoard({ leads: leadsProp }: { leads: Lead[] }) {
+export default function KanbanBoard({ leads: leadsProp, onOpenLead }: { leads: Lead[]; onOpenLead?: (lead: Lead) => void }) {
   const navigate = useNavigate()
   const toast = useToast()
   const [leads, setLeads] = useState<Lead[]>(leadsProp)
@@ -274,7 +340,7 @@ export default function KanbanBoard({ leads: leadsProp }: { leads: Lead[] }) {
               key={fase}
               fase={fase}
               leads={leads.filter((l) => l.fase === fase)}
-              onOpen={(id) => navigate(`/leads/${id}`)}
+              onOpen={(lead) => (onOpenLead ? onOpenLead(lead) : navigate(`/leads/${lead.id}`))}
             />
           ))}
         </div>

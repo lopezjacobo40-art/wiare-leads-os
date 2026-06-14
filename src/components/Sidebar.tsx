@@ -60,6 +60,24 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
     navigate('/')
   }
 
+  // Barra de uso de tokens: ratio respecto al límite más cercano.
+  const usoRatio = uso
+    ? Math.min(
+        1,
+        Math.max(
+          uso.limiteScore ? uso.score / uso.limiteScore : 0,
+          uso.limiteContent ? uso.content / uso.limiteContent : 0
+        )
+      )
+    : 0
+  const usoAlLimite = usoRatio >= 1
+  const usoCerca = usoRatio >= 0.8
+  const usoColor = usoAlLimite
+    ? 'var(--color-error)'
+    : usoCerca
+    ? 'var(--color-warning)'
+    : 'var(--color-text-tertiary)'
+
   return (
     <>
     <div
@@ -77,33 +95,48 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
         width: 220,
         background: '#fff',
         borderRight: '1px solid var(--color-border)',
+        boxShadow: '2px 0 8px rgba(0,0,0,0.04)',
         display: 'flex',
         flexDirection: 'column',
-        padding: '24px 12px',
+        padding: 0,
         zIndex: 10,
       }}
     >
-      {/* Header */}
-      <div style={{ padding: '0 12px', marginBottom: 32 }}>
+      {/* Header — logo + label LEADS OS */}
+      <div style={{ padding: '24px 20px 0' }}>
         <img
           src="/logo-wiare.png"
           alt="WIARE"
-          style={{ height: 28, objectFit: 'contain', display: 'block' }}
+          style={{ height: 32, objectFit: 'contain', display: 'block' }}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
         <p
           style={{
             color: 'var(--color-text-tertiary)',
-            fontSize: 11,
+            fontSize: 10,
             marginTop: 8,
-            fontWeight: 500,
-            letterSpacing: '0.16em',
+            fontWeight: 600,
+            letterSpacing: '0.15em',
             textTransform: 'uppercase',
           }}
         >
           Leads OS
         </p>
       </div>
+
+      {/* Label de grupo de navegación */}
+      <p
+        style={{
+          color: 'var(--color-text-tertiary)',
+          fontSize: 10,
+          fontWeight: 500,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          padding: '16px 20px 8px',
+        }}
+      >
+        Menú
+      </p>
 
       {/* Navegación */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
@@ -120,13 +153,15 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                padding: '8px 12px',
-                borderRadius: 'var(--radius-md)',
+                padding: '10px 16px',
+                margin: '2px 8px',
+                borderRadius: 8,
                 fontSize: 13,
                 fontWeight: 500,
-                minHeight: 36,
+                minHeight: 44,
                 color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                 background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
+                borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent',
                 textDecoration: 'none',
                 transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
               })}
@@ -166,75 +201,87 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
         })}
       </nav>
 
-      {/* Footer — usuario + logout */}
-      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, marginTop: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', marginBottom: 4 }}>
+      {/* Footer — usuario + uso + logout */}
+      <div style={{ borderTop: '1px solid var(--color-border)', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <span
             style={{
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               borderRadius: '50%',
               background: 'var(--gradient-brand)',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 600,
               flexShrink: 0,
             }}
           >
             {inicial}
           </span>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 500,
-              color: 'var(--color-text-primary)',
-              textTransform: 'capitalize',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {user || 'WIARE'}
+          <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.3 }}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-text-primary)',
+                textTransform: 'capitalize',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {user || 'WIARE'}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>
+              Administrador
+            </span>
           </span>
         </div>
 
-        {uso && (() => {
-          const ratio = Math.max(
-            uso.limiteScore ? uso.score / uso.limiteScore : 0,
-            uso.limiteContent ? uso.content / uso.limiteContent : 0
-          )
-          const alLimite = ratio >= 1
-          const cerca = ratio >= 0.8
-          const color = alLimite
-            ? 'var(--color-error)'
-            : cerca
-            ? 'var(--color-warning)'
-            : 'var(--color-text-tertiary)'
-          return (
+        {uso && (
+          <div style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                height: 4,
+                borderRadius: 'var(--radius-full)',
+                background: 'var(--color-surface-2)',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${usoRatio * 100}%`,
+                  borderRadius: 'var(--radius-full)',
+                  background: usoAlLimite ? 'var(--color-error)' : 'var(--color-primary)',
+                  transition: 'width 250ms cubic-bezier(0.4,0,0.2,1)',
+                }}
+              />
+            </div>
             <p
               style={{
                 fontSize: 11,
                 fontWeight: 400,
-                color,
-                padding: '0 12px 8px',
+                color: usoColor,
+                marginTop: 6,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
               }}
             >
-              {alLimite && <Warning size={12} weight="fill" />}
+              {usoAlLimite && <Warning size={12} weight="fill" />}
               Hoy: {uso.score} scores · {uso.content} contenidos
             </p>
-          )
-        })()}
+          </div>
+        )}
 
         <button
           onClick={logout}
           className="btn-ghost"
-          style={{ width: '100%', justifyContent: 'flex-start', fontSize: 13, padding: '8px 12px', minHeight: 36 }}
+          style={{ width: '100%', justifyContent: 'flex-start', fontSize: 13, padding: '10px 12px', minHeight: 44 }}
         >
           <SignOut size={16} style={{ flexShrink: 0 }} />
           Cerrar sesión

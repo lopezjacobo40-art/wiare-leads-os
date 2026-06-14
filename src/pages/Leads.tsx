@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash } from '@phosphor-icons/react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
@@ -10,14 +10,24 @@ import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
 import ExportSheet from '../components/ExportSheet'
+import QuickView from '../components/QuickView'
 import Skeleton from '../components/Skeleton'
 import { useToast } from '../components/Toast'
 
 const PAGE_SIZE = 25
+const DIAS_7_MS = 7 * 24 * 60 * 60 * 1000
+
+// ¿El lead es "caliente sin trabajar"? (score≥7 + fase nuevo)
+const esCalienteSinTrabajar = (l: Lead) => (l.score_cualificacion ?? 0) >= 7 && l.fase === 'nuevo'
+// ¿Demo creada pero sin propuesta?
+const esDemoSinPropuesta = (l: Lead) => l.fase === 'demo_creada' && !l.propuesta_md
+// ¿Sin actividad (creado hace >7d y aún en fase nuevo)?
+const esInactivo = (l: Lead) => l.fase === 'nuevo' && Date.now() - new Date(l.created_at).getTime() > DIAS_7_MS
 
 export default function Leads() {
   const navigate = useNavigate()
   const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -26,14 +36,43 @@ export default function Leads() {
   const [sectorFiltro, setSectorFiltro] = useState('todos')
   const [faseFiltro, setFaseFiltro] = useState('todas')
   const [scoreMin, setScoreMin] = useState(0)
-  const [orden, setOrden] = useState('recientes')
+  const [orden, setOrden] = useState('prioridad')
   const [pagina, setPagina] = useState(1)
+  // Filtros especiales activados por deep-link desde el Dashboard.
+  const [soloSinPropuesta, setSoloSinPropuesta] = useState(false)
+  const [soloInactivos, setSoloInactivos] = useState(false)
 
   const [scoringId, setScoringId] = useState<string | null>(null)
   const [batch, setBatch] = useState<{ actual: number; total: number } | null>(null)
   const [menuFilaId, setMenuFilaId] = useState<string | null>(null) // acciones extra abiertas en móvil
   const [confirmBatch, setConfirmBatch] = useState<number | null>(null) // nº de leads pendientes de confirmar
   const [leadADescartar, setLeadADescartar] = useState<Lead | null>(null) // lead pendiente de confirmar descarte
+
+  // Selección en lote
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [faseDropdownOpen, setFaseDropdownOpen] = useState(false)
+  const [aplicandoLote, setAplicandoLote] = useState(false)
+
+  // Vista rápida (panel lateral)
+  const [quickViewLead, setQuickViewLead] = useState<Lead | null>(null)
+
+  // ── Lee los query params al montar y preconfigura los filtros (deep-link). ──
+  useEffect(() => {
+    const sm = searchParams.get('score_min')
+    const f = searchParams.get('fase')
+    const sp = searchParams.get('sin_propuesta')
+    const inact = searchParams.get('inactivo')
+    if (sm) setScoreMin(Number(sm))
+    if (f) setFaseFiltro(f)
+    if (sp) setSoloSinPropuesta(true)
+    if (inact) setSoloInactivos(true)
+    if (sm || f || sp || inact) {
+      setOrden('prioridad')
+      // Limpia la URL para no "fijar" el filtro al recargar manualmente.
+      setSearchParams({}, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const cargar = async () => {
     const { data, error: err } = await supabase
@@ -58,26 +97,61 @@ export default function Leads() {
       if (sectorFiltro !== 'todos' && l.sector !== sectorFiltro) return false
       if (faseFiltro !== 'todas' && l.fase !== faseFiltro) return false
       if (scoreMin > 0 && (l.score_cualificacion ?? -1) < scoreMin) return false
+      if (soloSinPropuesta && l.propuesta_md) return false
+      if (soloInactivos && !esInactivo(l)) return false
       return true
     })
-    if (orden === 'score') res = [...res].sort((a, b) => (b.score_cualificacion ?? -1) - (a.score_cualificacion ?? -1))
+    if (orden === 'prioridad') {
+      // 1º calientes sin trabajar, 2º demo sin propuesta, 3º resto por score desc
+      res = [...res].sort((a, b) => prioridad(a) - prioridad(b) || (b.score_cualificacion ?? -1) - (a.score_cualificacion ?? -1))
+    } else if (orden === 'score') res = [...res].sort((a, b) => (b.score_cualificacion ?? -1) - (a.score_cualificacion ?? -1))
     else if (orden === 'resenas') res = [...res].sort((a, b) => (b.num_resenas ?? 0) - (a.num_resenas ?? 0))
     else if (orden === 'mrr') res = [...res].sort((a, b) => (b.mrr_estimado ?? 0) - (a.mrr_estimado ?? 0))
     return res
-  }, [leads, busqueda, sectorFiltro, faseFiltro, scoreMin, orden])
+  }, [leads, busqueda, sectorFiltro, faseFiltro, scoreMin, orden, soloSinPropuesta, soloInactivos])
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE))
   const paginaActual = Math.min(pagina, totalPaginas)
   const visibles = filtrados.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE)
 
-  const hayFiltros = busqueda !== '' || sectorFiltro !== 'todos' || faseFiltro !== 'todas' || scoreMin > 0
+  const hayFiltros =
+    busqueda !== '' || sectorFiltro !== 'todos' || faseFiltro !== 'todas' ||
+    scoreMin > 0 || soloSinPropuesta || soloInactivos
   const limpiarFiltros = () => {
     setBusqueda('')
     setSectorFiltro('todos')
     setFaseFiltro('todas')
     setScoreMin(0)
+    setSoloSinPropuesta(false)
+    setSoloInactivos(false)
     setPagina(1)
   }
+
+  // ── Selección en lote ──
+  const visiblesIds = visibles.map((l) => l.id)
+  const allVisibleSelected = visiblesIds.length > 0 && visiblesIds.every((id) => selectedIds.has(id))
+  const someSelected = selectedIds.size > 0 && !allVisibleSelected
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const handleSelectAll = () => {
+    setSelectedIds((prev) => {
+      if (allVisibleSelected) {
+        const next = new Set(prev)
+        visiblesIds.forEach((id) => next.delete(id))
+        return next
+      }
+      return new Set([...prev, ...visiblesIds])
+    })
+  }
+  const limpiarSeleccion = () => setSelectedIds(new Set())
+  const seleccionados = useMemo(() => leads.filter((l) => selectedIds.has(l.id)), [leads, selectedIds])
 
   const cualificar = async (lead: Lead) => {
     setScoringId(lead.id)
@@ -155,6 +229,61 @@ export default function Leads() {
     setBatch(null)
     await cargar()
     toast(`${sinScore.length} leads cualificados`, 'success')
+  }
+
+  // ── Cualificar solo los seleccionados (barra de lote) ──
+  const cualificarSeleccionados = async () => {
+    const objetivo = seleccionados.filter((l) => l.score_cualificacion == null)
+    if (objetivo.length === 0) {
+      toast('Los leads seleccionados ya están cualificados', 'info')
+      return
+    }
+    setBatch({ actual: 0, total: objetivo.length })
+    setError('')
+    try {
+      await processBatch(
+        objetivo,
+        async (lead) => {
+          try {
+            const r = await scoreLead(lead)
+            await supabase
+              .from('leads_os')
+              .update({
+                score_cualificacion: r.score,
+                motivo_score: r.motivo,
+                volumen_llamadas: r.volumen,
+                mrr_estimado: r.mrr,
+                fase: lead.fase === 'nuevo' ? 'cualificado' : lead.fase,
+              })
+              .eq('id', lead.id)
+          } catch {
+            // continúa con el siguiente
+          }
+        },
+        (done, total) => setBatch({ actual: done, total })
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error en el batch'
+      setError(msg)
+      toast(msg, 'error')
+    }
+    setBatch(null)
+    await cargar()
+    toast(`${objetivo.length} leads cualificados`, 'success')
+  }
+
+  // ── Cambiar fase de los seleccionados ──
+  const cambiarFaseSeleccionados = async (fase: string) => {
+    setFaseDropdownOpen(false)
+    setAplicandoLote(true)
+    const ids = [...selectedIds]
+    const { error: err } = await supabase.from('leads_os').update({ fase }).in('id', ids)
+    setAplicandoLote(false)
+    if (err) toast(err.message, 'error')
+    else {
+      await cargar()
+      toast(`${ids.length} leads → ${FASE_LABELS[fase] ?? fase}`, 'success')
+    }
   }
 
   const descartar = async (lead: Lead) => {
@@ -325,6 +454,7 @@ export default function Leads() {
           {sectores.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <select value={orden} onChange={(e) => setOrden(e.target.value)} style={inputStyle}>
+          <option value="prioridad">Prioridad recomendada</option>
           <option value="recientes">Más recientes</option>
           <option value="score">Mayor score</option>
           <option value="resenas">Más reseñas</option>
@@ -341,6 +471,11 @@ export default function Leads() {
             style={{ width: 110, accentColor: 'var(--color-primary)', minHeight: 'auto' }}
           />
         </label>
+        {(soloSinPropuesta || soloInactivos) && (
+          <button className="btn-ghost" onClick={limpiarFiltros} style={{ fontSize: 12, padding: '4px 10px', minHeight: 'auto' }}>
+            <X size={12} /> Quitar filtro de alerta
+          </button>
+        )}
       </div>
 
       {/* Tabs de fase */}
@@ -375,11 +510,20 @@ export default function Leads() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--color-surface-2)', borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                <th style={{ padding: '0 8px 0 16px', height: 36, width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    ref={(el) => { if (el) el.indeterminate = someSelected }}
+                    onChange={handleSelectAll}
+                    aria-label="Seleccionar todos los leads"
+                    style={{ width: 16, height: 16, accentColor: 'var(--color-primary)', cursor: 'pointer', minHeight: 'auto' }}
+                  />
+                </th>
                 {[
                   { label: 'Score' },
                   { label: 'Nombre' },
                   { label: 'Sector' },
-                  { label: 'Ciudad' },
                   { label: 'Teléfono' },
                   { label: 'Reseñas', cls: 'col-resenas' },
                   { label: 'Val.', cls: 'col-valoracion' },
@@ -406,19 +550,41 @@ export default function Leads() {
               </tr>
             </thead>
             <tbody>
-              {visibles.map((lead) => (
+              {visibles.map((lead) => {
+                const selected = selectedIds.has(lead.id)
+                return (
                 <tr
                   key={lead.id}
+                  className="lead-row"
                   style={{
-                    height: 52,
+                    height: 56,
                     borderBottom: '1px solid var(--color-border)',
+                    borderLeft: selected ? '2px solid var(--color-primary)' : '2px solid transparent',
+                    background: selected ? 'var(--color-primary-subtle)' : 'transparent',
                     cursor: 'pointer',
                     transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
                   }}
-                  onClick={() => navigate(`/leads/${lead.id}`)}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => setQuickViewLead(lead)}
+                  onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'var(--color-surface-2)' }}
+                  onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent' }}
                 >
+                  <td style={{ padding: '0 8px 0 16px' }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleSelect(lead.id)}
+                      aria-label={`Seleccionar ${lead.nombre}`}
+                      className="lead-checkbox"
+                      style={{
+                        width: 16,
+                        height: 16,
+                        accentColor: 'var(--color-primary)',
+                        cursor: 'pointer',
+                        minHeight: 'auto',
+                        opacity: selected || selectedIds.size > 0 ? 1 : undefined,
+                      }}
+                    />
+                  </td>
                   <td style={{ padding: '0 16px' }}>
                     <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                       <ScoreBadge score={lead.score_cualificacion} size="sm" />
@@ -436,9 +602,14 @@ export default function Leads() {
                       )}
                     </div>
                   </td>
-                  <td style={{ padding: '0 16px', fontWeight: 500, maxWidth: 220, color: 'var(--color-text-primary)' }}>{lead.nombre}</td>
+                  <td style={{ padding: '8px 16px', maxWidth: 240 }}>
+                    <div style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{lead.nombre}</div>
+                    {lead.ciudad && (
+                      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 1 }}>{lead.ciudad}</div>
+                    )}
+                    <UrgenciaPills lead={lead} />
+                  </td>
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.sector}</td>
-                  <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.ciudad}</td>
                   <td style={{ padding: '0 16px', whiteSpace: 'nowrap' }}>{lead.telefono ?? '—'}</td>
                   <td className="col-resenas" style={{ padding: '0 16px' }}>{lead.num_resenas ?? '—'}</td>
                   <td className="col-valoracion" style={{ padding: '0 16px' }}>
@@ -451,7 +622,7 @@ export default function Leads() {
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{FASE_LABELS[lead.fase] ?? lead.fase}</td>
                   <td style={{ padding: '0 16px' }} onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                      <button aria-label={`Ver detalle de ${lead.nombre}`} title="Ver detalle" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36 }} onClick={() => navigate(`/leads/${lead.id}`)}>
+                      <button aria-label={`Vista rápida de ${lead.nombre}`} title="Vista rápida" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36 }} onClick={() => setQuickViewLead(lead)}>
                         <Eye size={16} />
                       </button>
                       <button
@@ -485,7 +656,8 @@ export default function Leads() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
               {visibles.length === 0 && (
                 <tr>
                   <td colSpan={9} style={{ padding: 0 }}>
@@ -527,6 +699,175 @@ export default function Leads() {
           </button>
         </div>
       )}
+
+      {/* ── Barra de acciones en lote ── */}
+      {selectedIds.size > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            background: '#09090B',
+            borderRadius: 14,
+            padding: '12px 20px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.24)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            animation: 'lote-bar-in 200ms cubic-bezier(0.16,1,0.3,1)',
+          }}
+          role="region"
+          aria-label="Acciones en lote"
+        >
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap' }}>
+            {selectedIds.size} {selectedIds.size === 1 ? 'lead seleccionado' : 'leads seleccionados'}
+          </span>
+          <span style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.15)' }} />
+
+          <button className="lote-bar-btn" onClick={cualificarSeleccionados} disabled={!!batch} style={loteBtnStyle}>
+            <Sparkle size={16} weight="fill" /> Cualificar con IA
+          </button>
+
+          <ExportSheet leads={seleccionados} variant="dark" />
+
+          {/* Cambiar fase */}
+          <div style={{ position: 'relative' }}>
+            <button className="lote-bar-btn" onClick={() => setFaseDropdownOpen((v) => !v)} disabled={aplicandoLote} style={loteBtnStyle}>
+              <ArrowRight size={16} /> {aplicandoLote ? 'Aplicando…' : 'Cambiar fase'}
+            </button>
+            {faseDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 'calc(100% + 8px)',
+                  left: 0,
+                  background: '#18181B',
+                  borderRadius: 'var(--radius-md)',
+                  padding: 6,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.32)',
+                  minWidth: 180,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+                {FASES.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => cambiarFaseSeleccionados(f)}
+                    style={{
+                      background: 'transparent',
+                      color: 'rgba(255,255,255,0.85)',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '8px 12px',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      textAlign: 'left',
+                      minHeight: 36,
+                      transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    {FASE_LABELS[f]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <span style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.15)' }} />
+          <button
+            onClick={limpiarSeleccion}
+            aria-label="Cancelar selección"
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              color: 'rgba(255,255,255,0.5)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              width: 36,
+              height: 36,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Vista rápida (panel lateral) ── */}
+      <QuickView lead={quickViewLead} onClose={() => setQuickViewLead(null)} onUpdated={cargar} />
     </PageTransition>
   )
+}
+
+// Orden de prioridad: 0 = caliente sin trabajar, 1 = demo sin propuesta, 2 = resto.
+function prioridad(l: Lead): number {
+  if (esCalienteSinTrabajar(l)) return 0
+  if (esDemoSinPropuesta(l)) return 1
+  return 2
+}
+
+// Pills de urgencia bajo el nombre — solo se muestran las relevantes.
+function UrgenciaPills({ lead }: { lead: Lead }) {
+  const pills: { texto: string; bg: string; color: string }[] = []
+  if (esCalienteSinTrabajar(lead)) {
+    pills.push({ texto: '· Caliente sin trabajar', bg: 'rgba(239,68,68,0.08)', color: '#EF4444' })
+  }
+  if (esDemoSinPropuesta(lead)) {
+    pills.push({ texto: '· Demo sin propuesta', bg: 'rgba(245,158,11,0.08)', color: '#F59E0B' })
+  }
+  if (esInactivo(lead)) {
+    pills.push({ texto: '· Sin actividad 7d+', bg: 'rgba(161,161,170,0.1)', color: 'var(--color-text-tertiary)' })
+  }
+  if (lead.agent_id_retell) {
+    pills.push({ texto: '· Demo activa', bg: 'var(--color-primary-subtle)', color: 'var(--color-primary)' })
+  }
+  if (pills.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+      {pills.map((p) => (
+        <span
+          key={p.texto}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '1px 6px',
+            borderRadius: 'var(--radius-full)',
+            fontSize: 10,
+            fontWeight: 500,
+            background: p.bg,
+            color: p.color,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {p.texto}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+const loteBtnStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.1)',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 'var(--radius-md)',
+  padding: '0 14px',
+  height: 36,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: 13,
+  fontWeight: 500,
+  whiteSpace: 'nowrap',
+  transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
 }
