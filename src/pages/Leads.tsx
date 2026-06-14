@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight } from '@phosphor-icons/react'
+import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
@@ -12,6 +12,7 @@ import PageTransition from '../components/PageTransition'
 import ExportSheet from '../components/ExportSheet'
 import QuickView from '../components/QuickView'
 import Skeleton from '../components/Skeleton'
+import FuenteBadge from '../components/FuenteBadge'
 import { useToast } from '../components/Toast'
 
 const PAGE_SIZE = 25
@@ -35,6 +36,7 @@ export default function Leads() {
   const [busqueda, setBusqueda] = useState('')
   const [sectorFiltro, setSectorFiltro] = useState('todos')
   const [faseFiltro, setFaseFiltro] = useState('todas')
+  const [fuenteFiltro, setFuenteFiltro] = useState('todos') // 'todos' | 'web_calculadora' | 'extraccion'
   const [scoreMin, setScoreMin] = useState(0)
   const [orden, setOrden] = useState('prioridad')
   const [pagina, setPagina] = useState(1)
@@ -62,11 +64,13 @@ export default function Leads() {
     const f = searchParams.get('fase')
     const sp = searchParams.get('sin_propuesta')
     const inact = searchParams.get('inactivo')
+    const fu = searchParams.get('fuente')
     if (sm) setScoreMin(Number(sm))
     if (f) setFaseFiltro(f)
     if (sp) setSoloSinPropuesta(true)
     if (inact) setSoloInactivos(true)
-    if (sm || f || sp || inact) {
+    if (fu) setFuenteFiltro(fu)
+    if (sm || f || sp || inact || fu) {
       setOrden('prioridad')
       // Limpia la URL para no "fijar" el filtro al recargar manualmente.
       setSearchParams({}, { replace: true })
@@ -96,19 +100,25 @@ export default function Leads() {
       if (busqueda && !l.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false
       if (sectorFiltro !== 'todos' && l.sector !== sectorFiltro) return false
       if (faseFiltro !== 'todas' && l.fase !== faseFiltro) return false
+      if (fuenteFiltro === 'web_calculadora' && l.fuente !== 'web_calculadora') return false
+      // 'extraccion' = todo lo que no es lead web (los leads antiguos tienen fuente null pero son extracción)
+      if (fuenteFiltro === 'extraccion' && l.fuente === 'web_calculadora') return false
       if (scoreMin > 0 && (l.score_cualificacion ?? -1) < scoreMin) return false
       if (soloSinPropuesta && l.propuesta_md) return false
       if (soloInactivos && !esInactivo(l)) return false
       return true
     })
-    if (orden === 'prioridad') {
+    // Filtro web → los más urgentes primero (mayor pérdida real)
+    if (fuenteFiltro === 'web_calculadora') {
+      res = [...res].sort((a, b) => (b.perdida_mensual_real ?? 0) - (a.perdida_mensual_real ?? 0))
+    } else if (orden === 'prioridad') {
       // 1º calientes sin trabajar, 2º demo sin propuesta, 3º resto por score desc
       res = [...res].sort((a, b) => prioridad(a) - prioridad(b) || (b.score_cualificacion ?? -1) - (a.score_cualificacion ?? -1))
     } else if (orden === 'score') res = [...res].sort((a, b) => (b.score_cualificacion ?? -1) - (a.score_cualificacion ?? -1))
     else if (orden === 'resenas') res = [...res].sort((a, b) => (b.num_resenas ?? 0) - (a.num_resenas ?? 0))
     else if (orden === 'mrr') res = [...res].sort((a, b) => (b.mrr_estimado ?? 0) - (a.mrr_estimado ?? 0))
     return res
-  }, [leads, busqueda, sectorFiltro, faseFiltro, scoreMin, orden, soloSinPropuesta, soloInactivos])
+  }, [leads, busqueda, sectorFiltro, faseFiltro, fuenteFiltro, scoreMin, orden, soloSinPropuesta, soloInactivos])
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE))
   const paginaActual = Math.min(pagina, totalPaginas)
@@ -116,11 +126,12 @@ export default function Leads() {
 
   const hayFiltros =
     busqueda !== '' || sectorFiltro !== 'todos' || faseFiltro !== 'todas' ||
-    scoreMin > 0 || soloSinPropuesta || soloInactivos
+    fuenteFiltro !== 'todos' || scoreMin > 0 || soloSinPropuesta || soloInactivos
   const limpiarFiltros = () => {
     setBusqueda('')
     setSectorFiltro('todos')
     setFaseFiltro('todas')
+    setFuenteFiltro('todos')
     setScoreMin(0)
     setSoloSinPropuesta(false)
     setSoloInactivos(false)
@@ -471,6 +482,44 @@ export default function Leads() {
             style={{ width: 110, accentColor: 'var(--color-primary)', minHeight: 'auto' }}
           />
         </label>
+
+        {/* Filtro de origen */}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }} role="group" aria-label="Filtrar por origen">
+          {([
+            { id: 'todos', label: 'Todos', icon: null, color: 'var(--color-text-secondary)' },
+            { id: 'web_calculadora', label: 'Lead Web', icon: Globe, color: '#16A34A' },
+            { id: 'extraccion', label: 'Extracción', icon: MagnifyingGlass, color: 'var(--color-text-secondary)' },
+          ] as const).map((opt) => {
+            const activo = fuenteFiltro === opt.id
+            const Icon = opt.icon
+            return (
+              <button
+                key={opt.id}
+                onClick={() => { setFuenteFiltro(opt.id); setPagina(1) }}
+                aria-pressed={activo}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 10px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  minHeight: 'auto',
+                  border: '1px solid',
+                  borderColor: activo ? (opt.id === 'web_calculadora' ? 'rgba(34,197,94,0.3)' : 'var(--color-primary)') : 'var(--color-border)',
+                  background: activo ? (opt.id === 'web_calculadora' ? 'rgba(34,197,94,0.08)' : 'var(--color-primary-subtle)') : 'transparent',
+                  color: activo ? (opt.id === 'web_calculadora' ? '#16A34A' : 'var(--color-primary)') : 'var(--color-text-secondary)',
+                  transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), border-color 150ms cubic-bezier(0.4,0,0.2,1)',
+                }}
+              >
+                {Icon && <Icon size={12} weight={activo ? 'fill' : 'regular'} />}
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+
         {(soloSinPropuesta || soloInactivos) && (
           <button className="btn-ghost" onClick={limpiarFiltros} style={{ fontSize: 12, padding: '4px 10px', minHeight: 'auto' }}>
             <X size={12} /> Quitar filtro de alerta
@@ -606,6 +655,9 @@ export default function Leads() {
                     <div style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{lead.nombre}</div>
                     {lead.ciudad && (
                       <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 1 }}>{lead.ciudad}</div>
+                    )}
+                    {lead.fuente === 'web_calculadora' && (
+                      <div style={{ marginTop: 3 }}><FuenteBadge fuente={lead.fuente} /></div>
                     )}
                     <UrgenciaPills lead={lead} />
                   </td>
@@ -818,7 +870,16 @@ function prioridad(l: Lead): number {
 
 // Pills de urgencia bajo el nombre — solo se muestran las relevantes.
 function UrgenciaPills({ lead }: { lead: Lead }) {
-  const pills: { texto: string; bg: string; color: string }[] = []
+  const pills: { texto: string; bg: string; color: string; title?: string }[] = []
+  // Lead web con pérdida real → la mostramos siempre, en rojo (su dato más potente)
+  if (lead.fuente === 'web_calculadora' && lead.perdida_mensual_real != null && lead.perdida_mensual_real > 0) {
+    pills.push({
+      texto: `· −${lead.perdida_mensual_real.toLocaleString('es-ES')}€/mes`,
+      bg: 'rgba(239,68,68,0.08)',
+      color: '#EF4444',
+      title: 'Pérdida real calculada por el cliente',
+    })
+  }
   if (esCalienteSinTrabajar(lead)) {
     pills.push({ texto: '· Caliente sin trabajar', bg: 'rgba(239,68,68,0.08)', color: '#EF4444' })
   }
@@ -837,6 +898,7 @@ function UrgenciaPills({ lead }: { lead: Lead }) {
       {pills.map((p) => (
         <span
           key={p.texto}
+          title={p.title}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

@@ -215,6 +215,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .sidebar-overlay { display: none; }
 
 @media (max-width: 767px) {
+  /* Métricas de lead web: 4 → 2 columnas en móvil */
+  .lead-web-metrics { grid-template-columns: repeat(2, 1fr) !important; }
+
   /* ── Sidebar como drawer ── */
   .sidebar {
     transform: translateX(-100%);

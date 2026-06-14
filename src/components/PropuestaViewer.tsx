@@ -224,7 +224,7 @@ export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnvia
         </div>
 
         <footer className="propuesta-footer">
-          <p>WIARE · holawiare@gmail.com · wiare.vercel.app</p>
+          <p>WIARE · holawiare@gmail.com · wiaresolution.com</p>
         </footer>
       </div>
     </div>

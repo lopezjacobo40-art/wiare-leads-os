@@ -31,6 +31,13 @@ export interface Lead {
   propuesta_md: string | null
   notas: string | null
   creado_por: string | null
+  // ── Leads de wiaresolution.com (calculadora de pérdidas) ──
+  fuente: string | null
+  quiz_lead_id: string | null
+  perdida_mensual_real: number | null
+  perdida_anual_real: number | null
+  email: string | null
+  tag: string | null
 }
 
 export interface Extraccion {

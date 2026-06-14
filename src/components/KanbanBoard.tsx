@@ -18,6 +18,7 @@ import { MapPin, Microphone, FileText, DotsNine } from '@phosphor-icons/react'
 import { supabase, type Lead } from '../lib/supabaseClient'
 import { FASES, FASE_LABELS } from '../lib/supabaseClient'
 import ScoreBadge from './ScoreBadge'
+import FuenteBadge from './FuenteBadge'
 import { useToast } from './Toast'
 
 // Color por fase. Cada hex corresponde 1:1 con un token de globals.css
@@ -81,6 +82,10 @@ function CardContenido({ lead }: { lead: Lead }) {
       >
         {lead.nombre}
       </p>
+
+      {lead.fuente === 'web_calculadora' && (
+        <div style={{ marginBottom: 8 }}><FuenteBadge fuente={lead.fuente} /></div>
+      )}
 
       {/* Fila 2: ciudad + sector badge */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
@@ -163,6 +168,22 @@ function LeadCard({ lead, onOpen }: { lead: Lead; onOpen: (lead: Lead) => void }
       {...listeners}
       onClick={() => onOpen(lead)}
     >
+      {/* Punto verde pulsante para leads de la web */}
+      {lead.fuente === 'web_calculadora' && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            width: 8,
+            height: 8,
+            background: '#22C55E',
+            borderRadius: '50%',
+            animation: 'pulse-dot 2s infinite',
+          }}
+        />
+      )}
       {/* Drag handle (visible al hover) */}
       <DotsNine
         size={14}

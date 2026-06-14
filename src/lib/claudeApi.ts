@@ -91,6 +91,84 @@ Genera SOLO el system prompt.`
 
 export async function generarPropuesta(lead: Lead): Promise<string> {
   const mrr = lead.mrr_estimado ?? 190
+
+  // ── Lead venido de la calculadora de wiaresolution.com ──
+  // Ya validó su dolor (calculó su pérdida real) → propuesta basada en SUS cifras.
+  const esLeadWeb = lead.fuente === 'web_calculadora' && (lead.perdida_mensual_real ?? 0) > 0
+
+  if (esLeadWeb) {
+    const perdida = lead.perdida_mensual_real ?? 0
+    const payback = Math.ceil(790 / (perdida * 0.7))
+    const porSemana = Math.round(perdida / 4)
+    const promptWeb = `Genera una propuesta comercial ULTRA-PERSONALIZADA.
+Este cliente YA calculó sus pérdidas en wiaresolution.com.
+Usa sus números exactos — NUNCA estimes ni inventes cifras.
+
+DATOS REALES DEL CLIENTE:
+Nombre: ${lead.nombre}
+Sector: ${lead.sector}
+Pérdida mensual que ÉL calculó: ${perdida.toLocaleString('es-ES')}€/mes
+Pérdida anual: ${(perdida * 12).toLocaleString('es-ES')}€/año
+Cada semana sin solución: ${porSemana.toLocaleString('es-ES')}€
+Payback con WIARE: ${payback} semanas
+
+SERVICIO WIARE:
+Setup: 790€ único · Mantenimiento: ${mrr}€/mes
+Sin permanencia · Activo en 7 días
+
+CONTEXTO CLAVE PARA EL TONO:
+Este cliente ya reconoció el problema — fue a nuestra web,
+calculó sus pérdidas y dejó sus datos. El dolor está validado.
+NO vendas el problema — ya lo sabe. Vende la solución y la urgencia.
+
+ESTRUCTURA OBLIGATORIA (Markdown):
+
+# Propuesta WIARE — ${lead.nombre}
+
+## Ya lo sabes
+[1 párrafo. Reconoce que calculó ${perdida.toLocaleString('es-ES')}€/mes de pérdida.
+Valida que tomó una buena decisión al calcularlo.
+Muchos empresarios prefieren no saber — tú sí quisiste saberlo.]
+
+## Lo que hace nuestro sistema por ti
+[Solución específica para ${lead.sector}.
+3 beneficios concretos adaptados a su sector.
+Sin tecnicismos.]
+
+## Tu retorno exacto
+| Concepto | Cifra |
+|---|---|
+| Pérdida actual | ${perdida.toLocaleString('es-ES')}€/mes |
+| Recuperación estimada (70%) | ${Math.round(perdida * 0.7).toLocaleString('es-ES')}€/mes |
+| Inversión WIARE | ${mrr}€/mes + 790€ setup |
+| Beneficio neto mes 1 | ${Math.round(perdida * 0.7 - mrr).toLocaleString('es-ES')}€ |
+| Payback del setup | ${payback} semanas |
+
+## Qué incluye
+- Agente de voz 24/7 personalizado para tu ${lead.sector}
+- CRM con registro automático de cada lead
+- Formación de 2 horas para tu equipo
+- Soporte técnico incluido
+- Sin permanencia — cancelas cuando quieras
+
+## Activo en 7 días
+1. Reunión de 30 min para configurar tu agente
+2. Periodo de prueba y ajustes (48h)
+3. Activación y primeras llamadas respondidas
+
+## Tu inversión
+**Setup:** 790€ (único) · **Mensual:** ${mrr}€ · **Sin permanencia**
+
+## Cada semana que pasa son ${porSemana.toLocaleString('es-ES')}€ menos
+[CTA directo. Recuerda que cada semana de espera son
+${porSemana.toLocaleString('es-ES')}€ que no entran.
+Propón empezar esta semana.]
+
+Tono: directo, usa SUS números, crea urgencia real basada en datos.`
+
+    return guardedCall('content', () => callClaude('claude-sonnet-4-6', 2000, promptWeb))
+  }
+
   const prompt = `Genera propuesta comercial en Markdown para ${lead.nombre}.
 Sector: ${lead.sector}, Ciudad: ${lead.ciudad ?? 'N/D'}
 Reseñas: ${lead.num_resenas ?? 0}, Valoración: ${lead.valoracion ?? 'N/D'}

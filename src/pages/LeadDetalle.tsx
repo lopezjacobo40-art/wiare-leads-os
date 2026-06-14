@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Microphone, FileText, CurrencyEur, Note,
   Phone, Globe, MapPin, Star, Clock,
-  Waveform, Broadcast, ArrowClockwise, CheckCircle, PencilSimple,
+  Waveform, Broadcast, ArrowClockwise, CheckCircle, PencilSimple, ArrowRight,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { generarSystemPrompt, generarPropuesta } from '../lib/claudeApi'
 import { crearAgentDemo } from '../lib/retellApi'
 import ScoreBadge from '../components/ScoreBadge'
+import FuenteBadge from '../components/FuenteBadge'
 import PropuestaViewer from '../components/PropuestaViewer'
 import FaseSelector from '../components/FaseSelector'
 import PageTransition from '../components/PageTransition'
@@ -76,6 +77,15 @@ function calcularCostes(mrr: number) {
   const supabaseCoste = Math.round(t * 10)
   const twilio = 1
   return { retell, elevenlabs, supabase: supabaseCoste, twilio, total: retell + elevenlabs + supabaseCoste + twilio }
+}
+
+const metricaLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  color: 'var(--color-text-tertiary)',
+  marginBottom: 4,
 }
 
 const promptTextareaStyle: React.CSSProperties = {
@@ -233,6 +243,7 @@ export default function LeadDetalle() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <h1 style={{ fontSize: 24, fontWeight: 700 }}>{lead.nombre}</h1>
           <ScoreBadge score={lead.score_cualificacion} />
+          <FuenteBadge fuente={lead.fuente} size="md" />
           <FaseSelector fase={lead.fase} onChange={cambiarFase} />
         </div>
       </div>
@@ -241,6 +252,72 @@ export default function LeadDetalle() {
         <p className="no-print" style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-error)' }} /> {error}
         </p>
+      )}
+
+      {/* Card especial: lead venido de la calculadora de wiaresolution.com */}
+      {lead.fuente === 'web_calculadora' && lead.perdida_mensual_real != null && lead.perdida_mensual_real > 0 && (
+        <div
+          style={{
+            background: 'rgba(34,197,94,0.04)',
+            border: '1px solid rgba(34,197,94,0.15)',
+            borderRadius: 12,
+            padding: '20px 24px',
+            marginBottom: 24,
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Globe size={16} color="#16A34A" weight="fill" />
+            <span style={{ fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 14, color: '#16A34A' }}>
+              Este lead vino de wiaresolution.com
+            </span>
+          </div>
+
+          {/* Grid de métricas */}
+          <div className="lead-web-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <div>
+              <div style={metricaLabelStyle}>Pérdida mensual</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 28, color: '#EF4444' }}>
+                {lead.perdida_mensual_real.toLocaleString('es-ES')}€
+              </div>
+            </div>
+            <div>
+              <div style={metricaLabelStyle}>Pérdida anual</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--color-text-secondary)' }}>
+                {(lead.perdida_mensual_real * 12).toLocaleString('es-ES')}€
+              </div>
+            </div>
+            <div>
+              <div style={metricaLabelStyle}>Cada semana</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: '#F59E0B' }}>
+                {Math.round(lead.perdida_mensual_real / 4).toLocaleString('es-ES')}€
+              </div>
+            </div>
+            <div>
+              <div style={metricaLabelStyle}>Payback WIARE</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 20, color: 'var(--color-primary)' }}>
+                {Math.ceil(790 / (lead.perdida_mensual_real * 0.7))} semanas
+              </div>
+            </div>
+          </div>
+
+          {/* Nota táctica */}
+          <div
+            style={{
+              marginTop: 16,
+              paddingTop: 16,
+              borderTop: '1px solid rgba(34,197,94,0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <ArrowRight size={12} color="#16A34A" />
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#16A34A', fontFamily: 'var(--font-body)' }}>
+              Ya sabe cuánto pierde — llámale hoy y tendrás ventaja total
+            </span>
+          </div>
+        </div>
       )}
 
       <div className="detalle-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: 24, alignItems: 'start' }}>

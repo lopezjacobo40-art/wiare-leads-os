@@ -1,24 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Users, Fire, Microphone, CurrencyEur, Clock, CheckCircle, ArrowRight, CaretRight } from '@phosphor-icons/react'
+import { Users, Fire, Microphone, CurrencyEur, Clock, CheckCircle, ArrowRight, CaretRight, ArrowsClockwise, Globe } from '@phosphor-icons/react'
 import { supabase, type Lead, type Extraccion } from '../lib/supabaseClient'
+import { syncWebLeads } from '../lib/syncWebLeads'
 import KanbanBoard from '../components/KanbanBoard'
 import QuickView from '../components/QuickView'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
 import Skeleton from '../components/Skeleton'
+import { useToast } from '../components/Toast'
 
 const DIAS_7_MS = 7 * 24 * 60 * 60 * 1000
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [leads, setLeads] = useState<Lead[]>([])
   const [extracciones, setExtracciones] = useState<Extraccion[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [quickViewLead, setQuickViewLead] = useState<Lead | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
   const cargar = () =>
     Promise.all([
@@ -36,6 +40,41 @@ export default function Dashboard() {
 
   useEffect(() => { cargar() }, [])
 
+  // ── Sincronización automática de leads de wiaresolution.com ──
+  // Corre al montar y cada 5 min. Solo recarga el dashboard si trajo algo nuevo.
+  useEffect(() => {
+    const runSync = async () => {
+      const resultado = await syncWebLeads()
+      if (resultado.nuevos > 0) {
+        toast(
+          `${resultado.nuevos} lead${resultado.nuevos > 1 ? 's' : ''} nuevo${resultado.nuevos > 1 ? 's' : ''} desde wiaresolution.com`,
+          'success'
+        )
+        cargar()
+      }
+      if (resultado.errores > 0) {
+        console.warn('Error en sync de leads web')
+      }
+    }
+
+    runSync()
+    const interval = setInterval(runSync, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleManualSync = async () => {
+    setSyncing(true)
+    const resultado = await syncWebLeads()
+    setSyncing(false)
+    if (resultado.nuevos > 0) {
+      toast(`${resultado.nuevos} leads nuevos desde la web`, 'success')
+      cargar()
+    } else {
+      toast('Pipeline sincronizado — sin leads nuevos', 'info')
+    }
+  }
+
   const calientes = leads.filter((l) => (l.score_cualificacion ?? 0) >= 7).length
   const demos = leads.filter((l) => l.agent_id_retell).length
   const mrrTotal = leads.reduce((acc, l) => acc + (l.mrr_estimado ?? 0), 0)
@@ -52,7 +91,12 @@ export default function Dashboard() {
   const sinActividad = leads.filter(
     (l) => l.fase === 'nuevo' && Date.now() - new Date(l.created_at).getTime() > DIAS_7_MS
   )
-  const totalAlertas = calientesSinTrabajar.length + demoSinPropuesta.length + sinActividad.length
+  // Leads de wiaresolution.com sin contactar (máxima prioridad), de mayor a menor pérdida.
+  const leadsWebSinContactar = leads
+    .filter((l) => l.fuente === 'web_calculadora' && l.fase === 'nuevo')
+    .sort((a, b) => (b.perdida_mensual_real ?? 0) - (a.perdida_mensual_real ?? 0))
+  const totalAlertas =
+    leadsWebSinContactar.length + calientesSinTrabajar.length + demoSinPropuesta.length + sinActividad.length
 
   const porSector = leads.reduce<Record<string, number>>((acc, l) => {
     acc[l.sector] = (acc[l.sector] ?? 0) + 1
@@ -125,7 +169,22 @@ export default function Dashboard() {
 
   return (
     <PageTransition>
-      <PageHeader titulo="Dashboard" subtitulo="Resumen del pipeline de leads" />
+      <PageHeader
+        titulo="Dashboard"
+        subtitulo="Resumen del pipeline de leads"
+        acciones={
+          <button
+            onClick={handleManualSync}
+            className="btn-ghost"
+            disabled={syncing}
+            aria-label="Sincronizar leads de la web"
+            style={{ fontSize: 13, padding: '6px 12px', minHeight: 36, gap: 6 }}
+          >
+            <ArrowsClockwise size={14} style={syncing ? { animation: 'spin 0.8s linear infinite' } : undefined} />
+            {syncing ? 'Sincronizando…' : 'Sincronizar web'}
+          </button>
+        }
+      />
       {error && <p style={{ color: 'var(--color-error)', marginBottom: 16 }}>Error: {error}</p>}
 
       {/* Métricas */}
@@ -206,6 +265,8 @@ export default function Dashboard() {
       {/* Tu lista de hoy — alertas */}
       <AlertasHoy
         total={totalAlertas}
+        leadsWeb={leadsWebSinContactar.length}
+        leadWebTopPerdida={leadsWebSinContactar[0]?.perdida_mensual_real ?? null}
         calientes={calientesSinTrabajar.length}
         demoSinPropuesta={demoSinPropuesta.length}
         sinActividad={sinActividad.length}
@@ -284,12 +345,16 @@ export default function Dashboard() {
 // ── Card de alertas "Tu lista de hoy" ──
 function AlertasHoy({
   total,
+  leadsWeb,
+  leadWebTopPerdida,
   calientes,
   demoSinPropuesta,
   sinActividad,
   navigate,
 }: {
   total: number
+  leadsWeb: number
+  leadWebTopPerdida: number | null
   calientes: number
   demoSinPropuesta: number
   sinActividad: number
@@ -331,7 +396,7 @@ function AlertasHoy({
 
   return (
     <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: filas.length ? 14 : 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: total ? 14 : 0 }}>
         <h2 style={{ fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-body)' }}>Tu lista de hoy</h2>
         {total > 0 && (
           <span
@@ -343,13 +408,52 @@ function AlertasHoy({
         )}
       </div>
 
-      {filas.length === 0 ? (
+      {total === 0 ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--color-success)' }}>
           <CheckCircle size={20} weight="fill" />
           <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>Todo al día · Sin pendientes</span>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Máxima prioridad: leads de wiaresolution.com sin contactar */}
+          {leadsWeb > 0 && (
+            <div
+              onClick={() => navigate('/leads?fuente=web_calculadora&fase=nuevo')}
+              role="button"
+              tabIndex={0}
+              aria-label={`${leadsWeb} leads de wiaresolution.com sin contactar`}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/leads?fuente=web_calculadora&fase=nuevo') }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '14px 16px',
+                background: 'rgba(34,197,94,0.06)',
+                border: '1px solid rgba(34,197,94,0.2)',
+                borderRadius: 10,
+                cursor: 'pointer',
+                transition: 'background 200ms ease-out',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(34,197,94,0.1)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(34,197,94,0.06)')}
+            >
+              <span
+                aria-hidden="true"
+                style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', animation: 'pulse-dot 2s infinite', flexShrink: 0 }}
+              />
+              <Globe size={16} color="#16A34A" weight="fill" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#16A34A' }}>
+                  {leadsWeb} lead{leadsWeb > 1 ? 's' : ''} de wiaresolution.com sin contactar
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                  Ya saben cuánto pierden · Máxima prioridad
+                  {leadWebTopPerdida != null && ` · El más urgente: ${leadWebTopPerdida.toLocaleString('es-ES')}€/mes`}
+                </div>
+              </div>
+              <ArrowRight size={14} color="#16A34A" style={{ flexShrink: 0 }} />
+            </div>
+          )}
           {filas.map((f) => (
             <button
               key={f.key}

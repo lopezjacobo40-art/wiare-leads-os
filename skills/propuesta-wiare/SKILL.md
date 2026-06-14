@@ -6,7 +6,7 @@ Tagline: Agente de voz IA para negocios locales en España
 Colores: Primary #6366F1 | Cyan #22D3EE | Negro #09090B
 Tipografía: Bricolage Grotesque (títulos) + Inter (cuerpo)
 Logo: /logo-wiare.png (oscuro) | /logo-wiare-blanco.png (claro)
-Web: wiare.vercel.app | Email: holawiare@gmail.com
+Web: wiaresolution.com | Email: holawiare@gmail.com
 
 ## Precios
 Setup: 790€ pago único
