@@ -103,23 +103,31 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
       }}
     >
       {/* Header — logo + label LEADS OS */}
-      <div style={{ padding: '24px 20px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <div style={{ padding: '20px 20px 0' }}>
         <img
           src="/logo-wiare.png"
           alt="WIARE"
-          style={{ height: '28px', width: 'auto', display: 'block' }}
-          onError={(e) => { e.currentTarget.style.display = 'none' }}
-        />
-        <p
           style={{
-            color: 'var(--color-text-tertiary)',
-            fontSize: 10,
-            marginTop: 8,
-            fontWeight: 600,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
+            height: 'auto',
+            width: '100%',
+            maxWidth: '120px',
+            maxHeight: '40px',
+            objectFit: 'contain',
+            objectPosition: 'left center',
+            display: 'block'
           }}
-        >
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none'
+          }}
+        />
+        <p style={{
+          color: 'var(--color-text-tertiary)',
+          fontSize: 10,
+          marginTop: 6,
+          fontWeight: 600,
+          letterSpacing: '0.15em',
+          textTransform: 'uppercase',
+        }}>
           Leads OS
         </p>
       </div>
@@ -199,11 +207,7 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
             </NavLink>
           )
         })}
-      </nav>
-
-      {/* Configuración — solo visible para el admin (jacobo) */}
-      {user === 'jacobo' && (
-        <div style={{ borderTop: '1px solid var(--color-border)', padding: '8px 0' }}>
+        {user === 'jacobo' && (
           <NavLink
             to="/configuracion"
             style={({ isActive }) => ({
@@ -230,8 +234,8 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
               </>
             )}
           </NavLink>
-        </div>
-      )}
+        )}
+      </nav>
 
       {/* Footer — usuario + uso + logout */}
       <div style={{ borderTop: '1px solid var(--color-border)', padding: '16px 20px' }}>

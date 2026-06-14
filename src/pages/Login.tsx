@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 
 const USERS: Record<string, string> = {
   [import.meta.env.VITE_AUTH_USER_1 ?? 'jacobo']: import.meta.env.VITE_AUTH_PASS_1 ?? '',
-  [import.meta.env.VITE_AUTH_USER_2 ?? 'socio']: import.meta.env.VITE_AUTH_PASS_2 ?? '',
+  [import.meta.env.VITE_AUTH_USER_2 ?? 'luis']: import.meta.env.VITE_AUTH_PASS_2 ?? '',
 }
 
 export default function Login({ onLogin }: { onLogin: (user: string) => void }) {
