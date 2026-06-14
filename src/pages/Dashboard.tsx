@@ -157,10 +157,12 @@ export default function Dashboard() {
                   <div
                     style={{
                       height: '100%',
-                      width: `${(count / maxSector) * 100}%`,
+                      width: '100%',
                       background: 'var(--gradient-brand)',
                       borderRadius: 999,
-                      transition: 'width 0.5s ease',
+                      transform: `scaleX(${count / maxSector})`,
+                      transition: 'transform 0.5s cubic-bezier(0.16,1,0.3,1)',
+                      transformOrigin: 'left',
                     }}
                   />
                 </div>

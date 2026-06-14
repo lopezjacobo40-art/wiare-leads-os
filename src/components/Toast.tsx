@@ -101,7 +101,7 @@ function ToastViewport({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: 
               padding: '12px 14px',
               background: '#fff',
               border: '1px solid var(--color-border)',
-              borderLeft: `3px solid ${color}`,
+              borderTop: `2px solid ${color}`,
               borderRadius: 'var(--radius-md)',
               boxShadow: 'var(--shadow-md)',
               animation: t.saliendo

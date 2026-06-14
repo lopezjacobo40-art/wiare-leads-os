@@ -21,10 +21,12 @@ export default function LoadingBar({ progress, label }: Props) {
         <div
           style={{
             height: '100%',
-            width: `${Math.min(100, Math.max(0, progress))}%`,
+            width: '100%',
             background: 'var(--gradient-main)',
             borderRadius: 999,
-            transition: 'width 0.3s ease',
+            transform: `scaleX(${Math.min(100, Math.max(0, progress)) / 100})`,
+            transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1)',
+            transformOrigin: 'left',
             position: 'relative',
             overflow: 'hidden',
           }}

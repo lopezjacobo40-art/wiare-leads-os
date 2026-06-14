@@ -274,7 +274,7 @@ export default function KanbanBoard({ leads: leadsProp }: { leads: Lead[] }) {
           ))}
         </div>
 
-        <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.34,1.56,0.64,1)' }}>
+        <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.16,1,0.3,1)' }}>
           {activeLead ? <LeadCardGhost lead={activeLead} /> : null}
         </DragOverlay>
       </DndContext>
