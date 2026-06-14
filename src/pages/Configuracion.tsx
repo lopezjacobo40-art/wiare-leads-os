@@ -466,7 +466,7 @@ function SeccionUsuarios({
     .map((u) => (typeof u === 'string' ? u.trim().toLowerCase() : ''))
     .filter(Boolean)
   // Defaults si no hay nada configurado (coinciden con Login.tsx)
-  const lista = usuarios.length > 0 ? usuarios : ['jacobo', 'socio']
+  const lista = usuarios.length > 0 ? usuarios : ['jacobo', 'luis']
 
   return (
     <section style={seccionStyle}>
