@@ -26,6 +26,7 @@ const FASE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
   cualificado: 'Cualificado',
   demo_creada: 'Demo creada',
+  propuesta_creada: 'Propuesta creada',
   propuesta_enviada: 'Propuesta enviada',
   cerrado: 'Cerrado',
 }

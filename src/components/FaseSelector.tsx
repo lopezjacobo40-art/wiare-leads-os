@@ -7,7 +7,8 @@ export const FASE_COLOR: Record<string, string> = {
   nuevo: '#A1A1AA',
   cualificado: '#F59E0B',
   demo_creada: '#6366F1',
-  propuesta_enviada: '#8B5CF6',
+  propuesta_creada: '#8B5CF6',
+  propuesta_enviada: '#A855F7',
   cerrado: '#22C55E',
 }
 

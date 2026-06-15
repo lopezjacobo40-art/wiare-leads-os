@@ -24,11 +24,12 @@ import { useToast } from './Toast'
 // Color por fase. Cada hex corresponde 1:1 con un token de globals.css
 // (se mantiene en hex porque rgbaFromHex() deriva los fondos translúcidos a partir de él).
 const FASE_COLOR: Record<string, string> = {
-  nuevo: '#A1A1AA',            // --color-text-tertiary
-  cualificado: '#F59E0B',      // --color-warning
-  demo_creada: '#6366F1',      // --color-primary
-  propuesta_enviada: '#8B5CF6', // violeta (sin token equivalente)
-  cerrado: '#22C55E',          // --color-success
+  nuevo: '#A1A1AA',             // --color-text-tertiary
+  cualificado: '#F59E0B',       // --color-warning
+  demo_creada: '#6366F1',       // --color-primary
+  propuesta_creada: '#8B5CF6',  // violeta medio
+  propuesta_enviada: '#A855F7', // violeta claro
+  cerrado: '#22C55E',           // --color-success
 }
 
 function rgbaFromHex(hex: string, alpha: number): string {

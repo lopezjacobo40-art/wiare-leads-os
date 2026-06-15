@@ -208,7 +208,10 @@ export default function LeadDetalle() {
     setError('')
     try {
       const md = await generarPropuesta(lead)
-      await actualizar({ propuesta_md: md })
+      const updates: Record<string, unknown> = { propuesta_md: md }
+      const fasesAnteriores = ['nuevo', 'cualificado', 'demo_creada']
+      if (fasesAnteriores.includes(lead.fase)) updates.fase = 'propuesta_creada'
+      await actualizar(updates)
       setPropuestaDraft(md)
       toast('Propuesta generada', 'success')
     } catch (err) {
