@@ -148,14 +148,20 @@ export default function LeadDetalle() {
   const [emailsHoy, setEmailsHoy] = useState(0)
 
   useEffect(() => {
+    setLoading(true)
+    setLead(null)
+    setError('')
     supabase
       .from('leads_os')
       .select('*')
       .eq('id', id)
       .single()
       .then(({ data, error: err }) => {
-        if (err) setError(err.message)
-        else {
+        if (err) {
+          setError(err.message)
+        } else if (!data) {
+          setError('Lead no encontrado')
+        } else {
           const l = data as Lead
           setLead(l)
           setNotas(l.notas ?? '')
@@ -340,7 +346,13 @@ export default function LeadDetalle() {
     )
   }
   if (!lead) {
-    return <p style={{ color: 'var(--color-error)' }}>Lead no encontrado. {error}</p>
+    return (
+      <PageTransition>
+        <p style={{ color: 'var(--color-error)', padding: 24 }}>
+          Lead no encontrado{error ? `: ${error}` : ''}.
+        </p>
+      </PageTransition>
+    )
   }
 
   const generarDemo = async () => {
