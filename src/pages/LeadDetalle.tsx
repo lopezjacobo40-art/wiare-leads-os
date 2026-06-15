@@ -597,10 +597,10 @@ export default function LeadDetalle() {
           <DatoFila icon={Star} color="var(--color-warning)" label="Reputación">
             {lead.valoracion ?? '—'} · {lead.num_resenas ?? 0} reseñas
           </DatoFila>
-          {lead.horario && lead.horario.length > 0 && (
+          {Array.isArray(lead.horario) && lead.horario.length > 0 && (
             <DatoFila icon={Clock} color="var(--color-text-secondary)" label="Horario">
               <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                {lead.horario.map((h, i) => <div key={i}>{h}</div>)}
+                {lead.horario.map((h, i) => <div key={i}>{String(h)}</div>)}
               </div>
             </DatoFila>
           )}
