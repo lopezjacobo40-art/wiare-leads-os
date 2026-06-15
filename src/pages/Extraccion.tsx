@@ -2,13 +2,28 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ForkKnife, FirstAid, GraduationCap, Buildings, Wrench,
-  Scissors, Bed, Barbell, Pill, Storefront, CheckCircle, Warning,
+  Scissors, Bed, Barbell, Pill, Storefront, CheckCircle, Warning, X,
 } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
-import { extraerLeads } from '../lib/googlePlaces'
+import { extraerLeads, type LeadExtraido } from '../lib/googlePlaces'
 import LoadingBar from '../components/LoadingBar'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
+
+// Palabras que sugieren cadena nacional/franquicia
+const PALABRAS_CADENA = [
+  'mcdonald', 'burger king', 'kfc', 'telepizza', 'domino', 'dunkin',
+  'mercadona', 'lidl', 'aldi', 'carrefour', 'el corte inglés',
+  'zara', 'h&m', 'mango', 'primark', 'decathlon',
+  'clínica baviera', 'multiópticas', 'specsavers',
+  'clínica dental orión', 'vitaldent', 'dentix', 'isocel', 'propdental',
+  'planet fitness', 'anytime fitness',
+]
+
+function esCadena(nombre: string): boolean {
+  const n = nombre.toLowerCase()
+  return PALABRAS_CADENA.some((c) => n.includes(c))
+}
 
 const SECTORES = [
   { nombre: 'Restaurante', icon: ForkKnife },
@@ -37,7 +52,20 @@ export default function Extraccion() {
   const [errorMsg, setErrorMsg] = useState('')
   const [guardados, setGuardados] = useState(0)
   const [duplicados, setDuplicados] = useState(0)
+  const [filtradosCadena, setFiltradosCadena] = useState(0)
   const logRef = useRef<HTMLDivElement>(null)
+
+  // Filtros de extracción avanzados
+  const [cpZona, setCpZona] = useState('')
+  const [excluirCadenas, setExcluirCadenas] = useState(false)
+  const [soloConQuejas, setSoloConQuejas] = useState(false)
+
+  // Pills de filtros activos
+  const filtrosActivos = [
+    cpZona.trim() ? { key: 'cp', label: `Zona: "${cpZona.trim()}"`, clear: () => setCpZona('') } : null,
+    excluirCadenas ? { key: 'cadenas', label: 'Sin cadenas', clear: () => setExcluirCadenas(false) } : null,
+    soloConQuejas ? { key: 'quejas', label: 'Solo con quejas', clear: () => setSoloConQuejas(false) } : null,
+  ].filter(Boolean) as { key: string; label: string; clear: () => void }[]
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
@@ -51,8 +79,9 @@ export default function Extraccion() {
     setLog([])
     setErrorMsg('')
     setProgreso({ actual: 0, total: cantidad })
+    setFiltradosCadena(0)
     try {
-      const leads = await extraerLeads(sectorFinal, ciudad.trim(), cantidad, (lead, i, total) => {
+      const leadsRaw = await extraerLeads(sectorFinal, ciudad.trim(), cantidad, (lead, i, total) => {
         setEstado('extrayendo')
         setProgreso({ actual: i, total })
         setLog((prev) => [
@@ -60,6 +89,23 @@ export default function Extraccion() {
           `${lead.nombre}  ·  ${lead.valoracion ?? '–'} ★  ·  ${lead.num_resenas ?? 0} reseñas`,
         ])
       })
+
+      // ── Filtros post-extracción ──
+      let leads: LeadExtraido[] = leadsRaw
+      let numCadenasExcluidas = 0
+      if (excluirCadenas) {
+        const antes = leads.length
+        leads = leads.filter((l) => !esCadena(l.nombre))
+        numCadenasExcluidas = antes - leads.length
+        setFiltradosCadena(numCadenasExcluidas)
+      }
+      if (cpZona.trim()) {
+        const zona = cpZona.trim().toLowerCase()
+        leads = leads.filter((l) => (l.direccion ?? '').toLowerCase().includes(zona))
+      }
+      if (soloConQuejas) {
+        leads = leads.filter((l) => l.valoracion != null && l.valoracion <= 3.5)
+      }
 
       if (leads.length === 0) throw new Error('No se encontraron resultados para esa búsqueda')
 
@@ -166,6 +212,75 @@ export default function Extraccion() {
           />
         </div>
 
+        {/* ── Filtros avanzados ── */}
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <label style={{ fontSize: 14, fontWeight: 600, display: 'block', marginBottom: 0 }}>
+            Filtros de extracción
+            <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-text-secondary)', marginLeft: 8 }}>— se aplican sobre los resultados</span>
+          </label>
+
+          {/* CP / zona */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6, color: 'var(--color-text-secondary)' }}>
+              Código postal o zona dentro de la ciudad
+            </label>
+            <input
+              placeholder="Ej: 46010, Eixample, Centro…"
+              value={cpZona}
+              onChange={(e) => setCpZona(e.target.value)}
+              style={{ width: '100%', maxWidth: 280 }}
+            />
+          </div>
+
+          {/* Checkboxes */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={excluirCadenas}
+                onChange={(e) => setExcluirCadenas(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: 'var(--color-primary)', minHeight: 'auto' }}
+              />
+              <span>Excluir cadenas nacionales</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={soloConQuejas}
+                onChange={(e) => setSoloConQuejas(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: 'var(--color-primary)', minHeight: 'auto' }}
+              />
+              <span>Solo negocios con valoración ≤ 3.5 ★</span>
+            </label>
+          </div>
+
+          {/* Pills de filtros activos */}
+          {filtrosActivos.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {filtrosActivos.map((f) => (
+                <span
+                  key={f.key}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: 12, fontWeight: 500,
+                    background: 'var(--color-primary-subtle)', color: 'var(--color-primary)',
+                    border: '1px solid rgba(99,102,241,0.2)',
+                  }}
+                >
+                  {f.label}
+                  <button
+                    onClick={f.clear}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'inline-flex', color: 'inherit', minHeight: 'auto' }}
+                    aria-label={`Quitar filtro ${f.label}`}
+                  >
+                    <X size={11} weight="bold" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button className="btn-gradient" disabled={!puedeExtraer} onClick={extraer}>
           Extraer leads →
         </button>
@@ -207,14 +322,18 @@ export default function Extraccion() {
         <div className="card" style={{ padding: 24, marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <CheckCircle size={22} weight="fill" style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-            <p style={{ fontSize: 15, fontWeight: 600 }}>
-              {guardados} {guardados === 1 ? 'lead nuevo' : 'leads nuevos'}
-              {duplicados > 0 && (
-                <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>
-                  {' · '}{duplicados} {duplicados === 1 ? 'duplicado omitido' : 'duplicados omitidos'}
-                </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <p style={{ fontSize: 15, fontWeight: 600 }}>
+                {guardados} {guardados === 1 ? 'lead nuevo' : 'leads nuevos'}
+              </p>
+              {(duplicados > 0 || filtradosCadena > 0) && (
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                  {duplicados > 0 && `${duplicados} ${duplicados === 1 ? 'duplicado omitido' : 'duplicados omitidos'}`}
+                  {duplicados > 0 && filtradosCadena > 0 && ' · '}
+                  {filtradosCadena > 0 && `${filtradosCadena} ${filtradosCadena === 1 ? 'cadena excluida' : 'cadenas excluidas'}`}
+                </p>
               )}
-            </p>
+            </div>
           </div>
           <button className="btn-gradient" onClick={() => navigate('/leads')}>
             Ver leads →
