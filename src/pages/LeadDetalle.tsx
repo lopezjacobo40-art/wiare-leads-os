@@ -9,7 +9,8 @@ import {
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { generarSystemPrompt, generarPropuesta, generarContenidoSlides, generarEstrategiaOutreach, generarEmailOutreach, type EstrategiaOutreach, type SlidesContent } from '../lib/claudeApi'
 import { crearAgentDemo } from '../lib/retellApi'
-import { buscarEmail, labelFuente } from '../lib/emailFinder'
+import { buscarEmailApify } from '../lib/apifyClient'
+import { labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
 import FuenteBadge from '../components/FuenteBadge'
 import PropuestaViewer from '../components/PropuestaViewer'
@@ -200,19 +201,15 @@ export default function LeadDetalle() {
     if (!lead) return
     setBuscandoEmail(true)
     try {
-      const resultado = await buscarEmail({
-        web: lead.web,
-        nombre: lead.nombre,
-        descripcion: lead.descripcion,
-      })
-      if (resultado.email) {
-        setEmailDraft(resultado.email)
+      const email = await buscarEmailApify(lead.google_place_id ?? '', lead.web)
+      if (email) {
+        setEmailDraft(email)
         await actualizar({
-          email: resultado.email,
-          email_fuente: resultado.fuente,
-          email_verificado: resultado.verificado,
+          email,
+          email_fuente: 'apify',
+          email_verificado: false,
         })
-        toast(`Email encontrado: ${resultado.email}`, 'success')
+        toast(`Email encontrado: ${email}`, 'success')
       } else {
         toast('No se encontró email', 'error')
       }

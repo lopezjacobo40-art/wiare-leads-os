@@ -5,7 +5,7 @@ import {
   Scissors, Bed, Barbell, Pill, Storefront, CheckCircle, Warning, X,
 } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
-import { extraerLeads, type LeadExtraido } from '../lib/googlePlaces'
+import { extraerLeadsConApify, type ApifyLead } from '../lib/apifyClient'
 import LoadingBar from '../components/LoadingBar'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
@@ -81,37 +81,34 @@ export default function Extraccion() {
     setProgreso({ actual: 0, total: cantidad })
     setFiltradosCadena(0)
     try {
-      const leadsRaw = await extraerLeads(sectorFinal, ciudad.trim(), cantidad, (lead, i, total) => {
+      const leadsRaw = await extraerLeadsConApify(sectorFinal, ciudad.trim(), cantidad, (mensaje) => {
         setEstado('extrayendo')
-        setProgreso({ actual: i, total })
-        setLog((prev) => [
-          ...prev,
-          `${lead.nombre}  ·  ${lead.valoracion ?? '–'} ★  ·  ${lead.num_resenas ?? 0} reseñas`,
-        ])
+        setLog((prev) => [...prev, mensaje])
       })
 
+      setProgreso({ actual: leadsRaw.length, total: leadsRaw.length })
+
       // ── Filtros post-extracción ──
-      let leads: LeadExtraido[] = leadsRaw
+      let leads: ApifyLead[] = leadsRaw
       let numCadenasExcluidas = 0
       if (excluirCadenas) {
         const antes = leads.length
-        leads = leads.filter((l) => !esCadena(l.nombre))
+        leads = leads.filter((l) => !esCadena(l.title))
         numCadenasExcluidas = antes - leads.length
         setFiltradosCadena(numCadenasExcluidas)
       }
       if (cpZona.trim()) {
         const zona = cpZona.trim().toLowerCase()
-        leads = leads.filter((l) => (l.direccion ?? '').toLowerCase().includes(zona))
+        leads = leads.filter((l) => (l.address ?? '').toLowerCase().includes(zona))
       }
       if (soloConQuejas) {
-        leads = leads.filter((l) => l.valoracion != null && l.valoracion <= 3.5)
+        leads = leads.filter((l) => l.rating != null && l.rating <= 3.5)
       }
 
       if (leads.length === 0) throw new Error('No se encontraron resultados para esa búsqueda')
 
       // ── Detección de duplicados ──
-      // Consultamos qué google_place_id de los extraídos ya existen en el pipeline.
-      const placeIds = leads.map((l) => l.google_place_id).filter(Boolean)
+      const placeIds = leads.map((l) => l.placeId).filter(Boolean)
       const { data: existentes, error: dupError } = await supabase
         .from('leads_os')
         .select('google_place_id')
@@ -119,14 +116,33 @@ export default function Extraccion() {
       if (dupError) throw dupError
 
       const yaExisten = new Set((existentes ?? []).map((e) => e.google_place_id))
-      const nuevos = leads.filter((l) => !yaExisten.has(l.google_place_id))
+      const nuevos = leads.filter((l) => !yaExisten.has(l.placeId))
       const numDuplicados = leads.length - nuevos.length
 
       const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
       if (nuevos.length > 0) {
         const { error: insError } = await supabase
           .from('leads_os')
-          .insert(nuevos.map((l) => ({ ...l, creado_por: usuario })))
+          .insert(nuevos.map((l) => ({
+            nombre: l.title,
+            sector: sectorFinal,
+            telefono: l.phone,
+            email: l.email,
+            email_fuente: l.email ? 'apify' : null,
+            email_verificado: false,
+            web: l.website,
+            google_maps_url: l.url,
+            google_place_id: l.placeId,
+            valoracion: l.rating,
+            num_resenas: l.reviewsCount,
+            direccion: l.address,
+            ciudad: ciudad.trim(),
+            horario: l.openingHours,
+            descripcion: l.description,
+            fuente: 'extraccion',
+            fase: 'nuevo',
+            creado_por: usuario,
+          })))
         if (insError) throw insError
       }
 
