@@ -316,19 +316,23 @@ export interface SlidesContent {
 export async function generarContenidoSlides(lead: Lead): Promise<SlidesContent> {
   const nicho = getNicho(lead.sector)
   const perdida = lead.perdida_mensual_real ?? nicho.perdida_mensual_ref
-  const mrr = lead.mrr_estimado ?? 190
 
-  const prompt = `Genera el contenido JSON para una propuesta visual de 7 slides para este lead.
-Personaliza cada texto con el nombre y sector reales del negocio.
+  const prompt = `
+Eres un consultor de negocio que escribe propuestas
+para WIARE. Escribes para dueños de negocios locales
+en España que no saben nada de tecnología.
 
-NEGOCIO: ${lead.nombre}
-SECTOR: ${lead.sector}
-CIUDAD: ${lead.ciudad ?? 'España'}
-PÉRDIDA MENSUAL ESTIMADA: ${perdida}€/mes
-MRR WIARE: ${mrr}€/mes
-TIENE DEMO RETELL: ${lead.agent_id_retell ? 'Sí' : 'No'}
+CONTEXTO DEL NEGOCIO:
+Nombre: ${lead.nombre}
+Sector: ${lead.sector}
+Ciudad: ${lead.ciudad ?? 'España'}
+Valoración Google: ${lead.valoracion}/5
+Reseñas: ${lead.num_resenas}
+Horario: ${JSON.stringify(lead.horario)}
+Descripción: ${lead.descripcion}
+${perdida ? `Pérdida mensual calculada: ${perdida}€` : ''}
 
-REFERENCIA DEL NICHO (adapta con datos reales del negocio, no copies literal):
+REFERENCIA DEL NICHO (adapta, no copies literal):
 - Tagline base: "${nicho.tagline}"
 - Estadística base: "${nicho.estadistica}"
 - Pain points: ${JSON.stringify(nicho.pain_points)}
@@ -339,23 +343,73 @@ REFERENCIA DEL NICHO (adapta con datos reales del negocio, no copies literal):
 - Pregunta: "${nicho.pregunta}"
 - CTA: "${nicho.cta}"
 
-REGLAS ABSOLUTAS:
-- NUNCA mencionar "IA", "bot", "agente", "automatización"
-- SÍ usar: "sistema de atención", "recepcionista virtual 24/7", "tu negocio siempre disponible"
-- NUNCA precios — ni setup ni mensualidad — solo CTA para contactar
-- Personaliza mencionando el nombre del negocio en al menos slide1 y slide7
-- Los textos deben ser concisos (máximo 2 líneas por elemento)
-- perdida_mensual debe ser ${perdida} (número exacto, no estimes)
+REGLAS ABSOLUTAS — violación = propuesta inválida:
+1. NUNCA escribir: "IA", "inteligencia artificial", "agente",
+   "bot", "LLM", "modelo", "automatización", "algoritmo"
+2. NUNCA poner precios, tarifas ni costes
+3. NUNCA usar lenguaje de startup o tech
+4. SÍ usar: "recepcionista virtual", "sistema de atención",
+   "tu negocio siempre disponible", "nunca más sin respuesta"
+5. Hablar siempre de RESULTADOS para el negocio,
+   nunca de cómo funciona la tecnología
+6. Tono: consultor de confianza hablando con el dueño,
+   no comercial de empresa tecnológica
+7. perdida_mensual debe ser exactamente ${perdida} (no estimes)
+
+SLIDE 1 — PORTADA:
+tagline: frase de impacto específica para ESTE negocio.
+Usa su nombre, su ciudad, su situación real.
+Ejemplo bueno: "Pintxoterapia llena cada noche,
+sin perder una sola reserva en Pozuelo"
+Ejemplo malo: "Solución integral para su negocio"
+
+SLIDE 2 — EL PROBLEMA:
+estadistica: dato impactante del sector (real, no inventado)
+pain_points: 3 problemas EMOCIONALES, no técnicos.
+Escribe como si el dueño estuviera contándotelo:
+"Los viernes el teléfono no para y yo estoy en cocina"
+No: "Se producen pérdidas de llamadas en hora punta"
+
+SLIDE 3 — EL COSTE:
+perdida_mensual: ${perdida}
+perdida_anual: ${perdida * 12}
+frase_impacto: lo que significa ese dinero en términos reales
+  "Son X mesas vacías cada mes" / "Son X pacientes que no vuelven"
+sin_sistema: 3 consecuencias reales, en lenguaje humano
+con_sistema: 3 cambios concretos, en lenguaje humano
+
+SLIDE 4 — LA SOLUCIÓN:
+titulo: promesa concreta para ESTE negocio
+beneficios: 3 beneficios con icono Phosphor sugerido,
+  escritos como resultados que el dueño va a vivir,
+  no como características del servicio
+
+SLIDE 5 — CÓMO FUNCIONA:
+3 pasos MUY simples adaptados al sector.
+El dueño de un restaurante no quiere saber de APIs.
+Quiere saber: "llaman, se atiende, tú recibes la reserva"
+
+SLIDE 6 — PAUSA:
+pregunta: una pregunta incómoda pero justa.
+Que le haga pensar. Personal para su negocio.
+Ejemplo: "¿Cuántas llamadas perdiste el último fin de semana?"
+
+SLIDE 7 — CTA:
+cta: frase de cierre directa, sin presión, con confianza
+tiene_demo: ${!!lead.agent_id_retell}
+Si tiene demo: "Ya tenemos algo preparado para ti — solo necesitamos 15 minutos para mostrártelo"
+Si no tiene demo: "En 48 horas podemos mostrarte exactamente cómo funcionaría en ${lead.nombre}"
+contacto: info@wiaresolution.com
 
 Devuelve SOLO el JSON sin markdown, con esta estructura exacta:
 {
-  "slide1": { "tagline": "frase de apertura potente personalizada para ${lead.nombre}" },
-  "slide2": { "estadistica": "dato relevante del sector", "pain_points": [{"titulo":"","descripcion":""},{"titulo":"","descripcion":""},{"titulo":"","descripcion":""}] },
-  "slide3": { "perdida_mensual": ${perdida}, "perdida_anual": ${perdida * 12}, "sin_sistema": ["","",""], "con_sistema": ["","",""] },
-  "slide4": { "titulo": "Lo que hace nuestro sistema por ${lead.nombre}", "beneficios": [{"icono":"Phone","titulo":"","descripcion":""},{"icono":"CalendarCheck","titulo":"","descripcion":""},{"icono":"ChartLineUp","titulo":"","descripcion":""}] },
-  "slide5": { "pasos": ["paso 1","paso 2","paso 3"] },
-  "slide6": { "pregunta": "pregunta directa al decisor" },
-  "slide7": { "cta": "frase de cierre con urgencia", "tiene_demo": ${lead.agent_id_retell ? 'true' : 'false'} }
+  "slide1": { "tagline": "" },
+  "slide2": { "estadistica": "", "pain_points": [{"titulo":"","descripcion":""},{"titulo":"","descripcion":""},{"titulo":"","descripcion":""}] },
+  "slide3": { "perdida_mensual": ${perdida}, "perdida_anual": ${perdida * 12}, "frase_impacto": "", "sin_sistema": ["","",""], "con_sistema": ["","",""] },
+  "slide4": { "titulo": "", "beneficios": [{"icono":"","titulo":"","descripcion":""},{"icono":"","titulo":"","descripcion":""},{"icono":"","titulo":"","descripcion":""}] },
+  "slide5": { "pasos": ["","",""] },
+  "slide6": { "pregunta": "" },
+  "slide7": { "cta": "", "tiene_demo": ${!!lead.agent_id_retell}, "contacto": "info@wiaresolution.com" }
 }`
 
   const text = await guardedCall('content', () => callClaude('claude-sonnet-4-6', 1500, prompt))
@@ -409,33 +463,67 @@ Devuelve SOLO JSON sin markdown:
 
 export async function generarEmailOutreach(
   lead: Lead,
-  estrategia: EstrategiaOutreach,
+  _estrategia: EstrategiaOutreach,
   vendedor: string
-): Promise<{ asunto: string; cuerpo: string }> {
-  const prompt = `Escribe un email en frío para este lead. Máx 100 palabras en el cuerpo.
+): Promise<{ asunto: string; cuerpo: string; asuntos: string[]; asunto_recomendado: string }> {
+  const prompt = `
+Eres Jacobo, fundador de WIARE en Madrid.
+Escribes emails en frío a dueños de negocios locales.
 
-LEAD: ${lead.nombre} (${lead.sector}, ${lead.ciudad ?? 'España'})
-ESTRATEGIA:
-- Ángulo: ${estrategia.angulo}
-- Dolor elegido: ${estrategia.dolor_elegido}
-- Dato específico a mencionar: ${estrategia.dato_especifico}
-- Asunto elegido: usa el tono ${estrategia.tono}
-- Urgencia: ${estrategia.urgencia}
+Tu estilo de email:
+- Como si lo escribieras desde el móvil un martes por la mañana
+- Máximo 5 líneas en el cuerpo. Nunca más.
+- Primera línea: un detalle MUY específico del negocio
+  (no "vi tu negocio en Google" — algo concreto como
+  "Vi que tenéis ${lead.num_resenas} reseñas" o
+  "Vi que cerráis los domingos" o algo del horario/descripción)
+- Segunda línea: una pregunta directa sobre el problema.
+  No afirmes que tienen el problema — pregunta.
+- Tercera línea: lo que tienes para ellos.
+  UNA frase. Vago pero intrigante.
+- Cuarta línea: CTA. Solo una pregunta corta.
+- Firma: solo tu nombre. Sin cargo, sin empresa, sin web.
 
-REGLAS ABSOLUTAS:
-- Cuerpo: MÁXIMO 100 palabras, español de España, natural
-- NUNCA: "IA", "bot", "agente", "automatización", "inteligencia artificial"
-- SÍ: "sistema de atención", "recepcionista virtual", "solución"
-- Asunto: máx 7 palabras, directo, sin signos de exclamación
-- Menciona 1 dato real del lead (${estrategia.dato_especifico})
-- 1 CTA: ver demo personalizada (enlace genérico: wiaresolution.com/demo)
-- Firma: ${vendedor} · WIARE · info@wiaresolution.com
-- Nada de emojis
+PROHIBIDO absolutamente:
+- "Nuestra solución", "nuestro sistema", "nuestro servicio"
+- "IA", "inteligencia artificial", "agente", "bot", "automatización"
+- "llamadas perdidas", "oportunidades", "potencial"
+- Adjetivos: "eficiente", "innovador", "optimizado", "avanzado"
+- Frases hechas: "en el mercado actual", "en el mundo digital"
+- Más de 5 líneas en el cuerpo
+- Mencionar la empresa WIARE en el cuerpo del email
+- URLs en el cuerpo (solo si el CTA lo requiere)
 
-Devuelve SOLO JSON sin markdown:
-{"asunto":"string","cuerpo":"string"}`
+OBLIGATORIO:
+- Usar tuteo, no ustedeo
+- Que suene como una persona, no como marketing
+- El asunto: máximo 6 palabras, que genere curiosidad o
+  señale un problema específico. Nunca genérico.
+- 3 opciones de asunto diferentes en tono e ángulo
 
-  const text = await guardedCall('content', () => callClaude('claude-haiku-4-5-20251001', 350, prompt))
+Datos del negocio:
+Nombre: ${lead.nombre}
+Sector: ${lead.sector}
+Ciudad: ${lead.ciudad}
+Valoración: ${lead.valoracion}/5
+Reseñas: ${lead.num_resenas}
+Horario: ${JSON.stringify(lead.horario)}
+Descripción: ${lead.descripcion}
+Firmante: ${vendedor}
+
+Responde SOLO en JSON:
+{
+  "asuntos": ["opción 1", "opción 2", "opción 3"],
+  "cuerpo": "el email completo listo para enviar",
+  "asunto_recomendado": "cuál de los 3 y por qué en 1 frase"
+}
+`
+
+  const text = await guardedCall('content', () => callClaude('claude-haiku-4-5-20251001', 500, prompt))
   const json = text.replace(/```json|```/g, '').trim()
-  return JSON.parse(json) as { asunto: string; cuerpo: string }
+  const parsed = JSON.parse(json) as { asuntos: string[]; cuerpo: string; asunto_recomendado: string }
+  return {
+    ...parsed,
+    asunto: parsed.asuntos[0] ?? '',
+  }
 }

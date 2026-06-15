@@ -111,21 +111,49 @@ export default function PropuestaViewer({ markdown, nombreNegocio, onMarcarEnvia
     if (!element) return
     setPdfEstado('downloading')
 
-    // El .d.ts oficial de html2pdf.js no incluye `pagebreak` (sí soportado en runtime),
-    // por eso tipamos las opciones de forma laxa.
-    const opciones = {
-      margin: [10, 10, 10, 10] as [number, number, number, number],
-      filename: `Propuesta-WIARE-${nombreNegocio.replace(/\s+/g, '-')}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-      pagebreak: { mode: 'avoid-all' },
-    }
-
     try {
-      // Carga html2pdf.js bajo demanda (code-splitting): mantiene el bundle inicial ligero.
       const { default: html2pdf } = await import('html2pdf.js')
-      await html2pdf().set(opciones).from(element).save()
+
+      // Forzar colores claros temporalmente para que html2pdf no pinte fondo negro
+      const originalBackground = element.style.background
+      const originalColor = element.style.color
+      element.style.background = '#ffffff'
+
+      const allElements = element.querySelectorAll('*')
+      const originalStyles: Array<{ el: Element; bg: string; color: string }> = []
+      allElements.forEach(el => {
+        const htmlEl = el as HTMLElement
+        const computed = window.getComputedStyle(htmlEl)
+        originalStyles.push({ el, bg: htmlEl.style.background, color: htmlEl.style.color })
+        const textColor = computed.color
+        if (textColor.includes('255, 255, 255') || textColor.includes('241, 245, 249')) {
+          htmlEl.style.color = '#09090B'
+        }
+        const bgColor = computed.backgroundColor
+        if (bgColor.includes('5, 5') || bgColor.includes('13, 13')) {
+          htmlEl.style.background = '#ffffff'
+        }
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (html2pdf() as any).set({
+        margin: [10, 10, 10, 10],
+        filename: `Propuesta-WIARE-${nombreNegocio.replace(/\s+/g, '-')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: 'avoid-all' },
+      }).from(element).save()
+
+      // Restaurar estilos originales
+      element.style.background = originalBackground
+      element.style.color = originalColor
+      originalStyles.forEach(({ el, bg, color }) => {
+        const htmlEl = el as HTMLElement
+        htmlEl.style.background = bg
+        htmlEl.style.color = color
+      })
+
       setPdfEstado('done')
       setTimeout(() => setPdfEstado('idle'), 3000)
     } catch (error) {
