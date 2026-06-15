@@ -16,7 +16,7 @@ import { google } from 'googleapis'
 
 const SHEET_BASENAME = 'WIARE Leads OS'
 
-// 26 columnas A–Z
+// 30 columnas A–Z + AA–AD
 const HEADER = [
   'ID',                        // A
   'Fecha extracción',          // B
@@ -25,8 +25,8 @@ const HEADER = [
   'Ciudad',                    // E
   'Dirección',                 // F
   'Teléfono',                  // G
-  'Email',                     // H  ← nuevo
-  'Email verificado',          // I  ← nuevo
+  'Email',                     // H
+  'Email verificado',          // I
   'Web',                       // J
   'Google Maps',               // K
   'Valoración',                // L
@@ -41,9 +41,13 @@ const HEADER = [
   'Agent ID Retell',           // U
   'Demo creada',               // V
   'Propuesta generada',        // W
-  'Email enviado',             // X  ← nuevo
-  'Fuente',                    // Y  ← nuevo
+  'Email enviado',             // X
+  'Fuente',                    // Y
   'Última actualización',      // Z
+  'Asunto email outreach',     // AA
+  'Cuerpo email outreach',     // AB
+  'Firmante outreach',         // AC
+  'Fecha outreach',            // AD
 ]
 
 const FASE_LABELS: Record<string, string> = {
@@ -141,6 +145,10 @@ function leadToRow(lead: LeadDTO): unknown[] {
     'No',                                                 // X email enviado (se rellena desde outreach_os en futuras versiones)
     lead.fuente ?? '',                                    // Y
     new Date().toLocaleString('es-ES'),                   // Z
+    '',                                                   // AA asunto outreach (se rellena desde outreach-sheet)
+    '',                                                   // AB cuerpo outreach
+    '',                                                   // AC firmante outreach
+    '',                                                   // AD fecha outreach
   ]
 }
 
@@ -231,7 +239,7 @@ export default async function handler(req: { method?: string; body?: unknown }, 
     // ── 5. Actualizar filas existentes con batchUpdate de valores ──
     if (toUpdate.length > 0) {
       const data = toUpdate.map(({ rowIndex, lead }) => ({
-        range: `A${rowIndex}:Z${rowIndex}`,
+        range: `A${rowIndex}:AD${rowIndex}`,
         values: [leadToRow(lead)],
       }))
       await sheets.spreadsheets.values.batchUpdate({
@@ -244,7 +252,7 @@ export default async function handler(req: { method?: string; body?: unknown }, 
     if (toAppend.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId,
-        range: 'A:Z',
+        range: 'A:AD',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: toAppend.map(leadToRow) },
@@ -276,10 +284,10 @@ export default async function handler(req: { method?: string; body?: unknown }, 
           fields: 'gridProperties.frozenRowCount',
         },
       },
-      // Auto-resize columnas A–Z (0–25)
+      // Auto-resize columnas A–AD (0–29)
       {
         autoResizeDimensions: {
-          dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 26 },
+          dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 30 },
         },
       },
     ]
