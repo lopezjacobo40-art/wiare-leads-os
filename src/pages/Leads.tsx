@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy } from '@phosphor-icons/react'
+import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
@@ -63,6 +63,9 @@ export default function Leads() {
   const [eliminandoLote, setEliminandoLote] = useState(false)
 
   const [extraccionFiltro, setExtraccionFiltro] = useState<string | null>(null)
+  const [buscandoEmail, setBuscandoEmail] = useState<string | null>(null)
+  const [confirmRescorar, setConfirmRescorar] = useState(false)
+  const [rescorando, setRescorando] = useState(false)
 
   // ── Lee los query params al montar y preconfigura los filtros (deep-link). ──
   useEffect(() => {
@@ -333,6 +336,69 @@ export default function Leads() {
     setLeadADescartar(null)
   }
 
+  const buscarEmailLead = async (lead: Lead) => {
+    setBuscandoEmail(lead.id)
+    try {
+      const res = await fetch('/api/find-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ web: lead.web, leadId: lead.id, descripcion: lead.descripcion }),
+      })
+      const data = await res.json()
+      if (data.email) {
+        await supabase
+          .from('leads_os')
+          .update({ email: data.email, email_fuente: 'web_scraping', email_verificado: false })
+          .eq('id', lead.id)
+        setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, email: data.email } : l)))
+        toast(`Email encontrado: ${data.email}`, 'success')
+      } else {
+        toast('No se encontró email en su web', 'info')
+      }
+    } catch {
+      toast('Error buscando email', 'error')
+    } finally {
+      setBuscandoEmail(null)
+    }
+  }
+
+  const rescorarTodos = async () => {
+    setConfirmRescorar(false)
+    setRescorando(true)
+    setBatch({ actual: 0, total: leads.length })
+    setError('')
+    try {
+      await processBatch(
+        leads,
+        async (lead) => {
+          try {
+            const r = await scoreLead(lead)
+            await supabase
+              .from('leads_os')
+              .update({
+                score_cualificacion: r.score,
+                motivo_score: r.motivo,
+                volumen_llamadas: r.volumen,
+                mrr_estimado: r.mrr,
+              })
+              .eq('id', lead.id)
+          } catch {
+            // continúa con el siguiente
+          }
+        },
+        (done, total) => setBatch({ actual: done, total })
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error en el rescore'
+      setError(msg)
+      toast(msg, 'error')
+    }
+    setBatch(null)
+    setRescorando(false)
+    await cargar()
+    toast(`${leads.length} leads rescorados con el nuevo sistema`, 'success')
+  }
+
   const sinScoreCount = leads.filter((l) => l.score_cualificacion == null).length
 
   const inputStyle: React.CSSProperties = {
@@ -367,6 +433,12 @@ export default function Leads() {
         acciones={
           <>
             <ExportSheet leads={filtrados} />
+            {!batch && !rescorando && leads.length > 0 && (
+              <button className="btn-ghost" onClick={() => setConfirmRescorar(true)} style={{ fontSize: 13 }}>
+                <ArrowClockwise size={15} />
+                Rescorar todos
+              </button>
+            )}
             {sinScoreCount > 0 && !batch && (
               <button className="btn-secondary" onClick={cualificarTodos}>
                 <Sparkle size={16} weight="fill" />
@@ -456,6 +528,43 @@ export default function Leads() {
               <button className="btn-secondary" onClick={() => setConfirmEliminarLote(false)}>Cancelar</button>
               <button className="btn-danger" onClick={eliminarSeleccionados}>
                 <Trash size={16} /> Eliminar {selectedIds.size} leads
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación para rescorar todos */}
+      {confirmRescorar && (
+        <div
+          onClick={() => setConfirmRescorar(false)}
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+            padding: 24,
+            animation: 'fade-in 150ms cubic-bezier(0.4,0,0.2,1)',
+          }}
+        >
+          <div
+            className="card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ padding: 28, maxWidth: 400, width: '100%' }}
+          >
+            <h2 style={{ fontSize: 18, marginBottom: 12 }}>Rescorar {leads.length} leads</h2>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 24 }}>
+              Vas a rescorar <strong style={{ color: 'var(--color-text-primary)' }}>{leads.length} leads</strong> con el nuevo sistema de puntuación. Los scores actuales se actualizarán.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => setConfirmRescorar(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={rescorarTodos}>
+                <ArrowClockwise size={16} /> Rescorar todos
               </button>
             </div>
           </div>
@@ -758,20 +867,41 @@ export default function Leads() {
                   </td>
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.sector}</td>
                   <td style={{ padding: '0 16px', whiteSpace: 'nowrap' }}>{lead.telefono ?? '—'}</td>
-                  <td className="hide-mobile" style={{ padding: '0 16px' }}>
+                  <td className="hide-mobile" style={{ padding: '0 16px' }} onClick={(e) => e.stopPropagation()}>
                     {lead.email ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{lead.email}</span>
                         <button
-                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(lead.email!); toast('Email copiado', 'info') }}
+                          onClick={() => { navigator.clipboard.writeText(lead.email!); toast('Email copiado', 'info') }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--color-text-tertiary)' }}
                           title="Copiar email"
                         >
                           <Copy size={12} />
                         </button>
                       </div>
+                    ) : lead.web ? (
+                      <button
+                        onClick={() => buscarEmailLead(lead)}
+                        className="btn-ghost"
+                        style={{
+                          fontSize: 11,
+                          padding: '3px 8px',
+                          minHeight: 'auto',
+                          color: 'var(--color-primary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        disabled={buscandoEmail === lead.id}
+                      >
+                        {buscandoEmail === lead.id ? (
+                          <><div className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} /> Buscando...</>
+                        ) : (
+                          <><MagnifyingGlass size={11} /> Buscar</>
+                        )}
+                      </button>
                     ) : (
-                      <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>Sin email</span>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>Sin web</span>
                     )}
                   </td>
                   <td className="col-resenas" style={{ padding: '0 16px' }}>{lead.num_resenas ?? '—'}</td>

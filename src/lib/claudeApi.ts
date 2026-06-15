@@ -53,18 +53,75 @@ export interface ScoreResult {
 }
 
 export async function scoreLead(lead: Lead): Promise<ScoreResult> {
-  const horario = lead.horario ? lead.horario.join('; ') : 'Desconocido'
-  const prompt = `Analiza este negocio local español como lead para agente de voz IA + CRM.
-Precio del servicio: 790€ setup + 90-390€/mes.
-Nombre: ${lead.nombre}, Sector: ${lead.sector},
-Valoración: ${lead.valoracion ?? 'N/D'}/5, Reseñas: ${lead.num_resenas ?? 0},
-Web: ${lead.web ? 'Sí' : 'No'}, Horario: ${horario}
-Criterios: +3 si >100 reseñas, +2 sin web, +2 si val>4,
-+2 horario limitado, +1 sector premium.
-Responde SOLO JSON sin markdown:
-{"score":0-10, "motivo":"1 frase", "volumen":"bajo/medio/alto/muy_alto", "mrr":90-390}`
+  const scoringPrompt = `
+Eres un experto en ventas B2B para negocios locales España.
+Puntúa este negocio del 1 al 10 como lead para WIARE
+(sistema de atención 24/7 para negocios que pierden
+llamadas y oportunidades fuera de horario).
 
-  const text = await guardedCall('score', () => callClaude('claude-haiku-4-5', 300, prompt))
+DATOS DEL NEGOCIO:
+Nombre: ${lead.nombre}
+Sector: ${lead.sector}
+Ciudad: ${lead.ciudad}
+Valoración: ${lead.valoracion}/5
+Reseñas: ${lead.num_resenas}
+Tiene web: ${lead.web ? 'Sí' : 'No'}
+Horario: ${JSON.stringify(lead.horario)}
+Descripción: ${lead.descripcion || 'Sin descripción'}
+
+CRITERIOS DE PUNTUACIÓN (aplica todos):
+
+SUMA puntos si:
++3 → NO tiene web propia (menos digitalizado,
+     más receptivo a soluciones nuevas)
++3 → El horario muestra días cerrados O menos de
+     8 horas de atención diaria
+     (claramente pierde llamadas fuera de horario)
++2 → Reseñas entre 50 y 800
+     (negocio activo pero manejable, no cadena)
++2 → Valoración entre 3.5 y 4.6
+     (bien pero con margen, no perfecto ni pésimo)
++1 → Sector de alto ticket: clínica, dental,
+     inmobiliaria, academia (>100€ por cliente)
++1 → La descripción menciona servicios de cita previa,
+     reservas, consultas o atención personalizada
+
+RESTA puntos si:
+-4 → Nombre contiene: McDonald, KFC, Burger,
+     Telepizza, NH Hotel, Ibis, Mercadona, Zara,
+     Starbucks, o cualquier cadena conocida
+-3 → Más de 1500 reseñas (probablemente cadena
+     o ya tiene sistema propio)
+-2 → Valoración menor de 3.0 (problema de producto,
+     no de atención — WIARE no lo resuelve)
+-2 → Valoración 5.0 exacta con menos de 20 reseñas
+     (reseñas falsas, negocio poco establecido)
+-1 → Sin teléfono visible (difícil de contactar)
+
+ESCALA REAL:
+1-3: No es cliente de WIARE
+4-5: Posible pero con dudas
+6-7: Buen lead, vale la pena contactar
+8-9: Lead caliente, contactar esta semana
+10: Reservar solo para casos excepcionales
+    donde TODOS los criterios positivos se cumplen
+
+IMPORTANTE: Sé conservador. Un 7 ya es un buen lead.
+No pongas 9 o 10 a menos que sea obvio.
+La mayoría de leads deben quedar entre 4 y 7.
+
+Responde SOLO en JSON sin markdown:
+{
+  "score": número del 1 al 10,
+  "motivo": "explicación en 1 frase específica con los criterios que más pesaron",
+  "volumen": "bajo/medio/alto/muy_alto",
+  "mrr": número entre 90 y 390,
+  "señales_positivas": ["señal 1", "señal 2"],
+  "señales_negativas": ["señal 1"]
+}
+`
+
+  const text = await guardedCall('score', () => callClaude('claude-haiku-4-5', 400, scoringPrompt))
   const json = text.replace(/```json|```/g, '').trim()
   const parsed = JSON.parse(json)
   return {
