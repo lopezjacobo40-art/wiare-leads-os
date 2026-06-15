@@ -1,25 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Microphone, FileText, ArrowRight, MagnifyingGlass } from '@phosphor-icons/react'
+import { Microphone, FileText, ArrowRight, MagnifyingGlass, EnvelopeSimple, Copy, CaretDown } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import ScoreBadge from '../components/ScoreBadge'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
 import Skeleton from '../components/Skeleton'
+import { useToast } from '../components/Toast'
 
-type TabBib = 'demos' | 'propuestas'
+type TabBib = 'demos' | 'propuestas' | 'emails'
 
 export default function Biblioteca() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [tab, setTab] = useState<TabBib>('demos')
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
+  const [emailAbierto, setEmailAbierto] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
       .from('leads_os')
-      .select('id,nombre,sector,ciudad,score_cualificacion,fase,agent_id_retell,propuesta_md,propuesta_slides,propuesta_tipo,created_at,telefono')
+      .select('id,nombre,sector,ciudad,score_cualificacion,fase,agent_id_retell,propuesta_md,propuesta_slides,propuesta_tipo,created_at,telefono,email,outreach_asunto,outreach_cuerpo')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         setLeads((data ?? []) as Lead[])
@@ -29,23 +32,37 @@ export default function Biblioteca() {
 
   const demos = leads.filter((l) => !!l.agent_id_retell)
   const propuestas = leads.filter((l) => !!l.propuesta_md || !!l.propuesta_slides)
+  const emails = leads.filter((l) => !!l.outreach_asunto || !!l.outreach_cuerpo)
 
-  const lista = tab === 'demos' ? demos : propuestas
+  const lista = tab === 'demos' ? demos : tab === 'propuestas' ? propuestas : emails
 
   const filtrada = busqueda.trim()
     ? lista.filter((l) => l.nombre.toLowerCase().includes(busqueda.toLowerCase()) || (l.sector ?? '').toLowerCase().includes(busqueda.toLowerCase()))
     : lista
 
+  const copiarEmail = async (lead: Lead) => {
+    const texto = `Asunto: ${lead.outreach_asunto ?? ''}\n\n${lead.outreach_cuerpo ?? ''}`
+    await navigator.clipboard.writeText(texto)
+    toast('Email copiado al portapapeles', 'success')
+  }
+
+  const abrirGmail = (lead: Lead) => {
+    if (!lead.email) return
+    const url = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(lead.outreach_asunto ?? '')}&body=${encodeURIComponent(lead.outreach_cuerpo ?? '')}`
+    window.open(url, '_blank')
+  }
+
   const TABS: { id: TabBib; label: string; icon: typeof Microphone; count: number }[] = [
     { id: 'demos', label: 'Demos Retell', icon: Microphone, count: demos.length },
     { id: 'propuestas', label: 'Propuestas', icon: FileText, count: propuestas.length },
+    { id: 'emails', label: 'Emails generados', icon: EnvelopeSimple, count: emails.length },
   ]
 
   return (
     <PageTransition>
       <PageHeader
         titulo="Biblioteca"
-        subtitulo="Demos de voz y propuestas generadas para todos los leads"
+        subtitulo="Demos de voz, propuestas y emails de outreach generados para todos los leads"
       />
 
       {/* Tabs */}
@@ -112,14 +129,84 @@ export default function Biblioteca() {
           padding: '48px 24px', textAlign: 'center',
         }}>
           <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.2 }}>
-            {tab === 'demos' ? '🎙' : '📄'}
+            {tab === 'demos' ? '🎙' : tab === 'propuestas' ? '📄' : '✉'}
           </div>
           <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 6 }}>
-            {busqueda ? 'Sin resultados' : tab === 'demos' ? 'Sin demos creadas' : 'Sin propuestas generadas'}
+            {busqueda ? 'Sin resultados' : tab === 'demos' ? 'Sin demos creadas' : tab === 'propuestas' ? 'Sin propuestas generadas' : 'Sin emails generados'}
           </p>
           <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-            {busqueda ? 'Prueba con otro término de búsqueda.' : tab === 'demos' ? 'Ve a un lead y genera la demo de voz con Sofía.' : 'Ve a un lead y genera la propuesta comercial.'}
+            {busqueda ? 'Prueba con otro término de búsqueda.' : tab === 'demos' ? 'Ve a un lead y genera la demo de voz con Sofía.' : tab === 'propuestas' ? 'Ve a un lead y genera la propuesta comercial.' : 'Ve a un lead y genera el email de outreach.'}
           </p>
+        </div>
+      ) : tab === 'emails' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {filtrada.map((lead) => {
+            const abierto = emailAbierto === lead.id
+            return (
+              <div
+                key={lead.id}
+                style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}
+              >
+                {/* Cabecera de la tarjeta — clic para expandir */}
+                <button
+                  onClick={() => setEmailAbierto(abierto ? null : lead.id)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '14px 16px', background: 'transparent', border: 'none',
+                    cursor: 'pointer', textAlign: 'left', minHeight: 'auto', borderRadius: 0,
+                  }}
+                >
+                  <ScoreBadge score={lead.score_cualificacion} size="sm" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {lead.nombre}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {lead.outreach_asunto ?? '(sin asunto)'}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{lead.sector}</span>
+                  <CaretDown
+                    size={16}
+                    style={{ color: 'var(--color-text-tertiary)', transform: abierto ? 'rotate(180deg)' : 'none', transition: 'transform 150ms cubic-bezier(0.4,0,0.2,1)', flexShrink: 0 }}
+                  />
+                </button>
+
+                {/* Cuerpo expandido */}
+                {abierto && (
+                  <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 0', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                      <div><strong style={{ color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Para:</strong> {lead.email ?? '(sin email guardado)'}</div>
+                      <div><strong style={{ color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Asunto:</strong> {lead.outreach_asunto ?? '—'}</div>
+                    </div>
+                    <div style={{
+                      background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)', padding: '14px 16px',
+                      fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap',
+                    }}>
+                      {lead.outreach_cuerpo ?? '(sin cuerpo)'}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                      <button
+                        className="btn-primary"
+                        onClick={() => abrirGmail(lead)}
+                        disabled={!lead.email}
+                        title={!lead.email ? 'Email no disponible' : undefined}
+                        style={{ background: '#6366F1', fontSize: 12, padding: '8px 14px', minHeight: 36 }}
+                      >
+                        <EnvelopeSimple size={15} /> Abrir en Gmail
+                      </button>
+                      <button className="btn-secondary" onClick={() => copiarEmail(lead)} style={{ fontSize: 12, padding: '8px 14px', minHeight: 36 }}>
+                        <Copy size={15} /> Copiar
+                      </button>
+                      <button className="btn-ghost" onClick={() => navigate(`/leads/${lead.id}`)} style={{ fontSize: 12, padding: '8px 14px', minHeight: 36 }}>
+                        Ver lead <ArrowRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
