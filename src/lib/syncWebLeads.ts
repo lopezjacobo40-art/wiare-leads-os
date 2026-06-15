@@ -35,14 +35,17 @@ export async function syncWebLeads(): Promise<{
   errores: number
 }> {
   try {
-    // 1. IDs ya sincronizados
-    const { data: yaSync } = await supabase
-      .from('leads_os')
-      .select('quiz_lead_id')
-      .not('quiz_lead_id', 'is', null)
+    // 1. IDs ya sincronizados + IDs descartados manualmente
+    const [{ data: yaSync }, { data: descartados }] = await Promise.all([
+      supabase.from('leads_os').select('quiz_lead_id').not('quiz_lead_id', 'is', null),
+      supabase.from('quiz_leads_descartados').select('quiz_lead_id'),
+    ])
 
     const idsYaSync = new Set(
       (yaSync || []).map((r) => r.quiz_lead_id).filter(Boolean)
+    )
+    const idsDescartados = new Set(
+      (descartados || []).map((r) => r.quiz_lead_id).filter(Boolean)
     )
 
     // 2. Obtener todos los quiz_leads
@@ -56,8 +59,8 @@ export async function syncWebLeads(): Promise<{
       return { nuevos: 0, yaExistian: idsYaSync.size, errores: 0 }
     }
 
-    // 3. Filtrar los no sincronizados
-    const sinSync = webLeads.filter((l) => !idsYaSync.has(l.id))
+    // 3. Filtrar los no sincronizados ni descartados
+    const sinSync = webLeads.filter((l) => !idsYaSync.has(l.id) && !idsDescartados.has(l.id))
 
     if (sinSync.length === 0) {
       return { nuevos: 0, yaExistian: idsYaSync.size, errores: 0 }

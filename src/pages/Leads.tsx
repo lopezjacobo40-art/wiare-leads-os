@@ -312,6 +312,21 @@ export default function Leads() {
     }
   }
 
+  const registrarDescartados = async (idsEliminados: string[]) => {
+    const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
+    const webLeads = leads.filter(
+      (l) => idsEliminados.includes(l.id) && l.quiz_lead_id
+    )
+    if (webLeads.length === 0) return
+    await supabase.from('quiz_leads_descartados').upsert(
+      webLeads.map((l) => ({
+        quiz_lead_id: l.quiz_lead_id,
+        descartado_por: usuario,
+      })),
+      { onConflict: 'quiz_lead_id' }
+    )
+  }
+
   const limpiarExtracciones = async (idsEliminados: string[]) => {
     // Recoge los extraccion_id de los leads que se van a eliminar
     const extIds = [...new Set(
@@ -336,7 +351,7 @@ export default function Leads() {
     setConfirmEliminarLote(false)
     setEliminandoLote(true)
     const ids = [...selectedIds]
-    await limpiarExtracciones(ids)
+    await Promise.all([registrarDescartados(ids), limpiarExtracciones(ids)])
     const { error: err } = await supabase.from('leads_os').delete().in('id', ids)
     setEliminandoLote(false)
     if (err) toast(err.message, 'error')
@@ -351,7 +366,7 @@ export default function Leads() {
   }
 
   const descartar = async (lead: Lead) => {
-    await limpiarExtracciones([lead.id])
+    await Promise.all([registrarDescartados([lead.id]), limpiarExtracciones([lead.id])])
     const { error: err } = await supabase.from('leads_os').delete().eq('id', lead.id)
     if (err) toast(err.message, 'error')
     else {
