@@ -329,6 +329,25 @@ export default function Dashboard() {
                   <td style={{ padding: '10px 0', textAlign: 'right', color: 'var(--color-text-secondary)' }}>
                     {new Date(e.created_at).toLocaleDateString('es-ES')}
                   </td>
+                  <td style={{ padding: '10px 0 10px 12px', textAlign: 'right' }}>
+                    {e.extraccion_id ? (
+                      <button
+                        className="btn-ghost"
+                        onClick={() => navigate(`/leads?extraccion=${e.extraccion_id}`)}
+                        style={{ fontSize: 12, padding: '3px 10px', minHeight: 26, gap: 4 }}
+                      >
+                        Ver leads <ArrowRight size={12} />
+                      </button>
+                    ) : (
+                      <button
+                        className="btn-ghost"
+                        onClick={() => navigate('/leads')}
+                        style={{ fontSize: 12, padding: '3px 10px', minHeight: 26, gap: 4, color: 'var(--color-text-tertiary)' }}
+                      >
+                        Ver leads <ArrowRight size={12} />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

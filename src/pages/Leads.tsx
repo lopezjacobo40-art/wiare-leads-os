@@ -62,6 +62,8 @@ export default function Leads() {
   const [confirmEliminarLote, setConfirmEliminarLote] = useState(false)
   const [eliminandoLote, setEliminandoLote] = useState(false)
 
+  const [extraccionFiltro, setExtraccionFiltro] = useState<string | null>(null)
+
   // ── Lee los query params al montar y preconfigura los filtros (deep-link). ──
   useEffect(() => {
     const sm = searchParams.get('score_min')
@@ -69,12 +71,14 @@ export default function Leads() {
     const sp = searchParams.get('sin_propuesta')
     const inact = searchParams.get('inactivo')
     const fu = searchParams.get('fuente')
+    const ext = searchParams.get('extraccion')
     if (sm) setScoreMin(Number(sm))
     if (f) setFaseFiltro(f)
     if (sp) setSoloSinPropuesta(true)
     if (inact) setSoloInactivos(true)
     if (fu) setFuenteFiltro(fu)
-    if (sm || f || sp || inact || fu) {
+    if (ext) setExtraccionFiltro(ext)
+    if (sm || f || sp || inact || fu || ext) {
       setOrden('prioridad')
       // Limpia la URL para no "fijar" el filtro al recargar manualmente.
       setSearchParams({}, { replace: true })
@@ -82,17 +86,21 @@ export default function Leads() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const cargar = async () => {
-    const { data, error: err } = await supabase
-      .from('leads_os')
-      .select('*')
-      .order('created_at', { ascending: false })
+  const cargar = async (extId?: string | null) => {
+    let q = supabase.from('leads_os').select('*')
+    const filtroExt = extId !== undefined ? extId : extraccionFiltro
+    if (filtroExt) {
+      q = q.eq('extraccion_id', filtroExt).order('score_cualificacion', { ascending: false, nullsFirst: false })
+    } else {
+      q = q.order('created_at', { ascending: false })
+    }
+    const { data, error: err } = await q
     if (err) setError(err.message)
     else setLeads(data as Lead[])
     setLoading(false)
   }
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [extraccionFiltro])
 
   const sectores = useMemo(
     () => [...new Set(leads.map((l) => l.sector))].sort(),
@@ -497,6 +505,33 @@ export default function Leads() {
         <p style={{ color: 'var(--color-error)', marginBottom: 16, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-error)' }} /> {error}
         </p>
+      )}
+
+      {/* Banner de extracción */}
+      {extraccionFiltro && (
+        <div style={{
+          background: 'rgba(99,102,241,0.06)',
+          border: '1px solid rgba(99,102,241,0.2)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '12px 20px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-primary)' }}>
+            Mostrando {filtrados.length} {filtrados.length === 1 ? 'lead' : 'leads'} de la última extracción
+          </span>
+          <button
+            className="btn-ghost"
+            onClick={() => { setExtraccionFiltro(null) }}
+            style={{ fontSize: 12, padding: '4px 12px', minHeight: 28, color: 'var(--color-text-secondary)' }}
+          >
+            <X size={12} /> Ver todos los leads
+          </button>
+        </div>
       )}
 
       {/* Filtros */}

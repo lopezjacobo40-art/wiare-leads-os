@@ -44,6 +44,9 @@ export interface Lead {
   // ── Propuesta slides (Bloque 4) ──
   propuesta_slides: Record<string, unknown> | null
   propuesta_tipo: string | null
+  // ── Extracción (sesión de extracción Apify) ──
+  extraccion_id: string | null
+  extraccion_fecha: string | null
 }
 
 export interface Extraccion {
@@ -53,6 +56,7 @@ export interface Extraccion {
   ciudad: string
   total_leads: number
   estado: string
+  extraccion_id?: string | null
 }
 
 export const FASES = ['nuevo', 'cualificado', 'demo_creada', 'propuesta_creada', 'propuesta_enviada', 'cerrado'] as const

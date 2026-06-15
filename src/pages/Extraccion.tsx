@@ -74,7 +74,11 @@ export default function Extraccion() {
   const sectorFinal = sector === 'Otro' ? otroSector.trim() : sector
   const puedeExtraer = sectorFinal && ciudad.trim() && estado !== 'buscando' && estado !== 'extrayendo'
 
+  const [extraccionId, setExtraccionId] = useState('')
+
   const extraer = async () => {
+    const sessionId = crypto.randomUUID()
+    setExtraccionId(sessionId)
     setEstado('buscando')
     setLog([])
     setErrorMsg('')
@@ -142,6 +146,8 @@ export default function Extraccion() {
             fuente: 'extraccion',
             fase: 'nuevo',
             creado_por: usuario,
+            extraccion_id: sessionId,
+            extraccion_fecha: new Date().toISOString(),
           })))
         if (insError) throw insError
       }
@@ -151,6 +157,7 @@ export default function Extraccion() {
         ciudad: ciudad.trim(),
         total_leads: nuevos.length,
         estado: 'completada',
+        extraccion_id: sessionId,
       })
 
       setGuardados(nuevos.length)
@@ -351,8 +358,8 @@ export default function Extraccion() {
               )}
             </div>
           </div>
-          <button className="btn-gradient" onClick={() => navigate('/leads')}>
-            Ver leads →
+          <button className="btn-gradient" onClick={() => navigate(`/leads?extraccion=${extraccionId}`)}>
+            Ver leads extraídos →
           </button>
         </div>
       )}
