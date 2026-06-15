@@ -2,11 +2,13 @@ import { google } from 'googleapis'
 
 /* ─────────────────────────────────────────────
    API route serverless (Vercel Function, Node)
-   Exporta los leads a un Google Sheet maestro único:
-   - Si existe un sheet cuyo nombre empieza por "WIARE Leads OS" → lo reutiliza.
-   - Si no → crea uno nuevo "WIARE Leads OS — [fecha]".
-   - Limpia las filas previas (deja el header), reinserta los leads, aplica formato.
-   Devuelve { url } del sheet.
+   Exporta los leads a un Google Sheet maestro único — modo UPSERT acumulativo:
+   - Lee la columna A para construir el mapa ID → número de fila.
+   - Actualiza en sitio las filas existentes (batchUpdate).
+   - Añade al final las filas nuevas (append).
+   - NUNCA borra filas: el sheet es una base de datos acumulativa.
+   - Si el sheet no existe lo crea con header A–Z (26 columnas).
+   Devuelve { url, updated, created }.
 
    Requiere en env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN.
    GOOGLE_SHEET_ID es opcional (acelera al saltarse la búsqueda en Drive).
@@ -14,12 +16,34 @@ import { google } from 'googleapis'
 
 const SHEET_BASENAME = 'WIARE Leads OS'
 
+// 26 columnas A–Z
 const HEADER = [
-  'ID', 'Fecha extracción', 'Nombre negocio', 'Sector', 'Ciudad', 'Dirección',
-  'Teléfono', 'Web', 'Google Maps', 'Valoración', 'Nº Reseñas', 'Score IA',
-  'Nivel', 'Motivo score', 'Volumen llamadas', 'Fase actual', 'MRR estimado (€/mes)',
-  'Setup', 'Agent ID Retell', 'Demo creada', 'Propuesta generada',
-  'Emails outreach generados', 'Notas', 'Última actualización',
+  'ID',                        // A
+  'Fecha extracción',          // B
+  'Nombre negocio',            // C
+  'Sector',                    // D
+  'Ciudad',                    // E
+  'Dirección',                 // F
+  'Teléfono',                  // G
+  'Email',                     // H  ← nuevo
+  'Email verificado',          // I  ← nuevo
+  'Web',                       // J
+  'Google Maps',               // K
+  'Valoración',                // L
+  'Nº Reseñas',                // M
+  'Score IA',                  // N
+  'Nivel',                     // O
+  'Motivo score',              // P
+  'Volumen llamadas',          // Q
+  'Fase actual',               // R
+  'MRR estimado (€/mes)',      // S
+  'Setup',                     // T
+  'Agent ID Retell',           // U
+  'Demo creada',               // V
+  'Propuesta generada',        // W
+  'Email enviado',             // X  ← nuevo
+  'Fuente',                    // Y  ← nuevo
+  'Última actualización',      // Z
 ]
 
 const FASE_LABELS: Record<string, string> = {
@@ -51,6 +75,11 @@ interface LeadDTO {
   agent_id_retell: string | null
   propuesta_md: string | null
   notas: string | null
+  // ── nuevos campos v5 ──
+  email: string | null
+  email_verificado: boolean | null
+  email_fuente: string | null
+  fuente: string | null
 }
 
 function nivelDe(score: number | null): string {
@@ -69,16 +98,15 @@ function fechaCorta(iso: string): string {
   }
 }
 
-// Devuelve color de fondo para la celda de score (RGB 0..1) según el valor.
 function colorScore(score: number | null): { red: number; green: number; blue: number } {
   if (score == null) return { red: 1, green: 1, blue: 1 }
-  if (score >= 9) return { red: 0.93, green: 0.93, blue: 1 } // indigo claro
-  if (score >= 7) return { red: 0.9, green: 0.97, blue: 0.91 } // verde claro
-  if (score >= 4) return { red: 1, green: 0.95, blue: 0.86 } // naranja claro
-  return { red: 1, green: 0.9, blue: 0.9 } // rojo claro
+  if (score >= 9) return { red: 0.93, green: 0.93, blue: 1 }
+  if (score >= 7) return { red: 0.9, green: 0.97, blue: 0.91 }
+  if (score >= 4) return { red: 1, green: 0.95, blue: 0.86 }
+  return { red: 1, green: 0.9, blue: 0.9 }
 }
 
-// Convierte un lead a la fila de 24 columnas. Las columnas con link usan fórmula HYPERLINK.
+// 26 columnas A–Z (índices 0–25)
 function leadToRow(lead: LeadDTO): unknown[] {
   const maps = lead.google_maps_url
     ? `=HYPERLINK("${lead.google_maps_url}";"Ver mapa")`
@@ -87,30 +115,32 @@ function leadToRow(lead: LeadDTO): unknown[] {
     ? `=HYPERLINK("https://app.retellai.com/agents/${lead.agent_id_retell}";"${lead.agent_id_retell}")`
     : ''
   return [
-    lead.id,
-    fechaCorta(lead.created_at),
-    lead.nombre ?? '',
-    lead.sector ?? '',
-    lead.ciudad ?? '',
-    lead.direccion ?? '',
-    lead.telefono ?? '',
-    lead.web ?? '',
-    maps,
-    lead.valoracion ?? '',
-    lead.num_resenas ?? '',
-    lead.score_cualificacion ?? '',
-    nivelDe(lead.score_cualificacion),
-    lead.motivo_score ?? '',
-    lead.volumen_llamadas ?? '',
-    FASE_LABELS[lead.fase] ?? lead.fase ?? '',
-    lead.mrr_estimado ?? '',
-    '790€',
-    agent,
-    lead.agent_id_retell ? 'Sí' : 'No',
-    lead.propuesta_md ? 'Sí' : 'No',
-    'No', // emails outreach: no existe en el modelo actual
-    lead.notas ?? '',
-    new Date().toLocaleString('es-ES'),
+    lead.id,                                              // A
+    fechaCorta(lead.created_at),                          // B
+    lead.nombre ?? '',                                    // C
+    lead.sector ?? '',                                    // D
+    lead.ciudad ?? '',                                    // E
+    lead.direccion ?? '',                                 // F
+    lead.telefono ?? '',                                  // G
+    lead.email ?? '',                                     // H
+    lead.email_verificado ? 'Sí' : 'No',                 // I
+    lead.web ?? '',                                       // J
+    maps,                                                 // K
+    lead.valoracion ?? '',                                // L
+    lead.num_resenas ?? '',                               // M
+    lead.score_cualificacion ?? '',                       // N
+    nivelDe(lead.score_cualificacion),                    // O
+    lead.motivo_score ?? '',                              // P
+    lead.volumen_llamadas ?? '',                          // Q
+    FASE_LABELS[lead.fase] ?? lead.fase ?? '',            // R
+    lead.mrr_estimado ?? '',                              // S
+    '790€',                                               // T
+    agent,                                                // U
+    lead.agent_id_retell ? 'Sí' : 'No',                  // V
+    lead.propuesta_md ? 'Sí' : 'No',                     // W
+    'No',                                                 // X email enviado (se rellena desde outreach_os en futuras versiones)
+    lead.fuente ?? '',                                    // Y
+    new Date().toLocaleString('es-ES'),                   // Z
   ]
 }
 
@@ -126,7 +156,6 @@ function getAuth() {
   return oauth2
 }
 
-// Busca un sheet existente cuyo nombre empiece por SHEET_BASENAME.
 async function buscarSheetExistente(auth: ReturnType<typeof getAuth>): Promise<string | null> {
   if (process.env.GOOGLE_SHEET_ID) return process.env.GOOGLE_SHEET_ID
   const drive = google.drive({ version: 'v3', auth })
@@ -153,32 +182,78 @@ export default async function handler(req: { method?: string; body?: unknown }, 
 
     let spreadsheetId = await buscarSheetExistente(auth)
 
-    // 1) Crear el sheet si no existe
+    // ── 1. Crear el sheet si no existe ──
     if (!spreadsheetId) {
       const titulo = `${SHEET_BASENAME} — ${new Date().toLocaleDateString('es-ES')}`
       const creado = await sheets.spreadsheets.create({
         requestBody: { properties: { title: titulo } },
       })
       spreadsheetId = creado.data.spreadsheetId!
+
+      // Header inicial en sheet nuevo
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: 'A1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [HEADER] },
+      })
     }
 
-    // 2) Obtener el sheetId (pestaña) y limpiar todo el contenido
+    // ── 2. Obtener sheetId (pestaña) para batchUpdate de formato ──
     const meta = await sheets.spreadsheets.get({ spreadsheetId })
     const firstSheet = meta.data.sheets?.[0]
     const sheetId = firstSheet?.properties?.sheetId ?? 0
 
-    await sheets.spreadsheets.values.clear({ spreadsheetId, range: 'A:X' })
-
-    // 3) Escribir header + filas
-    const rows = [HEADER, ...leads.map(leadToRow)]
-    await sheets.spreadsheets.values.update({
+    // ── 3. Leer columna A (IDs existentes) para construir mapa ID → rowIndex ──
+    const colA = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'A1',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: rows },
+      range: 'A:A',
+    })
+    const existingIds: string[] = (colA.data.values ?? []).map((r) => String(r[0] ?? ''))
+    // existingIds[0] = 'ID' (header), existingIds[1] = primer lead, etc.
+    const idToRow: Record<string, number> = {}
+    existingIds.forEach((id, idx) => {
+      if (idx > 0 && id) idToRow[id] = idx + 1 // fila Sheets es 1-indexed, +1 por header
     })
 
-    // 4) Formato vía batchUpdate
+    // ── 4. Separar leads en: actualizar existentes vs añadir nuevos ──
+    const toUpdate: { rowIndex: number; lead: LeadDTO }[] = []
+    const toAppend: LeadDTO[] = []
+
+    for (const lead of leads) {
+      if (idToRow[lead.id]) {
+        toUpdate.push({ rowIndex: idToRow[lead.id], lead })
+      } else {
+        toAppend.push(lead)
+      }
+    }
+
+    // ── 5. Actualizar filas existentes con batchUpdate de valores ──
+    if (toUpdate.length > 0) {
+      const data = toUpdate.map(({ rowIndex, lead }) => ({
+        range: `A${rowIndex}:Z${rowIndex}`,
+        values: [leadToRow(lead)],
+      }))
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: { valueInputOption: 'USER_ENTERED', data },
+      })
+    }
+
+    // ── 6. Añadir filas nuevas al final ──
+    if (toAppend.length > 0) {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId,
+        range: 'A:Z',
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: toAppend.map(leadToRow) },
+      })
+    }
+
+    // ── 7. Formato vía batchUpdate (header + freeze + auto-resize + colores) ──
+    // Necesitamos saber el total de filas actuales para formatear correctamente.
+    const totalRows = existingIds.length + toAppend.length // incluye header row
     const requests: unknown[] = [
       // Header: fondo #6366F1, texto blanco, negrita
       {
@@ -201,30 +276,26 @@ export default async function handler(req: { method?: string; body?: unknown }, 
           fields: 'gridProperties.frozenRowCount',
         },
       },
-      // Auto-resize de columnas A..X (0..23)
+      // Auto-resize columnas A–Z (0–25)
       {
         autoResizeDimensions: {
-          dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 24 },
+          dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 26 },
         },
       },
     ]
 
-    // Filas pares: fondo #F4F4F5 (alternancia visible). Col Score (índice 11) con color semántico.
-    leads.forEach((lead, i) => {
-      const rowIndex = i + 1 // +1 por el header
-      if (i % 2 === 1) {
-        requests.push({
-          repeatCell: {
-            range: { sheetId, startRowIndex: rowIndex, endRowIndex: rowIndex + 1, startColumnIndex: 0, endColumnIndex: 24 },
-            cell: { userEnteredFormat: { backgroundColor: { red: 0.957, green: 0.957, blue: 0.961 } } },
-            fields: 'userEnteredFormat.backgroundColor',
-          },
-        })
-      }
-      // Columna Score (L = índice 11) con color según valor
+    // Color score (columna N = índice 13) para todas las filas de leads
+    // Solo formateamos las filas modificadas/añadidas para no sobreescribir ediciones manuales del resto
+    const leadsConIndice = [
+      ...toUpdate.map(({ rowIndex, lead }) => ({ rowIndex, lead })),
+      ...toAppend.map((lead, i) => ({ rowIndex: existingIds.length + i, lead })),
+    ]
+
+    leadsConIndice.forEach(({ rowIndex, lead }) => {
+      const ri = rowIndex - 1 // 0-indexed para la API
       requests.push({
         repeatCell: {
-          range: { sheetId, startRowIndex: rowIndex, endRowIndex: rowIndex + 1, startColumnIndex: 11, endColumnIndex: 12 },
+          range: { sheetId, startRowIndex: ri, endRowIndex: ri + 1, startColumnIndex: 13, endColumnIndex: 14 },
           cell: {
             userEnteredFormat: {
               backgroundColor: colorScore(lead.score_cualificacion),
@@ -240,7 +311,12 @@ export default async function handler(req: { method?: string; body?: unknown }, 
     await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } })
 
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
-    return res.status(200).json({ url, count: leads.length })
+    return res.status(200).json({
+      url,
+      total: leads.length,
+      updated: toUpdate.length,
+      created: toAppend.length,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error exportando a Google Sheets'
     return res.status(500).json({ error: message })

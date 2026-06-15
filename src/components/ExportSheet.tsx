@@ -39,8 +39,8 @@ export default function ExportSheet({
     setEstado('loading')
     setErrorMsg('')
     try {
-      const url = await exportarASheets(leads)
-      setSheetUrl(url)
+      const result = await exportarASheets(leads)
+      setSheetUrl(result.url)
       setEstado('success')
       onDone?.()
       // Vuelve a idle tras 3s para permitir re-exportar.

@@ -29,10 +29,22 @@ function aDTO(lead: Lead) {
     agent_id_retell: lead.agent_id_retell,
     propuesta_md: lead.propuesta_md,
     notas: lead.notas,
+    // ── campos v5 ──
+    email: lead.email,
+    email_verificado: lead.email_verificado,
+    email_fuente: lead.email_fuente,
+    fuente: lead.fuente,
   }
 }
 
-export async function exportarASheets(leads: Lead[]): Promise<string> {
+export interface ExportResult {
+  url: string
+  total: number
+  updated: number
+  created: number
+}
+
+export async function exportarASheets(leads: Lead[]): Promise<ExportResult> {
   const res = await fetch('/api/export-sheets', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -45,7 +57,6 @@ export async function exportarASheets(leads: Lead[]): Promise<string> {
       const data = await res.json()
       if (data?.error) mensaje = data.error
     } catch {
-      // respuesta no-JSON (p.ej. 404 si el endpoint no está desplegado)
       if (res.status === 404) {
         mensaje = 'El endpoint /api/export-sheets no está disponible. Despliega en Vercel y configura las credenciales de Google (ver GOOGLE_SETUP.md).'
       }
@@ -53,6 +64,5 @@ export async function exportarASheets(leads: Lead[]): Promise<string> {
     throw new Error(mensaje)
   }
 
-  const data = (await res.json()) as { url: string }
-  return data.url
+  return (await res.json()) as ExportResult
 }
