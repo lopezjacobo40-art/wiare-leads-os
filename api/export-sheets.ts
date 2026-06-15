@@ -130,6 +130,14 @@ function formatHorario(horario: string[] | null): string {
   return horario.filter(Boolean).join(' · ')
 }
 
+// Fuerza texto en celdas que Sheets interpretaría como fórmula con USER_ENTERED
+// (teléfonos con '+', valores que empiezan por '=' o '-'). El apóstrofo inicial
+// le dice a Sheets "esto es texto literal" y no se muestra en la celda.
+function comoTexto(valor: string | null): string {
+  if (!valor) return ''
+  return /^[=+\-@]/.test(valor) ? `'${valor}` : valor
+}
+
 function colorScore(score: number | null): { red: number; green: number; blue: number } {
   if (score == null) return { red: 1, green: 1, blue: 1 }
   if (score >= 9) return { red: 0.93, green: 0.93, blue: 1 }
@@ -159,7 +167,7 @@ function leadToRow(
     lead.sector ?? '',                                    // D
     lead.ciudad ?? '',                                    // E
     lead.direccion ?? '',                                 // F
-    lead.telefono ?? '',                                  // G
+    comoTexto(lead.telefono),                             // G (texto: evita #ERROR! con '+')
     // ── BLOQUE 2 · CONTACTO (H–K) ──
     lead.email ?? '',                                     // H
     lead.email_verificado ? 'Sí' : 'No',                 // I
