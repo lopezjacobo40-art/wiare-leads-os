@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix,
-  MapTrifold, Headset, PenNib, ChatCircleDots,
+  MapTrifold, Headset, Books, ChatCircleDots,
 } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
@@ -25,7 +25,7 @@ const NAV: NavItem[] = [
 const MI_AGENCIA: NavItem[] = [
   { to: '/roadmap', label: 'Roadmap', icon: MapTrifold, end: false },
   { to: '/simulador', label: 'Simulador', icon: Headset, end: false },
-  { to: '/contenido', label: 'Contenido', icon: PenNib, end: false },
+  { to: '/biblioteca', label: 'Biblioteca', icon: Books, end: false },
   { to: '/consultor', label: 'Consultor IA', icon: ChatCircleDots, end: false },
 ]
 

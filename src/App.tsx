@@ -10,7 +10,7 @@ import Configuracion from './pages/Configuracion'
 import Roadmap from './pages/Roadmap'
 import Simulador from './pages/Simulador'
 import Consultor from './pages/Consultor'
-import Contenido from './pages/Contenido'
+import Biblioteca from './pages/Biblioteca'
 import Sidebar from './components/Sidebar'
 
 function Shell({ onLogout }: { onLogout: () => void }) {
@@ -45,7 +45,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/simulador" element={<Simulador />} />
           <Route path="/consultor" element={<Consultor />} />
-          <Route path="/contenido" element={<Contenido />} />
+          <Route path="/biblioteca" element={<Biblioteca />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

@@ -58,6 +58,10 @@ export default function Leads() {
   // Vista rápida (panel lateral)
   const [quickViewLead, setQuickViewLead] = useState<Lead | null>(null)
 
+  // Eliminar en lote
+  const [confirmEliminarLote, setConfirmEliminarLote] = useState(false)
+  const [eliminandoLote, setEliminandoLote] = useState(false)
+
   // ── Lee los query params al montar y preconfigura los filtros (deep-link). ──
   useEffect(() => {
     const sm = searchParams.get('score_min')
@@ -297,6 +301,20 @@ export default function Leads() {
     }
   }
 
+  const eliminarSeleccionados = async () => {
+    setConfirmEliminarLote(false)
+    setEliminandoLote(true)
+    const ids = [...selectedIds]
+    const { error: err } = await supabase.from('leads_os').delete().in('id', ids)
+    setEliminandoLote(false)
+    if (err) toast(err.message, 'error')
+    else {
+      limpiarSeleccion()
+      await cargar()
+      toast(`${ids.length} leads eliminados`, 'info')
+    }
+  }
+
   const descartar = async (lead: Lead) => {
     const { error: err } = await supabase.from('leads_os').delete().eq('id', lead.id)
     if (err) toast(err.message, 'error')
@@ -390,6 +408,47 @@ export default function Leads() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setConfirmBatch(null)}>Cancelar</button>
               <button className="btn-primary" onClick={ejecutarBatch}>Confirmar y cualificar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación para eliminar en lote */}
+      {confirmEliminarLote && (
+        <div
+          onClick={() => setConfirmEliminarLote(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-eliminar-lote"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+            padding: 24,
+            animation: 'fade-in 150ms cubic-bezier(0.4,0,0.2,1)',
+          }}
+        >
+          <div
+            className="card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ padding: 28, maxWidth: 400, width: '100%' }}
+          >
+            <h2 id="titulo-eliminar-lote" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
+              Eliminar {selectedIds.size} {selectedIds.size === 1 ? 'lead' : 'leads'}
+            </h2>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 24 }}>
+              Esta acción es <strong style={{ color: 'var(--color-text-primary)' }}>permanente</strong> y no se puede deshacer.
+              Se eliminarán {selectedIds.size} leads del pipeline.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => setConfirmEliminarLote(false)}>Cancelar</button>
+              <button className="btn-danger" onClick={eliminarSeleccionados}>
+                <Trash size={16} /> Eliminar {selectedIds.size} leads
+              </button>
             </div>
           </div>
         </div>
@@ -830,6 +889,15 @@ export default function Leads() {
               </div>
             )}
           </div>
+
+          <button
+            className="lote-bar-btn"
+            onClick={() => setConfirmEliminarLote(true)}
+            disabled={eliminandoLote}
+            style={{ ...loteBtnStyle, background: 'rgba(239,68,68,0.15)', color: '#FCA5A5' }}
+          >
+            <Trash size={16} /> {eliminandoLote ? 'Eliminando…' : 'Eliminar'}
+          </button>
 
           <span style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.15)' }} />
           <button

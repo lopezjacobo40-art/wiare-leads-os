@@ -2,7 +2,6 @@ import type { Lead } from './supabaseClient'
 import { guardedCall } from './tokenGuard'
 import { SECTORES, RESISTENCIAS, type Resistencia } from './simuladorData'
 import { WIARE_CONTEXTO } from './wiareContexto'
-import { ANGULOS, TONOS as TONOS_CONTENIDO, LONGITUDES, type AnguloId, type TonoContenido, type LongitudId } from './contenidoData'
 import { getNicho } from './nichoConfig'
 
 const API_URL = 'https://api.anthropic.com/v1/messages'
@@ -364,43 +363,6 @@ Devuelve SOLO el JSON sin markdown, con esta estructura exacta:
   return JSON.parse(json) as SlidesContent
 }
 
-/* ─────────────────────────────────────────────
-   GENERADOR DE CONTENIDO
-   Post de LinkedIn sobre casos de uso de WIARE para captación orgánica.
-   Sonnet por calidad de redacción (contenido publicable).
-   ───────────────────────────────────────────── */
-export async function generarPostLinkedIn(
-  anguloId: AnguloId,
-  tono: TonoContenido,
-  longitud: LongitudId
-): Promise<string> {
-  const angulo = ANGULOS.find((a) => a.id === anguloId) ?? ANGULOS[0]
-  const t = TONOS_CONTENIDO[tono]
-  const l = LONGITUDES[longitud]
-
-  const prompt = `Escribe un post de LinkedIn para captación orgánica de WIARE.
-
-SOBRE WIARE: agencia española que instala un agente de voz IA + CRM para negocios locales
-(clínicas, restaurantes, inmobiliarias, talleres…). Atiende llamadas 24/7, coge citas/reservas
-y registra cada lead. Precio: 790€ setup + 90-390€/mes, sin permanencia, activo en 7 días.
-
-ÁNGULO DEL POST: ${angulo.label}
-${angulo.enfoque}
-
-TONO: ${t.instruccion}
-LONGITUD: ${l.instruccion}
-
-REGLAS:
-- Español de España. Primera línea = gancho que para el scroll.
-- Frases cortas, mucho espacio en blanco entre líneas (estilo LinkedIn).
-- Cero emojis. Sin hashtags genéricos de relleno (máximo 2-3 hashtags relevantes al final, opcionales).
-- No suenes a anuncio. Aporta una idea o perspectiva, y cierra con un CTA suave.
-- Nada de inventar cifras de clientes ni testimonios falsos.
-
-Devuelve SOLO el texto del post, listo para copiar y pegar. Sin comillas ni explicaciones.`
-
-  return guardedCall('content', () => callClaude('claude-sonnet-4-6', 900, prompt))
-}
 
 /* ─────────────────────────────────────────────
    OUTREACH AGENT
