@@ -142,7 +142,8 @@ export default function LeadDetalle() {
   const [generandoEmail, setGenerandoEmail] = useState(false)
   const [estrategia, setEstrategia] = useState<EstrategiaOutreach | null>(null)
   const [asuntoSeleccionado, setAsuntoSeleccionado] = useState(0)
-  const [emailOutreach, setEmailOutreach] = useState<{ asunto: string; cuerpo: string } | null>(null)
+  const [emailOutreach, setEmailOutreach] = useState<{ asunto: string; cuerpo: string; asuntos: string[]; asunto_recomendado: string } | null>(null)
+  const [asuntoEmailIdx, setAsuntoEmailIdx] = useState(0)
   const [cuerpoEditado, setCuerpoEditado] = useState('')
   const [vendedor, setVendedor] = useState(() => sessionStorage.getItem('wiare_user') ?? 'Jacobo')
   const [emailsHoy, setEmailsHoy] = useState(0)
@@ -276,6 +277,8 @@ export default function LeadDetalle() {
         { ...estrategia, opciones_asunto: [estrategia.opciones_asunto[asuntoSeleccionado]] },
         vendedor
       )
+      const recomIdx = e.asuntos.findIndex(a => a === e.asunto_recomendado)
+      setAsuntoEmailIdx(recomIdx >= 0 ? recomIdx : 0)
       setEmailOutreach(e)
       setCuerpoEditado(e.cuerpo)
       setOutreachStep('email')
@@ -289,10 +292,11 @@ export default function LeadDetalle() {
   const registrarEmailOutreach = async (estado: 'enviado' | 'borrador') => {
     if (!lead || !emailOutreach) return
     const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
+    const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
     await supabase.from('outreach_os').insert({
       lead_id: lead.id,
       usuario,
-      asunto: emailOutreach.asunto,
+      asunto: asuntoFinal,
       cuerpo: cuerpoEditado,
       estrategia,
       estado,
@@ -313,7 +317,8 @@ export default function LeadDetalle() {
 
   const copiarEmail = async () => {
     if (!emailOutreach) return
-    const texto = `Asunto: ${emailOutreach.asunto}\n\n${cuerpoEditado}\n\n${vendedor} · WIARE · info@wiaresolution.com`
+    const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
+    const texto = `Asunto: ${asuntoFinal}\n\n${cuerpoEditado}\n\n${vendedor} · WIARE · info@wiaresolution.com`
     await navigator.clipboard.writeText(texto)
     await registrarEmailOutreach('enviado')
     toast('Email copiado al portapapeles', 'success')
@@ -321,9 +326,10 @@ export default function LeadDetalle() {
 
   const abrirMailto = async () => {
     if (!emailOutreach || !lead || !lead.email) return
+    const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
     const firma = `${vendedor} · WIARE · info@wiaresolution.com`
     const cuerpoFull = `${cuerpoEditado}\n\n${firma}`
-    const mailto = `mailto:${lead.email}?subject=${encodeURIComponent(emailOutreach.asunto)}&body=${encodeURIComponent(cuerpoFull)}`
+    const mailto = `mailto:${lead.email}?subject=${encodeURIComponent(asuntoFinal)}&body=${encodeURIComponent(cuerpoFull)}`
     window.open(mailto, '_self')
     await registrarEmailOutreach('enviado')
     toast('Abriendo cliente de correo…', 'info')
@@ -1035,6 +1041,39 @@ export default function LeadDetalle() {
                 {/* ── PASO 2: Email preview ── */}
                 {outreachStep === 'email' && emailOutreach && (
                   <>
+                    {/* Selector de 3 asuntos */}
+                    {emailOutreach.asuntos?.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
+                          Elige asunto
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {emailOutreach.asuntos.map((asunto, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setAsuntoEmailIdx(i)}
+                              style={{
+                                textAlign: 'left', padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 13,
+                                border: asuntoEmailIdx === i ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                                background: asuntoEmailIdx === i ? 'var(--color-primary-subtle)' : 'var(--color-surface)',
+                                color: asuntoEmailIdx === i ? 'var(--color-primary)' : 'var(--color-text-primary)',
+                                fontWeight: asuntoEmailIdx === i ? 600 : 400,
+                                minHeight: 'auto', transition: 'all 150ms cubic-bezier(0.4,0,0.2,1)',
+                                display: 'flex', alignItems: 'center', gap: 8,
+                              }}
+                            >
+                              {asuntoEmailIdx === i && (
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-full)', background: 'var(--color-primary)', color: '#fff', flexShrink: 0 }}>
+                                  ✓
+                                </span>
+                              )}
+                              {asunto}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Card oscura tipo bandeja */}
                     <div style={{
                       background: '#0f1117',
@@ -1046,7 +1085,7 @@ export default function LeadDetalle() {
                       {[
                         { label: 'De', value: `info@wiaresolution.com` },
                         { label: 'Para', value: lead.email ?? '(sin email guardado)' },
-                        { label: 'Asunto', value: emailOutreach.asunto },
+                        { label: 'Asunto', value: emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto },
                       ].map(({ label, value }) => (
                         <div key={label} style={{ display: 'flex', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 12 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', width: 52, flexShrink: 0, paddingTop: 1 }}>{label}</span>
@@ -1106,8 +1145,15 @@ export default function LeadDetalle() {
                     </div>
 
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn-ghost" onClick={() => setOutreachStep('estrategia')} style={{ fontSize: 12 }}>
-                        ← Cambiar asunto
+                      <button
+                        className="btn-ghost"
+                        onClick={() => setAsuntoEmailIdx(i => emailOutreach.asuntos?.length ? (i + 1) % emailOutreach.asuntos.length : 0)}
+                        style={{ fontSize: 12 }}
+                      >
+                        <ArrowClockwise size={14} /> Ciclar asunto
+                      </button>
+                      <button className="btn-ghost" onClick={crearEmail} disabled={generandoEmail} style={{ fontSize: 12 }}>
+                        <ArrowClockwise size={14} /> {generandoEmail ? 'Regenerando…' : 'Regenerar email'}
                       </button>
                       <button className="btn-ghost" onClick={() => setOutreachStep('idle')} style={{ fontSize: 12 }}>
                         Empezar de nuevo

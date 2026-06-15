@@ -523,64 +523,65 @@ export async function generarEmailOutreach(
   _estrategia: EstrategiaOutreach,
   vendedor: string
 ): Promise<{ asunto: string; cuerpo: string; asuntos: string[]; asunto_recomendado: string }> {
-  const prompt = `
-Eres Jacobo, fundador de WIARE en Madrid.
-Escribes emails en frío a dueños de negocios locales.
+  const horario = Array.isArray(lead.horario)
+    ? lead.horario.join(', ')
+    : lead.horario
+      ? JSON.stringify(lead.horario)
+      : `horario de negocio local en ${lead.sector ?? 'el sector'}`
 
-Tu estilo de email:
-- Como si lo escribieras desde el móvil un martes por la mañana
-- Máximo 5 líneas en el cuerpo. Nunca más.
-- Primera línea: un detalle MUY específico del negocio
-  (no "vi tu negocio en Google" — algo concreto como
-  "Vi que tenéis ${lead.num_resenas} reseñas" o
-  "Vi que cerráis los domingos" o algo del horario/descripción)
-- Segunda línea: una pregunta directa sobre el problema.
-  No afirmes que tienen el problema — pregunta.
-- Tercera línea: lo que tienes para ellos.
-  UNA frase. Vago pero intrigante.
-- Cuarta línea: CTA. Solo una pregunta corta.
-- Firma: solo tu nombre. Sin cargo, sin empresa, sin web.
+  const systemPrompt = `Eres un redactor experto en cold email B2B para negocios locales en España.
+Tu objetivo es escribir emails que parezcan enviados por una persona real, no por una empresa ni por IA.
 
-PROHIBIDO absolutamente:
-- "Nuestra solución", "nuestro sistema", "nuestro servicio"
-- "IA", "inteligencia artificial", "agente", "bot", "automatización"
-- "llamadas perdidas", "oportunidades", "potencial"
-- Adjetivos: "eficiente", "innovador", "optimizado", "avanzado"
-- Frases hechas: "en el mercado actual", "en el mundo digital"
-- Más de 5 líneas en el cuerpo
-- Mencionar la empresa WIARE en el cuerpo del email
-- URLs en el cuerpo (solo si el CTA lo requiere)
+REGLAS ESTRICTAS:
+- Tono: directo, cercano, sin formalismos corporativos
+- Longitud: máximo 4 frases en el cuerpo. Ni una más.
+- NUNCA uses: "solución", "innovadora", "IA", "inteligencia artificial", "automatización", "potenciar", "optimizar", "transformar"
+- NUNCA empieces con "Hola [nombre]," — empieza con un dato concreto del negocio
+- NUNCA menciones precios
+- El email debe leer como si el remitente hubiera revisado su web o Google Maps esa misma mañana
 
-OBLIGATORIO:
-- Usar tuteo, no ustedeo
-- Que suene como una persona, no como marketing
-- El asunto: máximo 6 palabras, que genere curiosidad o
-  señale un problema específico. Nunca genérico.
-- 3 opciones de asunto diferentes en tono e ángulo
+ESTRUCTURA OBLIGATORIA:
+1. ASUNTO (3 opciones distintas):
+   - Opción A: pregunta directa basada en un dato real del negocio
+   - Opción B: observación curiosa sobre sus horarios o reseñas
+   - Opción C: referencia a algo específico de su web o sector
+   Máximo 8 palabras. Sin signos de exclamación.
 
-Datos del negocio:
-Nombre: ${lead.nombre}
-Sector: ${lead.sector}
-Ciudad: ${lead.ciudad}
-Valoración: ${lead.valoracion}/5
-Reseñas: ${lead.num_resenas}
-Horario: ${JSON.stringify(lead.horario)}
-Descripción: ${lead.descripcion}
-Firmante: ${vendedor}
+2. CUERPO (exactamente 3 párrafos de 1-2 frases):
+   - Párrafo 1: dato concreto que demuestra que conoces su negocio (usa horario, reseñas, sector, nombre del negocio)
+   - Párrafo 2: problema específico que ese dato sugiere (llamadas no atendidas, reservas sin confirmar, consultas fuera de horario)
+   - Párrafo 3: CTA de baja fricción — proponer 10 minutos, no vender nada
 
-Responde SOLO en JSON:
+3. FIRMA: ${vendedor} · WIARE · info@wiaresolution.com`
+
+  const userPrompt = `Negocio: ${lead.nombre ?? 'Negocio local'}
+Sector: ${lead.sector ?? 'negocio local'}
+Ciudad: ${lead.ciudad ?? 'España'}
+Teléfono: ${lead.telefono ?? 'N/D'}
+Web: ${lead.web ?? 'Sin web registrada'}
+Email: ${lead.email ?? 'N/D'}
+Reseñas: ${lead.num_resenas ?? 0} reseñas con nota ${lead.valoracion ?? 'N/D'}/5
+Horario: ${horario}
+Motivo score: ${lead.motivo_score ?? `negocio con presencia local en ${lead.sector ?? 'el sector'}`}
+
+Genera el email completo siguiendo la estructura obligatoria.
+Devuelve SOLO el JSON con esta estructura exacta, sin texto adicional:
 {
-  "asuntos": ["opción 1", "opción 2", "opción 3"],
-  "cuerpo": "el email completo listo para enviar",
-  "asunto_recomendado": "cuál de los 3 y por qué en 1 frase"
-}
-`
+  "asuntos": ["opcion_a", "opcion_b", "opcion_c"],
+  "asunto_recomendado": "opcion_a",
+  "cuerpo": "texto completo del cuerpo con saltos de línea \\n",
+  "firma": "${vendedor} · WIARE · info@wiaresolution.com"
+}`
 
-  const text = await guardedCall('content', () => callClaude('claude-haiku-4-5-20251001', 500, prompt))
+  const text = await guardedCall('content', () => callClaude('claude-haiku-4-5-20251001', 600, `${systemPrompt}\n\n${userPrompt}`))
   const json = text.replace(/```json|```/g, '').trim()
   const parsed = JSON.parse(json) as { asuntos: string[]; cuerpo: string; asunto_recomendado: string }
+
+  const recomendadoIdx = parsed.asuntos.findIndex(a => a === parsed.asunto_recomendado)
+  const asuntoDefault = parsed.asuntos[recomendadoIdx >= 0 ? recomendadoIdx : 0] ?? ''
+
   return {
     ...parsed,
-    asunto: parsed.asuntos[0] ?? '',
+    asunto: asuntoDefault,
   }
 }
