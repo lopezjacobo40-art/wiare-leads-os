@@ -17,10 +17,28 @@ export interface ApifyLead {
   description: string | null
 }
 
+const EMAIL_PRIORITY_PREFIXES = ['contact', 'info', 'hello', 'hola', 'reservas', 'citas', 'recepcion', 'admin']
+
 function extractEmailFromText(text: string | null): string | null {
   if (!text) return null
-  const match = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
-  return match ? match[0] : null
+  const matches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)
+  if (!matches) return null
+  // Priorizar emails de contacto del negocio sobre emails de terceros
+  const prioritized = matches.find((e) =>
+    EMAIL_PRIORITY_PREFIXES.some((p) => e.toLowerCase().startsWith(p))
+  )
+  return prioritized ?? matches[0]
+}
+
+function normalizeOpeningHours(raw: unknown): string[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw.map(String)
+  if (typeof raw === 'object') {
+    // Apify a veces devuelve { "Monday": "9:00-18:00", ... }
+    return Object.entries(raw as Record<string, string>).map(([day, hours]) => `${day}: ${hours}`)
+  }
+  if (typeof raw === 'string') return [raw]
+  return []
 }
 
 export async function extraerLeadsConApify(
@@ -119,7 +137,7 @@ export async function extraerLeadsConApify(
     city: (item.city as string) || ciudad,
     url: (item.url as string) || null,
     placeId: (item.placeId as string) || null,
-    openingHours: (item.openingHours as string[]) || [],
+    openingHours: normalizeOpeningHours(item.openingHours),
     description: (item.description as string) || (item.editorialSummary as string) || null,
   }))
 }
@@ -149,8 +167,19 @@ export async function buscarEmailApify(
     const runData = await runRes.json()
     const runId = runData.data.id
 
-    // Esperar ~20s a que el crawler termine
-    await new Promise(r => setTimeout(r, 20000))
+    // Polling igual que extraerLeadsConApify — máx 90s (18 × 5s)
+    let status = 'RUNNING'
+    let intentos = 0
+    while ((status === 'RUNNING' || status === 'READY') && intentos < 18) {
+      await new Promise(r => setTimeout(r, 5000))
+      intentos++
+      const statusRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_KEY}`)
+      if (!statusRes.ok) break
+      const statusData = await statusRes.json()
+      status = statusData.data.status
+    }
+
+    if (status !== 'SUCCEEDED') return null
 
     const dataRes = await fetch(
       `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_KEY}`
