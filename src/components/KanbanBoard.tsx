@@ -28,6 +28,7 @@ const FASE_COLOR: Record<string, string> = {
   cualificado: '#F59E0B',       // --color-warning
   demo_creada: '#6366F1',       // --color-primary
   propuesta_creada: '#8B5CF6',  // violeta medio
+  email_generado: '#9B6DF3',    // violeta intermedio
   propuesta_enviada: '#A855F7', // violeta claro
   cerrado: '#22C55E',           // --color-success
 }

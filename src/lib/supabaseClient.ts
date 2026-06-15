@@ -62,13 +62,14 @@ export interface Extraccion {
   extraccion_id?: string | null
 }
 
-export const FASES = ['nuevo', 'cualificado', 'demo_creada', 'propuesta_creada', 'propuesta_enviada', 'cerrado'] as const
+export const FASES = ['nuevo', 'cualificado', 'demo_creada', 'propuesta_creada', 'email_generado', 'propuesta_enviada', 'cerrado'] as const
 
 export const FASE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
   cualificado: 'Cualificado',
   demo_creada: 'Demo creada',
   propuesta_creada: 'Propuesta creada',
+  email_generado: 'Email generado',
   propuesta_enviada: 'Propuesta enviada',
   cerrado: 'Cerrado',
 }
