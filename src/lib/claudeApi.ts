@@ -3,6 +3,7 @@ import { guardedCall } from './tokenGuard'
 import { SECTORES, RESISTENCIAS, type Resistencia } from './simuladorData'
 import { WIARE_CONTEXTO } from './wiareContexto'
 import { ANGULOS, TONOS as TONOS_CONTENIDO, LONGITUDES, type AnguloId, type TonoContenido, type LongitudId } from './contenidoData'
+import { getNicho } from './nichoConfig'
 
 const API_URL = 'https://api.anthropic.com/v1/messages'
 const KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -295,6 +296,72 @@ export async function consultarIA(historial: ChatMsg[]): Promise<string> {
   return guardedCall('content', () =>
     callClaudeChat('claude-haiku-4-5', 700, historial, WIARE_CONTEXTO)
   )
+}
+
+/* ─────────────────────────────────────────────
+   PROPUESTA SLIDES
+   Genera el contenido JSON para el deck de 7 slides.
+   Sonnet por calidad de redacción + personalización por nicho.
+   ───────────────────────────────────────────── */
+
+export interface SlidesContent {
+  slide1: { tagline: string }
+  slide2: { estadistica: string; pain_points: { titulo: string; descripcion: string }[] }
+  slide3: { perdida_mensual: number; perdida_anual: number; sin_sistema: string[]; con_sistema: string[] }
+  slide4: { titulo: string; beneficios: { icono: string; titulo: string; descripcion: string }[] }
+  slide5: { pasos: string[] }
+  slide6: { pregunta: string }
+  slide7: { cta: string; tiene_demo: boolean }
+}
+
+export async function generarContenidoSlides(lead: Lead): Promise<SlidesContent> {
+  const nicho = getNicho(lead.sector)
+  const perdida = lead.perdida_mensual_real ?? nicho.perdida_mensual_ref
+  const mrr = lead.mrr_estimado ?? 190
+
+  const prompt = `Genera el contenido JSON para una propuesta visual de 7 slides para este lead.
+Personaliza cada texto con el nombre y sector reales del negocio.
+
+NEGOCIO: ${lead.nombre}
+SECTOR: ${lead.sector}
+CIUDAD: ${lead.ciudad ?? 'España'}
+PÉRDIDA MENSUAL ESTIMADA: ${perdida}€/mes
+MRR WIARE: ${mrr}€/mes
+TIENE DEMO RETELL: ${lead.agent_id_retell ? 'Sí' : 'No'}
+
+REFERENCIA DEL NICHO (adapta con datos reales del negocio, no copies literal):
+- Tagline base: "${nicho.tagline}"
+- Estadística base: "${nicho.estadistica}"
+- Pain points: ${JSON.stringify(nicho.pain_points)}
+- Sin sistema: ${JSON.stringify(nicho.sin_sistema)}
+- Con sistema: ${JSON.stringify(nicho.con_sistema)}
+- Beneficios: ${JSON.stringify(nicho.beneficios)}
+- Pasos: ${JSON.stringify(nicho.pasos)}
+- Pregunta: "${nicho.pregunta}"
+- CTA: "${nicho.cta}"
+
+REGLAS ABSOLUTAS:
+- NUNCA mencionar "IA", "bot", "agente", "automatización"
+- SÍ usar: "sistema de atención", "recepcionista virtual 24/7", "tu negocio siempre disponible"
+- NUNCA precios — ni setup ni mensualidad — solo CTA para contactar
+- Personaliza mencionando el nombre del negocio en al menos slide1 y slide7
+- Los textos deben ser concisos (máximo 2 líneas por elemento)
+- perdida_mensual debe ser ${perdida} (número exacto, no estimes)
+
+Devuelve SOLO el JSON sin markdown, con esta estructura exacta:
+{
+  "slide1": { "tagline": "frase de apertura potente personalizada para ${lead.nombre}" },
+  "slide2": { "estadistica": "dato relevante del sector", "pain_points": [{"titulo":"","descripcion":""},{"titulo":"","descripcion":""},{"titulo":"","descripcion":""}] },
+  "slide3": { "perdida_mensual": ${perdida}, "perdida_anual": ${perdida * 12}, "sin_sistema": ["","",""], "con_sistema": ["","",""] },
+  "slide4": { "titulo": "Lo que hace nuestro sistema por ${lead.nombre}", "beneficios": [{"icono":"Phone","titulo":"","descripcion":""},{"icono":"CalendarCheck","titulo":"","descripcion":""},{"icono":"ChartLineUp","titulo":"","descripcion":""}] },
+  "slide5": { "pasos": ["paso 1","paso 2","paso 3"] },
+  "slide6": { "pregunta": "pregunta directa al decisor" },
+  "slide7": { "cta": "frase de cierre con urgencia", "tiene_demo": ${lead.agent_id_retell ? 'true' : 'false'} }
+}`
+
+  const text = await guardedCall('content', () => callClaude('claude-sonnet-4-6', 1500, prompt))
+  const json = text.replace(/```json|```/g, '').trim()
+  return JSON.parse(json) as SlidesContent
 }
 
 /* ─────────────────────────────────────────────

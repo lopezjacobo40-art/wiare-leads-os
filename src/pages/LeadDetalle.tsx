@@ -7,12 +7,13 @@ import {
   EnvelopeSimple, MagnifyingGlass, Warning, X,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { generarSystemPrompt, generarPropuesta } from '../lib/claudeApi'
+import { generarSystemPrompt, generarPropuesta, generarContenidoSlides, type SlidesContent } from '../lib/claudeApi'
 import { crearAgentDemo } from '../lib/retellApi'
 import { buscarEmail, labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
 import FuenteBadge from '../components/FuenteBadge'
 import PropuestaViewer from '../components/PropuestaViewer'
+import PropuestaSlides from '../components/PropuestaSlides'
 import FaseSelector from '../components/FaseSelector'
 import PageTransition from '../components/PageTransition'
 import Skeleton from '../components/Skeleton'
@@ -120,6 +121,8 @@ export default function LeadDetalle() {
   const [generandoPropuesta, setGenerandoPropuesta] = useState(false)
   const [editandoPropuesta, setEditandoPropuesta] = useState(false)
   const [propuestaDraft, setPropuestaDraft] = useState('')
+  const [modoPropuesta, setModoPropuesta] = useState<'texto' | 'slides'>('texto')
+  const [generandoSlides, setGenerandoSlides] = useState(false)
 
   // notas
   const [notas, setNotas] = useState('')
@@ -153,6 +156,30 @@ export default function LeadDetalle() {
     const { error: err } = await supabase.from('leads_os').update(campos).eq('id', lead.id)
     if (err) { setError(err.message); toast(err.message, 'error'); return }
     setLead({ ...lead, ...campos })
+  }
+
+  const generarSlides = async () => {
+    if (!lead) return
+    setGenerandoSlides(true)
+    setError('')
+    try {
+      const slides = await generarContenidoSlides(lead)
+      const updates: Record<string, unknown> = {
+        propuesta_slides: slides,
+        propuesta_tipo: 'slides',
+      }
+      const fasesAnteriores = ['nuevo', 'cualificado', 'demo_creada']
+      if (fasesAnteriores.includes(lead.fase)) updates.fase = 'propuesta_creada'
+      await actualizar(updates)
+      setModoPropuesta('slides')
+      toast('Slides generadas', 'success')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error generando slides'
+      setError(msg)
+      toast(msg, 'error')
+    } finally {
+      setGenerandoSlides(false)
+    }
   }
 
   const buscarEmailLead = async () => {
@@ -594,52 +621,118 @@ export default function LeadDetalle() {
             {/* ── TAB PROPUESTA ── */}
             {tab === 'propuesta' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {lead.propuesta_md ? (
+                {/* Selector Texto / Slides */}
+                {(lead.propuesta_md || lead.propuesta_slides) && (
+                  <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 12 }}>
+                    {(['texto', 'slides'] as const).map((modo) => (
+                      <button
+                        key={modo}
+                        onClick={() => setModoPropuesta(modo)}
+                        style={{
+                          padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                          background: modoPropuesta === modo ? 'var(--color-primary-subtle)' : 'transparent',
+                          color: modoPropuesta === modo ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                          border: modoPropuesta === modo ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+                          minHeight: 'auto',
+                          transition: 'all 150ms cubic-bezier(0.4,0,0.2,1)',
+                        }}
+                      >
+                        {modo === 'texto' ? 'Texto' : 'Slides'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Modo TEXTO ── */}
+                {modoPropuesta === 'texto' && (
                   <>
-                    {editandoPropuesta ? (
+                    {lead.propuesta_md ? (
                       <>
-                        <textarea value={propuestaDraft} onChange={(e) => setPropuestaDraft(e.target.value)} style={{ ...promptTextareaStyle, minHeight: 400 }} />
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <button
-                            className="btn-primary"
-                            onClick={async () => { await actualizar({ propuesta_md: propuestaDraft }); setEditandoPropuesta(false) }}
-                          >
-                            Guardar
-                          </button>
-                          <button className="btn-secondary" onClick={() => setEditandoPropuesta(false)}>Cancelar</button>
-                        </div>
+                        {editandoPropuesta ? (
+                          <>
+                            <textarea value={propuestaDraft} onChange={(e) => setPropuestaDraft(e.target.value)} style={{ ...promptTextareaStyle, minHeight: 400 }} />
+                            <div style={{ display: 'flex', gap: 10 }}>
+                              <button
+                                className="btn-primary"
+                                onClick={async () => { await actualizar({ propuesta_md: propuestaDraft }); setEditandoPropuesta(false) }}
+                              >
+                                Guardar
+                              </button>
+                              <button className="btn-secondary" onClick={() => setEditandoPropuesta(false)}>Cancelar</button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <PropuestaViewer
+                              markdown={lead.propuesta_md}
+                              nombreNegocio={lead.nombre}
+                              onMarcarEnviada={
+                                lead.fase !== 'propuesta_enviada' && lead.fase !== 'cerrado'
+                                  ? () => actualizar({ fase: 'propuesta_enviada' })
+                                  : undefined
+                              }
+                            />
+                            <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
+                              <button className="btn-secondary" onClick={() => { setPropuestaDraft(lead.propuesta_md ?? ''); setEditandoPropuesta(true) }}>
+                                <PencilSimple size={16} /> Editar
+                              </button>
+                              <button className="btn-secondary" onClick={generarProp} disabled={generandoPropuesta}>
+                                <ArrowClockwise size={16} /> {generandoPropuesta ? 'Regenerando…' : 'Regenerar'}
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </>
                     ) : (
                       <>
-                        <PropuestaViewer
-                          markdown={lead.propuesta_md}
-                          nombreNegocio={lead.nombre}
-                          onMarcarEnviada={
-                            lead.fase !== 'propuesta_enviada' && lead.fase !== 'cerrado'
-                              ? () => actualizar({ fase: 'propuesta_enviada' })
-                              : undefined
-                          }
-                        />
-                        <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
-                          <button className="btn-secondary" onClick={() => { setPropuestaDraft(lead.propuesta_md ?? ''); setEditandoPropuesta(true) }}>
-                            <PencilSimple size={16} /> Editar
+                        <h2 style={{ fontSize: 17 }}>Propuesta comercial</h2>
+                        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                          Genera una propuesta personalizada con ROI calculado para {lead.nombre}.
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          <button className="btn-primary" onClick={generarProp} disabled={generandoPropuesta} style={{ alignSelf: 'flex-start' }}>
+                            <FileText size={16} /> {generandoPropuesta ? 'Generando con Claude…' : 'Generar propuesta texto'}
                           </button>
-                          <button className="btn-secondary" onClick={generarProp} disabled={generandoPropuesta}>
-                            <ArrowClockwise size={16} /> {generandoPropuesta ? 'Regenerando…' : 'Regenerar'}
+                          <button className="btn-secondary" onClick={generarSlides} disabled={generandoSlides} style={{ alignSelf: 'flex-start' }}>
+                            <ArrowClockwise size={16} /> {generandoSlides ? 'Generando slides…' : 'Generar slides'}
                           </button>
                         </div>
                       </>
                     )}
                   </>
-                ) : (
+                )}
+
+                {/* ── Modo SLIDES ── */}
+                {modoPropuesta === 'slides' && (
                   <>
-                    <h2 style={{ fontSize: 17 }}>Propuesta comercial</h2>
-                    <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
-                      Genera una propuesta personalizada con ROI calculado para {lead.nombre}.
-                    </p>
-                    <button className="btn-primary detalle-btn-full" onClick={generarProp} disabled={generandoPropuesta} style={{ alignSelf: 'flex-start' }}>
-                      <FileText size={16} /> {generandoPropuesta ? 'Generando con Claude…' : 'Generar propuesta'}
-                    </button>
+                    {lead.propuesta_slides ? (
+                      <>
+                        <PropuestaSlides
+                          slides={lead.propuesta_slides as unknown as SlidesContent}
+                          nombreNegocio={lead.nombre}
+                        />
+                        <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
+                          <button className="btn-secondary" onClick={generarSlides} disabled={generandoSlides}>
+                            <ArrowClockwise size={16} /> {generandoSlides ? 'Regenerando…' : 'Regenerar slides'}
+                          </button>
+                          {lead.fase !== 'propuesta_enviada' && lead.fase !== 'cerrado' && (
+                            <button className="btn-secondary" onClick={() => actualizar({ fase: 'propuesta_enviada' })}>
+                              <CheckCircle size={16} /> Marcar como enviada
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <h2 style={{ fontSize: 17 }}>Propuesta en slides</h2>
+                        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                          Genera un deck visual de 7 slides personalizado para {lead.nombre}.
+                        </p>
+                        <button className="btn-primary" onClick={generarSlides} disabled={generandoSlides} style={{ alignSelf: 'flex-start' }}>
+                          <FileText size={16} /> {generandoSlides ? 'Generando slides…' : 'Generar slides'}
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
               </div>

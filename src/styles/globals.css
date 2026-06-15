@@ -317,6 +317,52 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
+/* ════════════════════════════════════════
+   PROPUESTA SLIDES — tokens oscuros encapsulados bajo .wiare-slides
+   No afectan al resto de la app (light theme).
+   ════════════════════════════════════════ */
+.wiare-slides {
+  --slide-bg: #05050F;
+  --slide-surface: #0D0D1F;
+  --slide-surface-2: #141428;
+  --slide-border: rgba(255,255,255,0.07);
+  --slide-text: #F0F0FF;
+  --slide-text-muted: rgba(240,240,255,0.55);
+  --slide-primary: #6366F1;
+  --slide-cyan: #22D3EE;
+  --slide-gradient: linear-gradient(135deg, #6366F1 0%, #22D3EE 100%);
+  --slide-gradient-text: linear-gradient(135deg, #818CF8 0%, #67E8F9 100%);
+  --slide-loss: #EF4444;
+  --slide-gain: #22C55E;
+  /* Dimensiones fijas del deck */
+  --slide-w: 1280px;
+  --slide-h: 720px;
+}
+
+/* Clip-text helper para gradiente en texto */
+.wiare-slides .gradient-text {
+  background: var(--slide-gradient-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Slide base */
+.wiare-slides .slide {
+  width: var(--slide-w);
+  height: var(--slide-h);
+  background: var(--slide-bg);
+  color: var(--slide-text);
+  font-family: var(--font-body);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Animación de entrada del viewer */
+@keyframes slide-fade-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+.wiare-slides .slide-active { animation: slide-fade-in 220ms cubic-bezier(0.4,0,0.2,1); }
+
 /* ── Print ── */
 @media print {
   .sidebar, .no-print, button { display: none !important; }

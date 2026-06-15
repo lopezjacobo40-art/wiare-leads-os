@@ -41,6 +41,9 @@ export interface Lead {
   // ── Email finder (Bloque 3) ──
   email_fuente: string | null
   email_verificado: boolean | null
+  // ── Propuesta slides (Bloque 4) ──
+  propuesta_slides: Record<string, unknown> | null
+  propuesta_tipo: string | null
 }
 
 export interface Extraccion {
