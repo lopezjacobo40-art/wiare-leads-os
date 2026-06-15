@@ -518,10 +518,84 @@ Devuelve SOLO JSON sin markdown:
   return JSON.parse(json) as EstrategiaOutreach
 }
 
+// Datos por nicho para personalizar el email según el sector del lead.
+// Claude usa estos campos como guía (no los copia literal) en la estructura
+// Problema → Beneficio → CTA. Si el sector no está aquí, se usa FALLBACK.
+interface NichoData {
+  problema: string
+  beneficio: string
+  prueba_social: string
+}
+
+const NICHO_CONFIG: Record<string, NichoData> = {
+  restaurante: {
+    problema: 'pierden reservas y consultas que llegan fuera del horario del personal — nadie coge el teléfono a las 11 de la noche',
+    beneficio: 'cada mesa se confirma sola, sin que tú ni tu equipo tengáis que estar pendientes del móvil',
+    prueba_social: 'restaurantes con más de 200 reseñas suelen tener picos de llamadas que no pueden atender en hora punta',
+  },
+  clinica: {
+    problema: 'pacientes que llaman para pedir cita y cuelgan si no les cogen — se van a la clínica de al lado',
+    beneficio: 'la agenda se rellena sola incluso cuando la recepción está ocupada o cerrada',
+    prueba_social: 'clínicas con horario partido pierden hasta un 30% de solicitudes de cita entre las 14h y las 16h',
+  },
+  dental: {
+    problema: 'pacientes nuevos que buscan dentista online y llaman a 3 clínicas — el primero que responde se lleva al paciente',
+    beneficio: 'tu clínica siempre es la primera en responder, a cualquier hora',
+    prueba_social: 'el 60% de los pacientes nuevos decide en la primera llamada si vuelve o busca otro dentista',
+  },
+  inmobiliaria: {
+    problema: 'compradores y vendedores que contactan fuera de horario y al día siguiente ya han llamado a otra agencia',
+    beneficio: 'cada lead inmobiliario recibe respuesta inmediata con info del inmueble, sin esperar a que abra la oficina',
+    prueba_social: 'el 70% de los contactos inmobiliarios se pierden por no responder en menos de 5 minutos',
+  },
+  academia: {
+    problema: 'padres que llaman para informarse sobre matrículas y si no les cogen, se apuntan en la academia de enfrente',
+    beneficio: 'cada consulta de matrícula se responde al momento con toda la info del curso, precio y plazas disponibles',
+    prueba_social: 'las academias pierden hasta un 40% de matrículas en periodo de inscripción por saturación telefónica',
+  },
+  taller: {
+    problema: 'clientes que llaman para pedir presupuesto o cita y si no les cogen cuelgan y buscan otro taller en Google',
+    beneficio: 'cada llamada de presupuesto queda registrada y confirmada aunque el taller esté a tope o cerrado',
+    prueba_social: 'talleres con horario de mañana pierden la mayoría de contactos que llegan por la tarde',
+  },
+  estetica: {
+    problema: 'clientas que quieren reservar cita por WhatsApp a las 10 de la noche y si no hay respuesta reservan en otro centro',
+    beneficio: 'tu agenda se rellena sola 24 horas, sin que tú tengas que estar pegada al móvil fuera del trabajo',
+    prueba_social: 'centros de estética con buenas reseñas pierden reservas por no tener respuesta automática en festivos',
+  },
+  veterinaria: {
+    problema: 'dueños de mascotas que llaman con urgencias fuera de horario y si no les cogen buscan otra clínica en Google',
+    beneficio: 'cada llamada urgente recibe respuesta inmediata con protocolos claros, aunque la clínica esté cerrada',
+    prueba_social: 'clínicas veterinarias con guardia pierden pacientes nuevos por no gestionar bien las llamadas de urgencia',
+  },
+}
+
+const NICHO_FALLBACK: NichoData = {
+  problema: 'pierden contactos de clientes que llaman fuera de horario o cuando el equipo está ocupado',
+  beneficio: 'cada cliente recibe respuesta inmediata sin que nadie tenga que estar pendiente del teléfono',
+  prueba_social: 'negocios con buenas reseñas online suelen tener más demanda de la que pueden gestionar manualmente',
+}
+
+// Resuelve el nicho desde el sector del lead (case-insensitive, con sinónimos).
+function nichoDe(sector: string | null): NichoData {
+  const key = (sector ?? '').toLowerCase().trim()
+  if (NICHO_CONFIG[key]) return NICHO_CONFIG[key]
+  // sinónimos / contiene
+  if (key.includes('dental') || key.includes('dentist')) return NICHO_CONFIG.dental
+  if (key.includes('clinic') || key.includes('médic') || key.includes('medic') || key.includes('fisio')) return NICHO_CONFIG.clinica
+  if (key.includes('restaur') || key.includes('bar') || key.includes('cafe')) return NICHO_CONFIG.restaurante
+  if (key.includes('inmobil')) return NICHO_CONFIG.inmobiliaria
+  if (key.includes('academ') || key.includes('escuela') || key.includes('formaci')) return NICHO_CONFIG.academia
+  if (key.includes('taller') || key.includes('mecánic') || key.includes('mecanic')) return NICHO_CONFIG.taller
+  if (key.includes('estétic') || key.includes('estetic') || key.includes('belleza') || key.includes('peluquer')) return NICHO_CONFIG.estetica
+  if (key.includes('veterin') || key.includes('mascot')) return NICHO_CONFIG.veterinaria
+  return NICHO_FALLBACK
+}
+
 export async function generarEmailOutreach(
   lead: Lead,
   _estrategia: EstrategiaOutreach,
-  vendedor: string
+  _vendedor: string
 ): Promise<{ asunto: string; cuerpo: string; asuntos: string[]; asunto_recomendado: string }> {
   const horario = Array.isArray(lead.horario)
     ? lead.horario.join(', ')
@@ -529,48 +603,65 @@ export async function generarEmailOutreach(
       ? JSON.stringify(lead.horario)
       : `horario de negocio local en ${lead.sector ?? 'el sector'}`
 
-  const systemPrompt = `Eres un redactor experto en cold email B2B para negocios locales en España.
-Tu objetivo es escribir emails que parezcan enviados por una persona real, no por una empresa ni por IA.
+  const nicho = nichoDe(lead.sector)
 
-REGLAS ESTRICTAS:
-- Tono: directo, cercano, sin formalismos corporativos
-- Longitud: máximo 4 frases en el cuerpo. Ni una más.
-- NUNCA uses: "solución", "innovadora", "IA", "inteligencia artificial", "automatización", "potenciar", "optimizar", "transformar"
-- NUNCA empieces con "Hola [nombre]," — empieza con un dato concreto del negocio
-- NUNCA menciones precios
-- El email debe leer como si el remitente hubiera revisado su web o Google Maps esa misma mañana
+  const systemPrompt = `Eres Jacobo, un emprendedor de 28 años de Madrid que lleva tiempo estudiando negocios locales de su zona y contacta directamente con los dueños cuando detecta algo concreto en su negocio.
 
-ESTRUCTURA OBLIGATORIA:
-1. ASUNTO (3 opciones distintas):
-   - Opción A: pregunta directa basada en un dato real del negocio
-   - Opción B: observación curiosa sobre sus horarios o reseñas
-   - Opción C: referencia a algo específico de su web o sector
-   Máximo 8 palabras. Sin signos de exclamación.
+NUNCA escribas como una empresa. Escribe como una persona real que ha mirado la ficha del negocio esa misma mañana.
 
-2. CUERPO (exactamente 3 párrafos de 1-2 frases):
-   - Párrafo 1: dato concreto que demuestra que conoces su negocio (usa horario, reseñas, sector, nombre del negocio)
-   - Párrafo 2: problema específico que ese dato sugiere (llamadas no atendidas, reservas sin confirmar, consultas fuera de horario)
-   - Párrafo 3: CTA de baja fricción — proponer 10 minutos, no vender nada
+PALABRAS PROHIBIDAS — si aparece alguna, reescribe la frase:
+automatización, IA, inteligencia artificial, solución, innovador, potenciar, optimizar, transformar, sistema, plataforma, tecnología, herramienta, servicio, producto, propuesta, digitalización
 
-3. FIRMA: ${vendedor} · WIARE · info@wiaresolution.com`
+TONO: directo, sin florituras, sin formalismos. Como un Whatsapp bien escrito, no como un email corporativo.
+
+ESTRUCTURA OBLIGATORIA del email — exactamente en este orden:
+
+1. ASUNTO (3 opciones, elige la más específica para este negocio):
+   - Una pregunta directa sobre un problema real del negocio
+   - Una observación sobre sus datos (reseñas, horario, sector)
+   - Una referencia a algo concreto de su web o nombre
+   Máximo 7 palabras. Sin signos de exclamación. Sin mayúsculas al inicio.
+
+2. SALUDO: ninguno. Empieza directo con el dato.
+
+3. PÁRRAFO 1 — PROBLEMA (1-2 frases):
+   Usa el campo {problema} del nicho. Personaliza con el dato más llamativo del negocio (horario, reseñas, nombre).
+   Que parezca que lo has observado tú, no que lo has calculado.
+
+4. PÁRRAFO 2 — BENEFICIO (1 frase):
+   Usa el campo {beneficio} del nicho. Sin tecnicismos.
+   Que suene a resultado tangible, no a promesa de ventas.
+
+5. PÁRRAFO 3 — CTA (1 frase):
+   Propón 10 minutos esta semana para enseñarle cómo funciona.
+   Sin presión. Sin "agenda una demo". Que suene a conversación.
+
+6. FIRMA:
+   Jacobo
+   (sin cargo, sin empresa, sin web en el cuerpo del email)
+
+LONGITUD TOTAL: máximo 6 frases en todo el email. Ni una más.`
 
   const userPrompt = `Negocio: ${lead.nombre ?? 'Negocio local'}
 Sector: ${lead.sector ?? 'negocio local'}
-Ciudad: ${lead.ciudad ?? 'España'}
-Teléfono: ${lead.telefono ?? 'N/D'}
-Web: ${lead.web ?? 'Sin web registrada'}
-Email: ${lead.email ?? 'N/D'}
-Reseñas: ${lead.num_resenas ?? 0} reseñas con nota ${lead.valoracion ?? 'N/D'}/5
 Horario: ${horario}
-Motivo score: ${lead.motivo_score ?? `negocio con presencia local en ${lead.sector ?? 'el sector'}`}
+Reseñas: ${lead.num_resenas ?? 0} reseñas · nota ${lead.valoracion ?? 'N/D'}
+Web: ${lead.web ?? 'Sin web registrada'}
+Ciudad: ${lead.ciudad ?? 'España'}
+
+DATOS DEL NICHO (úsalos para personalizar, no los copies literal):
+Problema típico: ${nicho.problema}
+Beneficio clave: ${nicho.beneficio}
+Dato de prueba: ${nicho.prueba_social}
 
 Genera el email completo siguiendo la estructura obligatoria.
-Devuelve SOLO el JSON con esta estructura exacta, sin texto adicional:
+Devuelve SOLO este JSON sin texto adicional ni backticks:
 {
   "asuntos": ["opcion_a", "opcion_b", "opcion_c"],
   "asunto_recomendado": "opcion_a",
-  "cuerpo": "texto completo del cuerpo con saltos de línea \\n",
-  "firma": "${vendedor} · WIARE · info@wiaresolution.com"
+  "cuerpo": "texto del email listo para pegar en Gmail\\n\\nJacobo",
+  "para": "${lead.email ?? ''}",
+  "de": "info@wiaresolution.com"
 }`
 
   const text = await guardedCall('content', () => callClaude('claude-haiku-4-5-20251001', 600, `${systemPrompt}\n\n${userPrompt}`))
@@ -581,7 +672,9 @@ Devuelve SOLO el JSON con esta estructura exacta, sin texto adicional:
   const asuntoDefault = parsed.asuntos[recomendadoIdx >= 0 ? recomendadoIdx : 0] ?? ''
 
   return {
-    ...parsed,
+    asuntos: parsed.asuntos,
+    asunto_recomendado: parsed.asunto_recomendado,
+    cuerpo: parsed.cuerpo,
     asunto: asuntoDefault,
   }
 }

@@ -322,7 +322,8 @@ export default function LeadDetalle() {
   const copiarEmail = async () => {
     if (!emailOutreach) return
     const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
-    const texto = `Asunto: ${asuntoFinal}\n\n${cuerpoEditado}\n\n${vendedor} · WIARE · info@wiaresolution.com`
+    // El cuerpo ya incluye la firma "Jacobo" generada por Claude — no se añade nada más.
+    const texto = `Asunto: ${asuntoFinal}\n\n${cuerpoEditado}`
     await navigator.clipboard.writeText(texto)
     await registrarEmailOutreach('enviado')
     toast('Email copiado al portapapeles', 'success')
@@ -331,12 +332,22 @@ export default function LeadDetalle() {
   const abrirMailto = async () => {
     if (!emailOutreach || !lead || !lead.email) return
     const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
-    const firma = `${vendedor} · WIARE · info@wiaresolution.com`
-    const cuerpoFull = `${cuerpoEditado}\n\n${firma}`
-    const mailto = `mailto:${lead.email}?subject=${encodeURIComponent(asuntoFinal)}&body=${encodeURIComponent(cuerpoFull)}`
+    // El cuerpo ya incluye la firma "Jacobo" — sin firma extra.
+    const mailto = `mailto:${lead.email}?subject=${encodeURIComponent(asuntoFinal)}&body=${encodeURIComponent(cuerpoEditado)}`
     window.open(mailto, '_self')
     await registrarEmailOutreach('enviado')
     toast('Abriendo cliente de correo…', 'info')
+  }
+
+  // Abre el redactor de Gmail en una pestaña nueva con to/asunto/cuerpo prerrellenados.
+  // El cuerpo ya incluye la firma "Jacobo" generada por Claude — no se añade nada más.
+  const abrirGmail = async () => {
+    if (!emailOutreach || !lead || !lead.email) return
+    const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
+    const url = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(asuntoFinal)}&body=${encodeURIComponent(cuerpoEditado)}`
+    window.open(url, '_blank')
+    await registrarEmailOutreach('enviado')
+    toast('Abriendo Gmail…', 'info')
   }
 
   const guardarBorrador = async () => {
@@ -1111,35 +1122,30 @@ export default function LeadDetalle() {
                         />
                       </div>
                       <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
-                        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>Firmante</span>
-                          <select
-                            value={vendedor}
-                            onChange={(e) => setVendedor(e.target.value)}
-                            style={{
-                              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                              borderRadius: 'var(--radius-sm)', padding: '4px 10px', fontSize: 12,
-                              color: 'rgba(255,255,255,0.7)', cursor: 'pointer', outline: 'none',
-                            }}
-                          >
-                            <option value="Jacobo">Jacobo</option>
-                            <option value="Luis">Luis</option>
-                          </select>
-                        </div>
-                        {vendedor} · WIARE · info@wiaresolution.com
+                        <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', marginRight: 8 }}>Firma</span>
+                        El email va firmado como Jacobo (sin empresa ni web, tono personal)
                       </div>
                     </div>
 
                     {/* Botones de acción */}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <button className="btn-primary" onClick={copiarEmail}>
+                      <button
+                        className="btn-primary"
+                        onClick={abrirGmail}
+                        disabled={!lead.email}
+                        title={!lead.email ? 'Email no disponible' : undefined}
+                        style={{ background: '#6366F1' }}
+                      >
+                        <EnvelopeSimple size={16} /> Abrir en Gmail
+                      </button>
+                      <button className="btn-secondary" onClick={copiarEmail}>
                         <Copy size={16} /> Copiar email completo
                       </button>
                       <button
-                        className="btn-secondary"
+                        className="btn-ghost"
                         onClick={abrirMailto}
                         disabled={!lead.email}
-                        title={!lead.email ? 'Guarda primero el email del lead' : undefined}
+                        title={!lead.email ? 'Email no disponible' : undefined}
                       >
                         <PaperPlane size={16} /> Abrir en mi correo
                       </button>
