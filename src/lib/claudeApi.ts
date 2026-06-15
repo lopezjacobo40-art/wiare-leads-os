@@ -401,3 +401,79 @@ Devuelve SOLO el texto del post, listo para copiar y pegar. Sin comillas ni expl
 
   return guardedCall('content', () => callClaude('claude-sonnet-4-6', 900, prompt))
 }
+
+/* ─────────────────────────────────────────────
+   OUTREACH AGENT
+   Genera estrategia + email personalizado para un lead.
+   ───────────────────────────────────────────── */
+
+export interface EstrategiaOutreach {
+  angulo: string
+  dolor_elegido: string
+  dato_especifico: string
+  opciones_asunto: string[]
+  tono: 'cercano' | 'profesional' | 'directo'
+  urgencia: string
+}
+
+export async function generarEstrategiaOutreach(lead: Lead): Promise<EstrategiaOutreach> {
+  const prompt = `Analiza este lead y genera una estrategia de email en frío para contactarlo.
+El vendedor es WIARE, agencia que instala un sistema de atención telefónica 24/7 para negocios locales en España.
+Precio: 790€ setup + 90-390€/mes. Sin permanencia.
+
+LEAD:
+Nombre: ${lead.nombre}
+Sector: ${lead.sector}
+Ciudad: ${lead.ciudad ?? 'España'}
+Valoración Google: ${lead.valoracion ?? 'N/D'}/5
+Reseñas: ${lead.num_resenas ?? 0}
+Web: ${lead.web ? 'Sí' : 'No'}
+Score WIARE: ${lead.score_cualificacion ?? 'N/D'}/10
+Motivo score: ${lead.motivo_score ?? 'N/D'}
+
+REGLAS ABSOLUTAS:
+- NUNCA mencionar "IA", "bot", "agente", "automatización", "inteligencia artificial"
+- SÍ usar: "sistema de atención", "recepcionista virtual", "solución"
+- El dato_especifico debe ser algo real del lead (reseñas, sector, ciudad, valoración...)
+- Las 3 opciones_asunto: máx 7 palabras cada una, distintas entre sí, sin click-bait
+
+Devuelve SOLO JSON sin markdown:
+{"angulo":"string","dolor_elegido":"string","dato_especifico":"string","opciones_asunto":["","",""],"tono":"cercano|profesional|directo","urgencia":"string"}`
+
+  const text = await guardedCall('content', () => callClaude('claude-sonnet-4-6', 600, prompt))
+  const json = text.replace(/```json|```/g, '').trim()
+  return JSON.parse(json) as EstrategiaOutreach
+}
+
+export async function generarEmailOutreach(
+  lead: Lead,
+  estrategia: EstrategiaOutreach,
+  vendedor: string
+): Promise<{ asunto: string; cuerpo: string }> {
+  const prompt = `Escribe un email en frío para este lead. Máx 100 palabras en el cuerpo.
+
+LEAD: ${lead.nombre} (${lead.sector}, ${lead.ciudad ?? 'España'})
+ESTRATEGIA:
+- Ángulo: ${estrategia.angulo}
+- Dolor elegido: ${estrategia.dolor_elegido}
+- Dato específico a mencionar: ${estrategia.dato_especifico}
+- Asunto elegido: usa el tono ${estrategia.tono}
+- Urgencia: ${estrategia.urgencia}
+
+REGLAS ABSOLUTAS:
+- Cuerpo: MÁXIMO 100 palabras, español de España, natural
+- NUNCA: "IA", "bot", "agente", "automatización", "inteligencia artificial"
+- SÍ: "sistema de atención", "recepcionista virtual", "solución"
+- Asunto: máx 7 palabras, directo, sin signos de exclamación
+- Menciona 1 dato real del lead (${estrategia.dato_especifico})
+- 1 CTA: ver demo personalizada (enlace genérico: wiaresolution.com/demo)
+- Firma: ${vendedor} · WIARE · info@wiaresolution.com
+- Nada de emojis
+
+Devuelve SOLO JSON sin markdown:
+{"asunto":"string","cuerpo":"string"}`
+
+  const text = await guardedCall('content', () => callClaude('claude-haiku-4-5-20251001', 350, prompt))
+  const json = text.replace(/```json|```/g, '').trim()
+  return JSON.parse(json) as { asunto: string; cuerpo: string }
+}

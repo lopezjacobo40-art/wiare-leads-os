@@ -4,10 +4,10 @@ import {
   ArrowLeft, Microphone, FileText, CurrencyEur, Note,
   Phone, Globe, MapPin, Star, Clock,
   Waveform, Broadcast, ArrowClockwise, CheckCircle, PencilSimple, ArrowRight,
-  EnvelopeSimple, MagnifyingGlass, Warning, X,
+  EnvelopeSimple, MagnifyingGlass, Warning, X, Brain, Copy, PaperPlane, FloppyDisk,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { generarSystemPrompt, generarPropuesta, generarContenidoSlides, type SlidesContent } from '../lib/claudeApi'
+import { generarSystemPrompt, generarPropuesta, generarContenidoSlides, generarEstrategiaOutreach, generarEmailOutreach, type EstrategiaOutreach, type SlidesContent } from '../lib/claudeApi'
 import { crearAgentDemo } from '../lib/retellApi'
 import { buscarEmail, labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
@@ -63,14 +63,17 @@ function DatoFila({
   )
 }
 
-type Tab = 'demo' | 'propuesta' | 'costes' | 'notas'
+type Tab = 'demo' | 'propuesta' | 'costes' | 'notas' | 'email'
 
 const TABS: { id: Tab; label: string; icon: typeof Microphone }[] = [
   { id: 'demo', label: 'Demo Retell', icon: Microphone },
   { id: 'propuesta', label: 'Propuesta', icon: FileText },
   { id: 'costes', label: 'Costes', icon: CurrencyEur },
   { id: 'notas', label: 'Notas', icon: Note },
+  { id: 'email', label: 'Email Outreach', icon: EnvelopeSimple },
 ]
+
+const DAILY_EMAIL_LIMIT = Number(import.meta.env.VITE_DAILY_EMAIL_LIMIT ?? 10)
 
 // Costes internos escalados según MRR (90€ → ~21€, 390€ → ~66€)
 function calcularCostes(mrr: number) {
@@ -131,6 +134,17 @@ export default function LeadDetalle() {
   // email finder
   const [buscandoEmail, setBuscandoEmail] = useState(false)
   const [emailDraft, setEmailDraft] = useState('')
+
+  // outreach
+  const [outreachStep, setOutreachStep] = useState<'idle' | 'estrategia' | 'email'>('idle')
+  const [generandoEstrategia, setGenerandoEstrategia] = useState(false)
+  const [generandoEmail, setGenerandoEmail] = useState(false)
+  const [estrategia, setEstrategia] = useState<EstrategiaOutreach | null>(null)
+  const [asuntoSeleccionado, setAsuntoSeleccionado] = useState(0)
+  const [emailOutreach, setEmailOutreach] = useState<{ asunto: string; cuerpo: string } | null>(null)
+  const [cuerpoEditado, setCuerpoEditado] = useState('')
+  const [vendedor, setVendedor] = useState(() => sessionStorage.getItem('wiare_user') ?? 'Jacobo')
+  const [emailsHoy, setEmailsHoy] = useState(0)
 
   useEffect(() => {
     supabase
@@ -219,6 +233,102 @@ export default function LeadDetalle() {
     if (!lead || fase === lead.fase) return
     await actualizar({ fase })
     toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
+  }
+
+  useEffect(() => {
+    const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
+    const fecha = new Date().toISOString().split('T')[0]
+    supabase
+      .from('token_usage_os')
+      .select('*', { count: 'exact', head: true })
+      .eq('usuario', usuario)
+      .eq('accion', 'email_enviado')
+      .eq('fecha', fecha)
+      .then(({ count }) => setEmailsHoy(count ?? 0))
+  }, [])
+
+  const crearEstrategia = async () => {
+    if (!lead) return
+    setGenerandoEstrategia(true)
+    setEstrategia(null)
+    setEmailOutreach(null)
+    try {
+      const e = await generarEstrategiaOutreach(lead)
+      setEstrategia(e)
+      setAsuntoSeleccionado(0)
+      setOutreachStep('estrategia')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error generando estrategia', 'error')
+    } finally {
+      setGenerandoEstrategia(false)
+    }
+  }
+
+  const crearEmail = async () => {
+    if (!lead || !estrategia) return
+    setGenerandoEmail(true)
+    try {
+      const e = await generarEmailOutreach(
+        lead,
+        { ...estrategia, opciones_asunto: [estrategia.opciones_asunto[asuntoSeleccionado]] },
+        vendedor
+      )
+      setEmailOutreach(e)
+      setCuerpoEditado(e.cuerpo)
+      setOutreachStep('email')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error generando email', 'error')
+    } finally {
+      setGenerandoEmail(false)
+    }
+  }
+
+  const registrarEmailOutreach = async (estado: 'enviado' | 'borrador') => {
+    if (!lead || !emailOutreach) return
+    const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
+    await supabase.from('outreach_os').insert({
+      lead_id: lead.id,
+      usuario,
+      asunto: emailOutreach.asunto,
+      cuerpo: cuerpoEditado,
+      estrategia,
+      estado,
+      ...(estado === 'enviado' ? { enviado_at: new Date().toISOString() } : {}),
+    })
+    if (estado === 'enviado') {
+      await supabase.from('token_usage_os').insert({
+        usuario,
+        accion: 'email_enviado',
+        tokens_estimados: 0,
+      })
+      setEmailsHoy((n) => n + 1)
+      if (lead.propuesta_md || lead.propuesta_slides) {
+        await actualizar({ fase: 'propuesta_enviada' })
+      }
+    }
+  }
+
+  const copiarEmail = async () => {
+    if (!emailOutreach) return
+    const texto = `Asunto: ${emailOutreach.asunto}\n\n${cuerpoEditado}\n\n${vendedor} · WIARE · info@wiaresolution.com`
+    await navigator.clipboard.writeText(texto)
+    await registrarEmailOutreach('enviado')
+    toast('Email copiado al portapapeles', 'success')
+  }
+
+  const abrirMailto = async () => {
+    if (!emailOutreach || !lead || !lead.email) return
+    const firma = `${vendedor} · WIARE · info@wiaresolution.com`
+    const cuerpoFull = `${cuerpoEditado}\n\n${firma}`
+    const mailto = `mailto:${lead.email}?subject=${encodeURIComponent(emailOutreach.asunto)}&body=${encodeURIComponent(cuerpoFull)}`
+    window.open(mailto, '_self')
+    await registrarEmailOutreach('enviado')
+    toast('Abriendo cliente de correo…', 'info')
+  }
+
+  const guardarBorrador = async () => {
+    await registrarEmailOutreach('borrador')
+    toast('Borrador guardado', 'success')
   }
 
   if (loading) {
@@ -792,6 +902,209 @@ export default function LeadDetalle() {
                 />
                 {notasGuardadas && (
                   <p style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Guardado a las {notasGuardadas}</p>
+                )}
+              </div>
+            )}
+
+            {/* ── TAB EMAIL OUTREACH ── */}
+            {tab === 'email' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Aviso límite blando */}
+                {emailsHoy >= DAILY_EMAIL_LIMIT && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
+                    borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 13,
+                    color: 'var(--color-warning)',
+                  }}>
+                    <Warning size={15} weight="fill" />
+                    Has enviado {emailsHoy} emails hoy (recomendado: {DAILY_EMAIL_LIMIT}/día)
+                  </div>
+                )}
+
+                {/* ── PASO 1: Estrategia ── */}
+                {outreachStep === 'idle' && (
+                  <>
+                    <div>
+                      <h2 style={{ fontSize: 17, marginBottom: 6 }}>Email Outreach</h2>
+                      <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                        Analiza el perfil de {lead.nombre} y genera un email personalizado listo para enviar.
+                      </p>
+                    </div>
+                    <button
+                      className="btn-primary"
+                      onClick={crearEstrategia}
+                      disabled={generandoEstrategia}
+                      style={{ alignSelf: 'flex-start' }}
+                    >
+                      <Brain size={16} />
+                      {generandoEstrategia ? 'Analizando…' : 'Analizar y crear estrategia'}
+                    </button>
+                    {generandoEstrategia && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '80%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '45%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ── PASO 1 resultado: estrategia cards ── */}
+                {outreachStep === 'estrategia' && estrategia && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      {[
+                        { label: 'Ángulo', value: estrategia.angulo },
+                        { label: 'Dolor elegido', value: estrategia.dolor_elegido },
+                        { label: 'Dato específico', value: estrategia.dato_especifico },
+                        { label: 'Urgencia', value: estrategia.urgencia },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '12px 14px',
+                        }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 4 }}>
+                            {label}
+                          </div>
+                          <div style={{ fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.4 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Tono badge */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontWeight: 500 }}>Tono:</span>
+                      <span style={{
+                        padding: '2px 10px', borderRadius: 'var(--radius-full)', fontSize: 12, fontWeight: 600,
+                        background: 'var(--color-primary-subtle)', color: 'var(--color-primary)',
+                        textTransform: 'capitalize',
+                      }}>
+                        {estrategia.tono}
+                      </span>
+                    </div>
+
+                    {/* Asuntos seleccionables */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
+                        Elige asunto
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {estrategia.opciones_asunto.map((asunto, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setAsuntoSeleccionado(i)}
+                            style={{
+                              textAlign: 'left', padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 13,
+                              border: asuntoSeleccionado === i ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                              background: asuntoSeleccionado === i ? 'var(--color-primary-subtle)' : 'var(--color-surface)',
+                              color: asuntoSeleccionado === i ? 'var(--color-primary)' : 'var(--color-text-primary)',
+                              fontWeight: asuntoSeleccionado === i ? 600 : 400,
+                              minHeight: 'auto', transition: 'all 150ms cubic-bezier(0.4,0,0.2,1)',
+                            }}
+                          >
+                            {asunto}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button className="btn-primary" onClick={crearEmail} disabled={generandoEmail}>
+                        <EnvelopeSimple size={16} />
+                        {generandoEmail ? 'Generando email…' : 'Generar email'}
+                      </button>
+                      <button className="btn-ghost" onClick={() => setOutreachStep('idle')}>
+                        <ArrowClockwise size={16} /> Nueva estrategia
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* ── PASO 2: Email preview ── */}
+                {outreachStep === 'email' && emailOutreach && (
+                  <>
+                    {/* Card oscura tipo bandeja */}
+                    <div style={{
+                      background: '#0f1117',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: 24,
+                      display: 'flex', flexDirection: 'column', gap: 16,
+                    }}>
+                      {[
+                        { label: 'De', value: `info@wiaresolution.com` },
+                        { label: 'Para', value: lead.email ?? '(sin email guardado)' },
+                        { label: 'Asunto', value: emailOutreach.asunto },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ display: 'flex', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 12 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', width: 52, flexShrink: 0, paddingTop: 1 }}>{label}</span>
+                          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>{value}</span>
+                        </div>
+                      ))}
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Cuerpo</div>
+                        <textarea
+                          value={cuerpoEditado}
+                          onChange={(e) => setCuerpoEditado(e.target.value)}
+                          style={{
+                            width: '100%', minHeight: 160, resize: 'vertical',
+                            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: 'var(--radius-sm)', padding: 12, fontSize: 13,
+                            color: 'rgba(255,255,255,0.9)', lineHeight: 1.6, fontFamily: 'var(--font-body)',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>Firmante</span>
+                          <select
+                            value={vendedor}
+                            onChange={(e) => setVendedor(e.target.value)}
+                            style={{
+                              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                              borderRadius: 'var(--radius-sm)', padding: '4px 10px', fontSize: 12,
+                              color: 'rgba(255,255,255,0.7)', cursor: 'pointer', outline: 'none',
+                            }}
+                          >
+                            <option value="Jacobo">Jacobo</option>
+                            <option value="Luis">Luis</option>
+                          </select>
+                        </div>
+                        {vendedor} · WIARE · info@wiaresolution.com
+                      </div>
+                    </div>
+
+                    {/* Botones de acción */}
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <button className="btn-primary" onClick={copiarEmail}>
+                        <Copy size={16} /> Copiar email completo
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={abrirMailto}
+                        disabled={!lead.email}
+                        title={!lead.email ? 'Guarda primero el email del lead' : undefined}
+                      >
+                        <PaperPlane size={16} /> Abrir en mi correo
+                      </button>
+                      <button className="btn-ghost" onClick={guardarBorrador}>
+                        <FloppyDisk size={16} /> Guardar borrador
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn-ghost" onClick={() => setOutreachStep('estrategia')} style={{ fontSize: 12 }}>
+                        ← Cambiar asunto
+                      </button>
+                      <button className="btn-ghost" onClick={() => setOutreachStep('idle')} style={{ fontSize: 12 }}>
+                        Empezar de nuevo
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             )}
