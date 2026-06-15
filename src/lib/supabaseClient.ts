@@ -47,6 +47,9 @@ export interface Lead {
   // ── Extracción (sesión de extracción Apify) ──
   extraccion_id: string | null
   extraccion_fecha: string | null
+  // ── Email outreach generado ──
+  outreach_asunto: string | null
+  outreach_cuerpo: string | null
 }
 
 export interface Extraccion {

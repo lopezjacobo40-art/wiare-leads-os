@@ -84,6 +84,8 @@ interface LeadDTO {
   email_verificado: boolean | null
   email_fuente: string | null
   fuente: string | null
+  outreach_asunto: string | null
+  outreach_cuerpo: string | null
 }
 
 function nivelDe(score: number | null): string {
@@ -145,8 +147,8 @@ function leadToRow(lead: LeadDTO): unknown[] {
     'No',                                                 // X email enviado (se rellena desde outreach_os en futuras versiones)
     lead.fuente ?? '',                                    // Y
     new Date().toLocaleString('es-ES'),                   // Z
-    '',                                                   // AA asunto outreach (se rellena desde outreach-sheet)
-    '',                                                   // AB cuerpo outreach
+    lead.outreach_asunto ?? '',                            // AA asunto outreach
+    lead.outreach_cuerpo ?? '',                            // AB cuerpo outreach
     '',                                                   // AC firmante outreach
     '',                                                   // AD fecha outreach
   ]

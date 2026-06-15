@@ -268,15 +268,6 @@ export default function LeadDetalle() {
     }
   }
 
-  const escribirEmailEnSheet = (asunto: string, cuerpo: string, firma: string) => {
-    if (!lead) return
-    fetch('/api/outreach-sheet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lead_id: lead.id, asunto, cuerpo, vendedor: firma }),
-    }).catch(() => {/* silencioso — no bloquea el flujo */})
-  }
-
   const crearEmail = async () => {
     if (!lead || !estrategia) return
     setGenerandoEmail(true)
@@ -292,8 +283,9 @@ export default function LeadDetalle() {
       setEmailOutreach(e)
       setCuerpoEditado(e.cuerpo)
       setOutreachStep('email')
-      // Escribe en el Sheet en segundo plano
-      escribirEmailEnSheet(e.asuntos[idxFinal] ?? e.asunto, e.cuerpo, vendedor)
+      // Guarda en leads_os igual que propuesta_md
+      const asuntoFinal = e.asuntos[idxFinal] ?? e.asunto
+      await actualizar({ outreach_asunto: asuntoFinal, outreach_cuerpo: e.cuerpo })
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Error generando email', 'error')
     } finally {
