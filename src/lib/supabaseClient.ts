@@ -38,6 +38,9 @@ export interface Lead {
   perdida_anual_real: number | null
   email: string | null
   tag: string | null
+  // ── Email finder (Bloque 3) ──
+  email_fuente: string | null
+  email_verificado: boolean | null
 }
 
 export interface Extraccion {

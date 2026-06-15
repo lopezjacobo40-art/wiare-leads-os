@@ -4,10 +4,12 @@ import {
   ArrowLeft, Microphone, FileText, CurrencyEur, Note,
   Phone, Globe, MapPin, Star, Clock,
   Waveform, Broadcast, ArrowClockwise, CheckCircle, PencilSimple, ArrowRight,
+  EnvelopeSimple, MagnifyingGlass, Warning, X,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { generarSystemPrompt, generarPropuesta } from '../lib/claudeApi'
 import { crearAgentDemo } from '../lib/retellApi'
+import { buscarEmail, labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
 import FuenteBadge from '../components/FuenteBadge'
 import PropuestaViewer from '../components/PropuestaViewer'
@@ -123,6 +125,10 @@ export default function LeadDetalle() {
   const [notas, setNotas] = useState('')
   const [notasGuardadas, setNotasGuardadas] = useState<string | null>(null)
 
+  // email finder
+  const [buscandoEmail, setBuscandoEmail] = useState(false)
+  const [emailDraft, setEmailDraft] = useState('')
+
   useEffect(() => {
     supabase
       .from('leads_os')
@@ -136,6 +142,7 @@ export default function LeadDetalle() {
           setLead(l)
           setNotas(l.notas ?? '')
           setPromptDraft(l.system_prompt_sofia ?? '')
+          setEmailDraft(l.email ?? '')
         }
         setLoading(false)
       })
@@ -146,6 +153,39 @@ export default function LeadDetalle() {
     const { error: err } = await supabase.from('leads_os').update(campos).eq('id', lead.id)
     if (err) { setError(err.message); toast(err.message, 'error'); return }
     setLead({ ...lead, ...campos })
+  }
+
+  const buscarEmailLead = async () => {
+    if (!lead) return
+    setBuscandoEmail(true)
+    try {
+      const resultado = await buscarEmail({
+        web: lead.web,
+        nombre: lead.nombre,
+        descripcion: lead.descripcion,
+      })
+      if (resultado.email) {
+        setEmailDraft(resultado.email)
+        await actualizar({
+          email: resultado.email,
+          email_fuente: resultado.fuente,
+          email_verificado: resultado.verificado,
+        })
+        toast(`Email encontrado: ${resultado.email}`, 'success')
+      } else {
+        toast('No se encontró email', 'error')
+      }
+    } catch {
+      toast('Error buscando email', 'error')
+    } finally {
+      setBuscandoEmail(false)
+    }
+  }
+
+  const guardarEmailManual = async () => {
+    if (!lead || !emailDraft.trim()) return
+    await actualizar({ email: emailDraft.trim(), email_fuente: 'manual', email_verificado: true })
+    toast('Email guardado', 'success')
   }
 
   const cambiarFase = async (fase: string) => {
@@ -340,6 +380,69 @@ export default function LeadDetalle() {
               <a href={lead.web} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all' }}>{lead.web}</a>
             </DatoFila>
           )}
+
+          {/* ── Email finder ── */}
+          <DatoFila icon={EnvelopeSimple} color="var(--color-primary)" label="Email contacto">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Badge de estado */}
+                {lead.email && lead.email_fuente && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '2px 8px', borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 500,
+                    background: lead.email_verificado ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)',
+                    color: lead.email_verificado ? 'var(--color-success)' : 'var(--color-warning)',
+                  }}>
+                    {lead.email_verificado
+                      ? <CheckCircle size={11} weight="fill" />
+                      : <Warning size={11} weight="fill" />}
+                    {labelFuente(lead.email_fuente as Parameters<typeof labelFuente>[0])}
+                  </span>
+                )}
+                {!lead.email && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '2px 8px', borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 500,
+                    background: 'rgba(161,161,170,0.1)', color: 'var(--color-text-tertiary)',
+                  }}>
+                    <X size={11} weight="bold" /> Sin email
+                  </span>
+                )}
+                <button
+                  className="btn-ghost"
+                  onClick={buscarEmailLead}
+                  disabled={buscandoEmail}
+                  style={{ fontSize: 12, padding: '4px 10px', minHeight: 28, gap: 4 }}
+                >
+                  <MagnifyingGlass size={12} />
+                  {buscandoEmail ? 'Buscando…' : 'Buscar email'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="email"
+                  value={emailDraft}
+                  onChange={(e) => setEmailDraft(e.target.value)}
+                  placeholder="email@negocio.com"
+                  style={{
+                    flex: 1, fontSize: 13, padding: '6px 10px', minHeight: 32,
+                    border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                    fontFamily: 'var(--font-body)', outline: 'none',
+                  }}
+                />
+                {emailDraft !== (lead.email ?? '') && emailDraft.trim() && (
+                  <button
+                    className="btn-primary"
+                    onClick={guardarEmailManual}
+                    style={{ fontSize: 12, padding: '4px 12px', minHeight: 32 }}
+                  >
+                    Guardar
+                  </button>
+                )}
+              </div>
+            </div>
+          </DatoFila>
+
           {lead.google_maps_url && (
             <DatoFila icon={MapPin} color="var(--color-error)" label="Ubicación">
               <a href={lead.google_maps_url} target="_blank" rel="noreferrer">Ver en Google Maps</a>
