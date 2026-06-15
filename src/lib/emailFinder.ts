@@ -1,35 +1,20 @@
-export interface EmailResult {
-  email: string | null
-  fuente: 'apify_crawler' | 'web_scraping' | 'patron_dominio' | 'maps_descripcion' | 'no_encontrado'
-  verificado: boolean
+// Etiqueta legible para la fuente de un email (cómo se obtuvo).
+// La fuente se guarda en leads_os.email_fuente como texto libre, así que
+// esta función acepta cualquier string y cubre los valores conocidos.
+const LABELS: Record<string, string> = {
+  apify_maps: 'De Google Maps',
+  apify_web: 'Extraído de la web',
+  apify_contact: 'Scraper de contacto',
+  patron: 'Patrón de dominio',
+  manual: 'Añadido manualmente',
+  // valores heredados de versiones anteriores
+  apify: 'Extraído con Apify',
+  web_scraping: 'Extraído de la web',
+  patron_dominio: 'Patrón de dominio',
+  maps_descripcion: 'Descripción Maps',
 }
 
-/* Llama a la Vercel Function /api/find-email.
-   Solo funciona en producción. En dev devuelve no_encontrado. */
-export async function buscarEmail(params: {
-  web?: string | null
-  nombre?: string | null
-  descripcion?: string | null
-}): Promise<EmailResult> {
-  try {
-    const res = await fetch('/api/find-email', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(params),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json() as EmailResult
-  } catch {
-    return { email: null, fuente: 'no_encontrado', verificado: false }
-  }
-}
-
-export function labelFuente(fuente: EmailResult['fuente']): string {
-  switch (fuente) {
-    case 'apify_crawler':    return 'Crawled con Apify'
-    case 'web_scraping':     return 'Extraído de la web'
-    case 'patron_dominio':   return 'Patrón de dominio'
-    case 'maps_descripcion': return 'Descripción Maps'
-    default:                 return 'No encontrado'
-  }
+export function labelFuente(fuente: string | null | undefined): string {
+  if (!fuente) return 'Sin fuente'
+  return LABELS[fuente] ?? fuente
 }

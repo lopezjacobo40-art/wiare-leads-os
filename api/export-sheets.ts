@@ -1,5 +1,4 @@
 import { google } from 'googleapis'
-import { createClient } from '@supabase/supabase-js'
 
 /* ─────────────────────────────────────────────
    API route serverless (Vercel Function, Node)
@@ -17,56 +16,29 @@ import { createClient } from '@supabase/supabase-js'
 
 const SHEET_BASENAME = 'WIARE Leads OS'
 
-// 37 columnas A–AK, en orden lógico de funnel (identificación → contacto →
-// reputación → scoring → funnel → económico → agente → outreach → propuesta)
+// 14 columnas A–N, en orden del nuevo funnel v6.
 const HEADER = [
   'ID',                        // A
-  'Fecha creación',            // B
+  'Fecha',                     // B
   'Nombre negocio',            // C
   'Sector',                    // D
   'Ciudad',                    // E
-  'Dirección',                 // F
-  'Teléfono',                  // G
-  'Email',                     // H
-  'Email verificado',          // I
-  'Fuente email',              // J
-  'Web',                       // K
-  'Google Maps',               // L
-  'Valoración',                // M
-  'Nº reseñas',                // N
-  'Horario',                   // O
-  'Descripción',               // P
-  'Score',                     // Q
-  'Nivel',                     // R
-  'Motivo score',              // S
-  'Vol. llamadas',             // T
-  'Fase',                      // U
-  'Fuente lead',               // V
-  'Fecha extracción',          // W
-  'Tag',                       // X
-  'Notas',                     // Y
-  'Última actualización',      // Z
-  'MRR estimado (€/mes)',      // AA
-  'Setup',                     // AB
-  'Pérdida mensual (€)',       // AC
-  'Pérdida anual (€)',         // AD
-  'Agente Retell',             // AE
-  'Tiene agente',              // AF
-  'Asunto email',              // AG
-  'Cuerpo email',              // AH
-  'Propuesta generada',        // AI
-  'Tipo propuesta',            // AJ
-  'Propuesta slides',          // AK
+  'Teléfono',                  // F
+  'Email',                     // G
+  'Web',                       // H
+  'Score',                     // I
+  'Fase',                      // J
+  'Ahorro estimado',           // K
+  'Brechas (resumen)',         // L
+  'Analizado',                 // M
+  'Última actualización',      // N
 ]
 
 const FASE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
-  cualificado: 'Cualificado',
-  demo_creada: 'Demo creada',
-  propuesta_creada: 'Propuesta creada',
-  email_generado: 'Email generado',
-  propuesta_enviada: 'Propuesta enviada',
-  cerrado: 'Cerrado',
+  negocio_analizado: 'Negocio analizado',
+  brechas_detectadas: 'Brechas detectadas',
+  email_enviado: 'Email enviado',
 }
 
 interface LeadDTO {
@@ -75,44 +47,14 @@ interface LeadDTO {
   nombre: string
   sector: string
   ciudad: string | null
-  direccion: string | null
   telefono: string | null
-  web: string | null
-  google_maps_url: string | null
-  valoracion: number | null
-  num_resenas: number | null
-  score_cualificacion: number | null
-  motivo_score: string | null
-  volumen_llamadas: string | null
-  fase: string
-  mrr_estimado: number | null
-  agent_id_retell: string | null
-  propuesta_md: string | null
-  notas: string | null
-  // ── nuevos campos v5 ──
   email: string | null
-  email_verificado: boolean | null
-  email_fuente: string | null
-  fuente: string | null
-  outreach_asunto: string | null
-  outreach_cuerpo: string | null
-  // ── campos funnel completos ──
-  horario: string[] | null
-  descripcion: string | null
-  perdida_mensual_real: number | null
-  perdida_anual_real: number | null
-  extraccion_fecha: string | null
-  propuesta_slides: Record<string, unknown> | null
-  propuesta_tipo: string | null
-  tag: string | null
-}
-
-function nivelDe(score: number | null): string {
-  if (score == null) return 'Sin cualificar'
-  if (score >= 9) return 'Top'
-  if (score >= 7) return 'Caliente'
-  if (score >= 4) return 'Templado'
-  return 'Frío'
+  web: string | null
+  score_cualificacion: number | null
+  fase: string
+  ahorro_estimado: string | null
+  resumen: string | null
+  analizado_at: string | null
 }
 
 function fechaCorta(iso: string | null): string {
@@ -124,16 +66,8 @@ function fechaCorta(iso: string | null): string {
   }
 }
 
-// horario llega como array de strings (una entrada por día). Lo aplanamos
-// a una sola celda legible; cualquier otra forma → string vacío.
-function formatHorario(horario: string[] | null): string {
-  if (!Array.isArray(horario) || horario.length === 0) return ''
-  return horario.filter(Boolean).join(' · ')
-}
-
 // Fuerza texto en celdas que Sheets interpretaría como fórmula con USER_ENTERED
-// (teléfonos con '+', valores que empiezan por '=' o '-'). El apóstrofo inicial
-// le dice a Sheets "esto es texto literal" y no se muestra en la celda.
+// (teléfonos con '+', valores que empiezan por '=' o '-').
 function comoTexto(valor: string | null): string {
   if (!valor) return ''
   return /^[=+\-@]/.test(valor) ? `'${valor}` : valor
@@ -147,66 +81,23 @@ function colorScore(score: number | null): { red: number; green: number; blue: n
   return { red: 1, green: 0.9, blue: 0.9 }
 }
 
-// 37 columnas A–AK (índices 0–36), en orden lógico de funnel.
-// outreach trae { asunto, cuerpo } leídos directamente de Supabase para evitar
-// que el DTO del frontend (que puede llegar truncado) deje las celdas vacías.
-function leadToRow(
-  lead: LeadDTO,
-  outreach: { asunto: string; cuerpo: string },
-): unknown[] {
-  const maps = lead.google_maps_url
-    ? `=HYPERLINK("${lead.google_maps_url}";"Ver mapa")`
-    : ''
-  const agent = lead.agent_id_retell
-    ? `=HYPERLINK("https://app.retellai.com/agents/${lead.agent_id_retell}";"${lead.agent_id_retell}")`
-    : ''
+// 14 columnas A–N (índices 0–13), en orden del funnel v6.
+function leadToRow(lead: LeadDTO): unknown[] {
   return [
-    // ── BLOQUE 1 · IDENTIFICACIÓN (A–G) ──
-    lead.id,                                              // A
-    fechaCorta(lead.created_at),                          // B
-    lead.nombre ?? '',                                    // C
-    lead.sector ?? '',                                    // D
-    lead.ciudad ?? '',                                    // E
-    lead.direccion ?? '',                                 // F
-    comoTexto(lead.telefono),                             // G (texto: evita #ERROR! con '+')
-    // ── BLOQUE 2 · CONTACTO (H–K) ──
-    lead.email ?? '',                                     // H
-    lead.email_verificado ? 'Sí' : 'No',                 // I
-    lead.email_fuente ?? '',                              // J
-    lead.web ?? '',                                       // K
-    // ── BLOQUE 3 · REPUTACIÓN Y DATOS (L–P) ──
-    maps,                                                 // L
-    lead.valoracion ?? '',                                // M
-    lead.num_resenas ?? '',                               // N
-    formatHorario(lead.horario),                          // O
-    lead.descripcion ?? '',                               // P
-    // ── BLOQUE 4 · SCORING (Q–T) ──
-    lead.score_cualificacion ?? '',                       // Q
-    nivelDe(lead.score_cualificacion),                    // R
-    lead.motivo_score ?? '',                              // S
-    lead.volumen_llamadas ?? '',                          // T
-    // ── BLOQUE 5 · FUNNEL (U–Z) ──
-    FASE_LABELS[lead.fase] ?? lead.fase ?? '',            // U
-    lead.fuente ?? '',                                    // V
-    fechaCorta(lead.extraccion_fecha),                    // W
-    lead.tag ?? '',                                       // X
-    lead.notas ?? '',                                     // Y
-    new Date().toLocaleString('es-ES'),                   // Z
-    // ── BLOQUE 6 · ECONÓMICO (AA–AD) ──
-    lead.mrr_estimado ?? '',                              // AA
-    '790€',                                               // AB setup fijo
-    lead.perdida_mensual_real ?? '',                      // AC
-    lead.perdida_anual_real ?? '',                        // AD
-    // ── BLOQUE 7 · AGENTE RETELL (AE–AF) ──
-    agent,                                                // AE
-    lead.agent_id_retell ? 'Sí' : 'No',                  // AF
-    // ── BLOQUE 8 · OUTREACH EMAIL (AG–AH) — leído de Supabase ──
-    outreach.asunto,                                      // AG
-    outreach.cuerpo,                                      // AH
-    // ── BLOQUE 9 · PROPUESTA (AI–AK) ──
-    lead.propuesta_md ? 'Sí' : 'No',                     // AI
-    lead.propuesta_tipo ?? '',                            // AJ
-    lead.propuesta_slides ? 'Sí' : 'No',                 // AK
+    lead.id,                                       // A
+    fechaCorta(lead.created_at),                   // B
+    lead.nombre ?? '',                             // C
+    lead.sector ?? '',                             // D
+    lead.ciudad ?? '',                             // E
+    comoTexto(lead.telefono),                      // F (texto: evita #ERROR! con '+')
+    lead.email ?? '',                              // G
+    lead.web ?? '',                                // H
+    lead.score_cualificacion ?? '',                // I
+    FASE_LABELS[lead.fase] ?? lead.fase ?? '',     // J
+    lead.ahorro_estimado ?? '',                    // K
+    lead.resumen ?? '',                            // L
+    fechaCorta(lead.analizado_at),                 // M
+    new Date().toLocaleString('es-ES'),            // N
   ]
 }
 
@@ -220,36 +111,6 @@ function getAuth() {
   const oauth2 = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
   oauth2.setCredentials({ refresh_token: GOOGLE_REFRESH_TOKEN })
   return oauth2
-}
-
-// Lee outreach_asunto / outreach_cuerpo directamente de leads_os para los ids
-// dados (RLS desactivado → la anon key basta). Una sola query .in() en vez de
-// una por lead, para no degradar el endpoint con muchos leads.
-// Devuelve un mapa id → { asunto, cuerpo }; si falla, mapa vacío (celdas vacías).
-async function leerOutreach(ids: string[]): Promise<Record<string, { asunto: string; cuerpo: string }>> {
-  const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY } = process.env
-  if (!VITE_SUPABASE_URL || !VITE_SUPABASE_ANON_KEY || ids.length === 0) return {}
-
-  try {
-    const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
-    const { data, error } = await supabase
-      .from('leads_os')
-      .select('id, outreach_asunto, outreach_cuerpo')
-      .in('id', ids)
-
-    if (error || !data) return {}
-
-    const mapa: Record<string, { asunto: string; cuerpo: string }> = {}
-    for (const row of data as { id: string; outreach_asunto: string | null; outreach_cuerpo: string | null }[]) {
-      mapa[row.id] = {
-        asunto: row.outreach_asunto ?? '',
-        cuerpo: row.outreach_cuerpo ?? '',
-      }
-    }
-    return mapa
-  } catch {
-    return {}
-  }
 }
 
 async function buscarSheetExistente(auth: ReturnType<typeof getAuth>): Promise<string | null> {
@@ -273,11 +134,6 @@ export default async function handler(req: { method?: string; body?: unknown }, 
     const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as { leads?: LeadDTO[] }
     const leads = body?.leads ?? []
 
-    // ── FIX outreach: leer asunto/cuerpo reales de Supabase por id ──
-    // El DTO del frontend puede llegar sin estos campos; la fuente de verdad es leads_os.
-    const outreachMap = await leerOutreach(leads.map((l) => l.id))
-    const outreachDe = (id: string) => outreachMap[id] ?? { asunto: '', cuerpo: '' }
-
     const auth = getAuth()
     const sheets = google.sheets({ version: 'v4', auth })
 
@@ -299,18 +155,14 @@ export default async function handler(req: { method?: string; body?: unknown }, 
         requestBody: { values: [HEADER] },
       })
     } else {
-      // Sheet ya existe: solo escribir la cabecera si la fila 1 está vacía
-      // (nunca sobreescribir datos existentes en A1).
-      const fila1 = await sheets.spreadsheets.values.get({ spreadsheetId, range: '1:1' })
-      const fila1Vacia = !fila1.data.values || fila1.data.values.length === 0 || (fila1.data.values[0] ?? []).every((c) => !c)
-      if (fila1Vacia) {
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: 'A1',
-          valueInputOption: 'USER_ENTERED',
-          requestBody: { values: [HEADER] },
-        })
-      }
+      // Sheet ya existe: reescribir solo la fila 1 (A1:N1) con el header v6.
+      // No toca datos de las filas siguientes; solo actualiza las cabeceras.
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: 'A1:N1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [HEADER] },
+      })
     }
 
     // ── 2. Obtener sheetId (pestaña) para batchUpdate de formato ──
@@ -345,8 +197,8 @@ export default async function handler(req: { method?: string; body?: unknown }, 
     // ── 5. Actualizar filas existentes con batchUpdate de valores ──
     if (toUpdate.length > 0) {
       const data = toUpdate.map(({ rowIndex, lead }) => ({
-        range: `A${rowIndex}:AK${rowIndex}`,
-        values: [leadToRow(lead, outreachDe(lead.id))],
+        range: `A${rowIndex}:N${rowIndex}`,
+        values: [leadToRow(lead)],
       }))
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId,
@@ -358,10 +210,10 @@ export default async function handler(req: { method?: string; body?: unknown }, 
     if (toAppend.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId,
-        range: 'A:AK',
+        range: 'A:N',
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: toAppend.map((lead) => leadToRow(lead, outreachDe(lead.id))) },
+        requestBody: { values: toAppend.map((lead) => leadToRow(lead)) },
       })
     }
 
@@ -390,15 +242,15 @@ export default async function handler(req: { method?: string; body?: unknown }, 
           fields: 'gridProperties.frozenRowCount',
         },
       },
-      // Auto-resize columnas A–AK (0–36)
+      // Auto-resize columnas A–N (0–13)
       {
         autoResizeDimensions: {
-          dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 37 },
+          dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 14 },
         },
       },
     ]
 
-    // Color score (columna Q = índice 16) para todas las filas de leads
+    // Color score (columna I = índice 8) para todas las filas de leads
     // Solo formateamos las filas modificadas/añadidas para no sobreescribir ediciones manuales del resto
     const leadsConIndice = [
       ...toUpdate.map(({ rowIndex, lead }) => ({ rowIndex, lead })),
@@ -409,7 +261,7 @@ export default async function handler(req: { method?: string; body?: unknown }, 
       const ri = rowIndex - 1 // 0-indexed para la API
       requests.push({
         repeatCell: {
-          range: { sheetId, startRowIndex: ri, endRowIndex: ri + 1, startColumnIndex: 16, endColumnIndex: 17 },
+          range: { sheetId, startRowIndex: ri, endRowIndex: ri + 1, startColumnIndex: 8, endColumnIndex: 9 },
           cell: {
             userEnteredFormat: {
               backgroundColor: colorScore(lead.score_cualificacion),

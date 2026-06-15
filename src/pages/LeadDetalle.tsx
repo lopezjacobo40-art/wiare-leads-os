@@ -1,26 +1,23 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Microphone, FileText, CurrencyEur, Note,
+  ArrowLeft, FileText, CurrencyEur, Note,
   Phone, Globe, MapPin, Star, Clock,
-  Waveform, Broadcast, ArrowClockwise, CheckCircle, PencilSimple, ArrowRight,
-  EnvelopeSimple, MagnifyingGlass, Warning, X, Brain, Copy, PaperPlane, FloppyDisk,
+  ArrowClockwise, CheckCircle, ArrowRight, MagnifyingGlassPlus,
+  EnvelopeSimple, MagnifyingGlass, Warning, X, Copy, Lightbulb,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { generarSystemPrompt, generarPropuesta, generarContenidoSlides, generarEstrategiaOutreach, generarEmailOutreach, type EstrategiaOutreach, type SlidesContent } from '../lib/claudeApi'
-import { crearAgentDemo } from '../lib/retellApi'
-import { buscarEmailApify } from '../lib/apifyClient'
+import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
+import { buscarEmailCascada } from '../lib/apifyClient'
 import { labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
 import FuenteBadge from '../components/FuenteBadge'
-import PropuestaViewer from '../components/PropuestaViewer'
-import PropuestaSlides from '../components/PropuestaSlides'
 import FaseSelector from '../components/FaseSelector'
 import PageTransition from '../components/PageTransition'
 import Skeleton from '../components/Skeleton'
 import { useToast } from '../components/Toast'
 
-// Fila de dato del negocio (4D): icono semántico + label uppercase + valor, separadas por border-bottom.
+// Fila de dato del negocio: icono semántico + label uppercase + valor, separadas por border-bottom.
 function DatoFila({
   icon: Icon,
   color,
@@ -64,17 +61,13 @@ function DatoFila({
   )
 }
 
-type Tab = 'demo' | 'propuesta' | 'costes' | 'notas' | 'email'
+type Tab = 'informe' | 'costes' | 'notas'
 
-const TABS: { id: Tab; label: string; icon: typeof Microphone }[] = [
-  { id: 'demo', label: 'Demo Retell', icon: Microphone },
-  { id: 'propuesta', label: 'Propuesta', icon: FileText },
+const TABS: { id: Tab; label: string; icon: typeof FileText }[] = [
+  { id: 'informe', label: 'Informe de brechas', icon: FileText },
   { id: 'costes', label: 'Costes', icon: CurrencyEur },
   { id: 'notas', label: 'Notas', icon: Note },
-  { id: 'email', label: 'Email Outreach', icon: EnvelopeSimple },
 ]
-
-const DAILY_EMAIL_LIMIT = Number(import.meta.env.VITE_DAILY_EMAIL_LIMIT ?? 10)
 
 // Costes internos escalados según MRR (90€ → ~21€, 390€ → ~66€)
 function calcularCostes(mrr: number) {
@@ -95,58 +88,26 @@ const metricaLabelStyle: React.CSSProperties = {
   marginBottom: 4,
 }
 
-const promptTextareaStyle: React.CSSProperties = {
-  width: '100%',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius-md)',
-  fontFamily: 'monospace',
-  fontSize: 13,
-  lineHeight: 1.6,
-  padding: 16,
-  minHeight: 300,
-  resize: 'vertical',
-}
-
 export default function LeadDetalle() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
   const [lead, setLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<Tab>('demo')
+  const [tab, setTab] = useState<Tab>('informe')
   const [error, setError] = useState('')
 
-  // demo
-  const [promptDraft, setPromptDraft] = useState('')
-  const [generandoPrompt, setGenerandoPrompt] = useState(false)
-  const [desplegando, setDesplegando] = useState(false)
+  // análisis de brechas
+  const [analizando, setAnalizando] = useState(false)
 
-  // propuesta
-  const [generandoPropuesta, setGenerandoPropuesta] = useState(false)
-  const [editandoPropuesta, setEditandoPropuesta] = useState(false)
-  const [propuestaDraft, setPropuestaDraft] = useState('')
-  const [modoPropuesta, setModoPropuesta] = useState<'texto' | 'slides'>('texto')
-  const [generandoSlides, setGenerandoSlides] = useState(false)
+  // email
+  const [buscandoEmail, setBuscandoEmail] = useState(false)
+  const [emailDraft, setEmailDraft] = useState('')
+  const [marcandoEnviado, setMarcandoEnviado] = useState(false)
 
   // notas
   const [notas, setNotas] = useState('')
   const [notasGuardadas, setNotasGuardadas] = useState<string | null>(null)
-
-  // email finder
-  const [buscandoEmail, setBuscandoEmail] = useState(false)
-  const [emailDraft, setEmailDraft] = useState('')
-
-  // outreach
-  const [outreachStep, setOutreachStep] = useState<'idle' | 'estrategia' | 'email'>('idle')
-  const [generandoEstrategia, setGenerandoEstrategia] = useState(false)
-  const [generandoEmail, setGenerandoEmail] = useState(false)
-  const [estrategia, setEstrategia] = useState<EstrategiaOutreach | null>(null)
-  const [asuntoSeleccionado, setAsuntoSeleccionado] = useState(0)
-  const [emailOutreach, setEmailOutreach] = useState<{ asunto: string; cuerpo: string; asuntos: string[]; asunto_recomendado: string } | null>(null)
-  const [asuntoEmailIdx, setAsuntoEmailIdx] = useState(0)
-  const [cuerpoEditado, setCuerpoEditado] = useState('')
-  const vendedor = sessionStorage.getItem('wiare_user') ?? 'Jacobo'
-  const [emailsHoy, setEmailsHoy] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -166,7 +127,6 @@ export default function LeadDetalle() {
           const l = data as Lead
           setLead(l)
           setNotas(l.notas ?? '')
-          setPromptDraft(l.system_prompt_sofia ?? '')
           setEmailDraft(l.email ?? '')
         }
         setLoading(false)
@@ -180,27 +140,28 @@ export default function LeadDetalle() {
     setLead({ ...lead, ...campos })
   }
 
-  const generarSlides = async () => {
+  const analizar = async () => {
     if (!lead) return
-    setGenerandoSlides(true)
+    setAnalizando(true)
     setError('')
     try {
-      const slides = await generarContenidoSlides(lead)
-      const updates: Record<string, unknown> = {
-        propuesta_slides: slides,
-        propuesta_tipo: 'slides',
-      }
-      const fasesAnteriores = ['nuevo', 'cualificado', 'demo_creada']
-      if (fasesAnteriores.includes(lead.fase)) updates.fase = 'propuesta_creada'
-      await actualizar(updates)
-      setModoPropuesta('slides')
-      toast('Slides generadas', 'success')
+      const r = await analizarBrechas(lead)
+      await actualizar({
+        score_cualificacion: r.score,
+        motivo_score: r.resumen,
+        volumen_llamadas: r.volumen,
+        mrr_estimado: r.mrr,
+        analisis_brechas: toAnalisisBrechas(r),
+        analizado_at: new Date().toISOString(),
+        fase: lead.fase === 'nuevo' ? 'negocio_analizado' : lead.fase,
+      })
+      toast('Brechas analizadas', 'success')
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error generando slides'
+      const msg = err instanceof Error ? err.message : 'Error analizando brechas'
       setError(msg)
       toast(msg, 'error')
     } finally {
-      setGenerandoSlides(false)
+      setAnalizando(false)
     }
   }
 
@@ -208,17 +169,13 @@ export default function LeadDetalle() {
     if (!lead) return
     setBuscandoEmail(true)
     try {
-      const email = await buscarEmailApify(lead.google_place_id ?? '', lead.web)
+      const { email, fuente } = await buscarEmailCascada(lead)
       if (email) {
         setEmailDraft(email)
-        await actualizar({
-          email,
-          email_fuente: 'apify',
-          email_verificado: false,
-        })
+        await actualizar({ email, email_fuente: fuente, email_verificado: fuente !== 'patron' })
         toast(`Email encontrado: ${email}`, 'success')
       } else {
-        toast('No se encontró email', 'error')
+        toast('No se encontró email tras la cascada', 'error')
       }
     } catch {
       toast('Error buscando email', 'error')
@@ -239,120 +196,44 @@ export default function LeadDetalle() {
     toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
   }
 
-  useEffect(() => {
-    const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
-    const fecha = new Date().toISOString().split('T')[0]
-    supabase
-      .from('token_usage_os')
-      .select('*', { count: 'exact', head: true })
-      .eq('usuario', usuario)
-      .eq('accion', 'email_enviado')
-      .eq('fecha', fecha)
-      .then(({ count }) => setEmailsHoy(count ?? 0))
-  }, [])
-
-  const crearEstrategia = async () => {
+  // Confirmar brechas → pasa la fase a 'brechas_detectadas'.
+  const confirmarBrechas = async () => {
     if (!lead) return
-    setGenerandoEstrategia(true)
-    setEstrategia(null)
-    setEmailOutreach(null)
-    try {
-      const e = await generarEstrategiaOutreach(lead)
-      setEstrategia(e)
-      setAsuntoSeleccionado(0)
-      setOutreachStep('estrategia')
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Error generando estrategia', 'error')
-    } finally {
-      setGenerandoEstrategia(false)
-    }
+    await actualizar({ fase: 'brechas_detectadas' })
+    toast('Brechas confirmadas', 'success')
   }
 
-  const crearEmail = async () => {
-    if (!lead || !estrategia) return
-    setGenerandoEmail(true)
-    try {
-      const e = await generarEmailOutreach(
-        lead,
-        { ...estrategia, opciones_asunto: [estrategia.opciones_asunto[asuntoSeleccionado]] },
-        vendedor
-      )
-      const recomIdx = e.asuntos.findIndex(a => a === e.asunto_recomendado)
-      const idxFinal = recomIdx >= 0 ? recomIdx : 0
-      setAsuntoEmailIdx(idxFinal)
-      setEmailOutreach(e)
-      setCuerpoEditado(e.cuerpo)
-      setOutreachStep('email')
-      // Guarda en leads_os igual que propuesta_md
-      const asuntoFinal = e.asuntos[idxFinal] ?? e.asunto
-      await actualizar({ outreach_asunto: asuntoFinal, outreach_cuerpo: e.cuerpo })
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Error generando email', 'error')
-    } finally {
-      setGenerandoEmail(false)
-    }
+  // Abre el redactor de Gmail con el destinatario prerrellenado.
+  // Asunto y cuerpo van vacíos: el comercial pega su plantilla por nicho.
+  const abrirGmail = () => {
+    if (!lead?.email) return
+    window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}`, '_blank')
   }
 
-  const registrarEmailOutreach = async (estado: 'enviado' | 'borrador') => {
-    if (!lead || !emailOutreach) return
+  // Marca el email como enviado: fase 'email_enviado' + registra para el contador diario.
+  const marcarEnviado = async () => {
+    if (!lead) return
+    setMarcandoEnviado(true)
     const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
-    const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
-    await supabase.from('outreach_os').insert({
-      lead_id: lead.id,
-      usuario,
-      asunto: asuntoFinal,
-      cuerpo: cuerpoEditado,
-      estrategia,
-      estado,
-      ...(estado === 'enviado' ? { enviado_at: new Date().toISOString() } : {}),
-    })
-    if (estado === 'enviado') {
-      await supabase.from('token_usage_os').insert({
-        usuario,
-        accion: 'email_enviado',
-        tokens_estimados: 0,
-      })
-      setEmailsHoy((n) => n + 1)
-      if (lead.propuesta_md || lead.propuesta_slides) {
-        await actualizar({ fase: 'propuesta_enviada' })
-      }
+    try {
+      await supabase.from('token_usage_os').insert({ usuario, accion: 'email_enviado', tokens_estimados: 0 })
+      await actualizar({ fase: 'email_enviado' })
+      toast('Marcado como enviado', 'success')
+    } catch {
+      toast('Error al marcar como enviado', 'error')
+    } finally {
+      setMarcandoEnviado(false)
     }
   }
 
-  const copiarEmail = async () => {
-    if (!emailOutreach) return
-    const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
-    // El cuerpo ya incluye la firma "Jacobo" generada por Claude — no se añade nada más.
-    const texto = `Asunto: ${asuntoFinal}\n\n${cuerpoEditado}`
+  const copiar = async (texto: string, etiqueta: string) => {
     await navigator.clipboard.writeText(texto)
-    await registrarEmailOutreach('enviado')
-    toast('Email copiado al portapapeles', 'success')
+    toast(`${etiqueta} copiado`, 'info')
   }
 
-  const abrirMailto = async () => {
-    if (!emailOutreach || !lead || !lead.email) return
-    const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
-    // El cuerpo ya incluye la firma "Jacobo" — sin firma extra.
-    const mailto = `mailto:${lead.email}?subject=${encodeURIComponent(asuntoFinal)}&body=${encodeURIComponent(cuerpoEditado)}`
-    window.open(mailto, '_self')
-    await registrarEmailOutreach('enviado')
-    toast('Abriendo cliente de correo…', 'info')
-  }
-
-  // Abre el redactor de Gmail en una pestaña nueva con to/asunto/cuerpo prerrellenados.
-  // El cuerpo ya incluye la firma "Jacobo" generada por Claude — no se añade nada más.
-  const abrirGmail = async () => {
-    if (!emailOutreach || !lead || !lead.email) return
-    const asuntoFinal = emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto
-    const url = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(asuntoFinal)}&body=${encodeURIComponent(cuerpoEditado)}`
-    window.open(url, '_blank')
-    await registrarEmailOutreach('enviado')
-    toast('Abriendo Gmail…', 'info')
-  }
-
-  const guardarBorrador = async () => {
-    await registrarEmailOutreach('borrador')
-    toast('Borrador guardado', 'success')
+  const guardarNotas = async () => {
+    await actualizar({ notas })
+    setNotasGuardadas(new Date().toLocaleTimeString('es-ES'))
   }
 
   if (loading) {
@@ -376,65 +257,7 @@ export default function LeadDetalle() {
     )
   }
 
-  const generarDemo = async () => {
-    setGenerandoPrompt(true)
-    setError('')
-    try {
-      const prompt = await generarSystemPrompt(lead)
-      setPromptDraft(prompt)
-      await actualizar({ system_prompt_sofia: prompt })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error generando prompt')
-    } finally {
-      setGenerandoPrompt(false)
-    }
-  }
-
-  const desplegarRetell = async () => {
-    setDesplegando(true)
-    setError('')
-    try {
-      const agentId = await crearAgentDemo(lead, promptDraft)
-      await actualizar({
-        agent_id_retell: agentId,
-        system_prompt_sofia: promptDraft,
-        fase: ['nuevo', 'cualificado'].includes(lead.fase) ? 'demo_creada' : lead.fase,
-      })
-      toast('Demo desplegada en Retell', 'success')
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error desplegando en Retell'
-      setError(msg)
-      toast(msg, 'error')
-    } finally {
-      setDesplegando(false)
-    }
-  }
-
-  const generarProp = async () => {
-    setGenerandoPropuesta(true)
-    setError('')
-    try {
-      const md = await generarPropuesta(lead)
-      const updates: Record<string, unknown> = { propuesta_md: md }
-      const fasesAnteriores = ['nuevo', 'cualificado', 'demo_creada']
-      if (fasesAnteriores.includes(lead.fase)) updates.fase = 'propuesta_creada'
-      await actualizar(updates)
-      setPropuestaDraft(md)
-      toast('Propuesta generada', 'success')
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error generando propuesta'
-      setError(msg)
-      toast(msg, 'error')
-    } finally {
-      setGenerandoPropuesta(false)
-    }
-  }
-
-  const guardarNotas = async () => {
-    await actualizar({ notas })
-    setNotasGuardadas(new Date().toLocaleTimeString('es-ES'))
-  }
-
+  const analisis = lead.analisis_brechas
   const costes = calcularCostes(lead.mrr_estimado ?? 190)
   const mrr = lead.mrr_estimado ?? 190
   const margen = mrr - costes.total
@@ -475,15 +298,12 @@ export default function LeadDetalle() {
             marginBottom: 24,
           }}
         >
-          {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Globe size={16} color="#16A34A" weight="fill" />
             <span style={{ fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 14, color: '#16A34A' }}>
               Este lead vino de wiaresolution.com
             </span>
           </div>
-
-          {/* Grid de métricas */}
           <div className="lead-web-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             <div>
               <div style={metricaLabelStyle}>Pérdida mensual</div>
@@ -510,21 +330,10 @@ export default function LeadDetalle() {
               </div>
             </div>
           </div>
-
-          {/* Nota táctica */}
-          <div
-            style={{
-              marginTop: 16,
-              paddingTop: 16,
-              borderTop: '1px solid rgba(34,197,94,0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <ArrowRight size={12} color="#16A34A" />
             <span style={{ fontSize: 12, fontWeight: 500, color: '#16A34A', fontFamily: 'var(--font-body)' }}>
-              Ya sabe cuánto pierde — llámale hoy y tendrás ventaja total
+              Ya sabe cuánto pierde — contáctale hoy y tendrás ventaja total
             </span>
           </div>
         </div>
@@ -548,11 +357,10 @@ export default function LeadDetalle() {
             </DatoFila>
           )}
 
-          {/* ── Email finder ── */}
+          {/* ── Email de contacto + cascada ── */}
           <DatoFila icon={EnvelopeSimple} color="var(--color-primary)" label="Email contacto">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                {/* Badge de estado */}
                 {lead.email && lead.email_fuente && (
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -598,11 +406,7 @@ export default function LeadDetalle() {
                   }}
                 />
                 {emailDraft !== (lead.email ?? '') && emailDraft.trim() && (
-                  <button
-                    className="btn-primary"
-                    onClick={guardarEmailManual}
-                    style={{ fontSize: 12, padding: '4px 12px', minHeight: 32 }}
-                  >
+                  <button className="btn-primary" onClick={guardarEmailManual} style={{ fontSize: 12, padding: '4px 12px', minHeight: 32 }}>
                     Guardar
                   </button>
                 )}
@@ -627,19 +431,9 @@ export default function LeadDetalle() {
           )}
           <DatoFila icon={CurrencyEur} color="var(--color-success)" label="MRR estimado">
             <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
-              {lead.mrr_estimado != null ? `${lead.mrr_estimado}€/mes` : 'Sin cualificar'}
+              {lead.mrr_estimado != null ? `${lead.mrr_estimado}€/mes` : 'Sin analizar'}
             </span>
           </DatoFila>
-          {lead.motivo_score && (
-            <DatoFila icon={Note} color="var(--color-primary)" label="Motivo score">
-              <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{lead.motivo_score}</span>
-            </DatoFila>
-          )}
-          {lead.volumen_llamadas && (
-            <DatoFila icon={Phone} color="var(--color-text-secondary)" label="Volumen llamadas">
-              <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{lead.volumen_llamadas}</span>
-            </DatoFila>
-          )}
           {lead.descripcion && (
             <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', paddingTop: 12, lineHeight: 1.5 }}>
               {lead.descripcion}
@@ -649,7 +443,6 @@ export default function LeadDetalle() {
 
         {/* Columna derecha — tabs */}
         <div>
-          {/* Tabs lineales */}
           <div
             className="no-print detalle-tabs"
             role="tablist"
@@ -690,189 +483,148 @@ export default function LeadDetalle() {
           </div>
 
           <div className="card" id="tabpanel-detalle" role="tabpanel" aria-labelledby={`tab-${tab}`} style={{ padding: 28 }}>
-            {/* ── TAB DEMO ── */}
-            {tab === 'demo' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {lead.agent_id_retell ? (
+            {/* ── TAB INFORME ── */}
+            {tab === 'informe' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {!analisis ? (
                   <>
-                    <div
-                      style={{
-                        background: 'rgba(34,197,94,0.06)',
-                        border: '1px solid rgba(34,197,94,0.2)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: 20,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <CheckCircle size={20} weight="fill" style={{ color: 'var(--color-success)' }} />
-                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-success)' }}>Demo activa</span>
-                      </div>
-                      <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontFamily: 'monospace' }}>
-                        Agent ID: {lead.agent_id_retell}
-                      </p>
-                      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                        Abre el dashboard de Retell AI, asigna un número al agente o usa la llamada web de prueba para probar la demo de Sofía.
-                        {lead.telefono && <> Para la demo comercial, llama al <strong style={{ color: 'var(--color-text-primary)' }}>{lead.telefono}</strong>.</>}
+                    <div>
+                      <h2 style={{ fontSize: 17, marginBottom: 6 }}>Análisis de brechas</h2>
+                      <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                        Analiza qué pierde {lead.nombre} hoy y qué puede ahorrarle WIARE. Obtendrás un informe + 3 puntos listos para tu email.
                       </p>
                     </div>
-                    <button className="btn-secondary" onClick={generarDemo} disabled={generandoPrompt} style={{ alignSelf: 'flex-start' }}>
-                      <ArrowClockwise size={16} /> {generandoPrompt ? 'Regenerando…' : 'Regenerar'}
+                    <button className="btn-primary" onClick={analizar} disabled={analizando} style={{ alignSelf: 'flex-start' }}>
+                      <MagnifyingGlassPlus size={16} /> {analizando ? 'Analizando con Claude…' : 'Analizar brechas'}
                     </button>
-                    {promptDraft && lead.system_prompt_sofia !== promptDraft && (
-                      <>
-                        <textarea className="prompt-textarea" value={promptDraft} onChange={(e) => setPromptDraft(e.target.value)} style={promptTextareaStyle} />
-                        <button className="btn-primary" onClick={desplegarRetell} disabled={desplegando} style={{ alignSelf: 'flex-start' }}>
-                          <Broadcast size={16} /> {desplegando ? 'Desplegando…' : 'Desplegar en Retell'}
-                        </button>
-                      </>
+                    {analizando && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '70%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '90%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '55%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      </div>
                     )}
-                  </>
-                ) : promptDraft ? (
-                  <>
-                    <h2 style={{ fontSize: 17 }}>System prompt de Sofía</h2>
-                    <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Revisa y edita antes de desplegar.</p>
-                    <textarea className="prompt-textarea" value={promptDraft} onChange={(e) => setPromptDraft(e.target.value)} style={promptTextareaStyle} />
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <button className="btn-primary" onClick={desplegarRetell} disabled={desplegando}>
-                        <Broadcast size={16} /> {desplegando ? 'Desplegando…' : 'Desplegar en Retell'}
-                      </button>
-                      <button className="btn-secondary" onClick={generarDemo} disabled={generandoPrompt}>
-                        <ArrowClockwise size={16} /> {generandoPrompt ? 'Generando…' : 'Regenerar'}
-                      </button>
-                    </div>
                   </>
                 ) : (
                   <>
-                    <h2 style={{ fontSize: 17 }}>Demo de voz con Sofía</h2>
-                    <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
-                      Genera un system prompt personalizado para {lead.nombre} y despliégalo como agente de voz en Retell AI.
-                    </p>
-                    <button className="btn-primary detalle-btn-full" onClick={generarDemo} disabled={generandoPrompt} style={{ alignSelf: 'flex-start' }}>
-                      <Waveform size={16} /> {generandoPrompt ? 'Generando con Claude…' : 'Generar demo'}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
+                    {/* Ahorro estimado destacado */}
+                    {analisis.ahorro_estimado && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.18)',
+                        borderRadius: 'var(--radius-lg)', padding: '16px 20px',
+                      }}>
+                        <CurrencyEur size={28} weight="fill" style={{ color: 'var(--color-success)', flexShrink: 0 }} />
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 2 }}>
+                            Ahorro / recuperación estimada
+                          </div>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-success)' }}>
+                            {analisis.ahorro_estimado}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-            {/* ── TAB PROPUESTA ── */}
-            {tab === 'propuesta' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Selector Texto / Slides */}
-                {(lead.propuesta_md || lead.propuesta_slides) && (
-                  <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--color-border)', paddingBottom: 12 }}>
-                    {(['texto', 'slides'] as const).map((modo) => (
-                      <button
-                        key={modo}
-                        onClick={() => setModoPropuesta(modo)}
-                        style={{
-                          padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-                          background: modoPropuesta === modo ? 'var(--color-primary-subtle)' : 'transparent',
-                          color: modoPropuesta === modo ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                          border: modoPropuesta === modo ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
-                          minHeight: 'auto',
-                          transition: 'all 150ms cubic-bezier(0.4,0,0.2,1)',
-                        }}
-                      >
-                        {modo === 'texto' ? 'Texto' : 'Slides'}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                    {/* Resumen (informe) */}
+                    {lead.motivo_score && (
+                      <div>
+                        <h2 style={{ fontSize: 15, marginBottom: 8 }}>Informe</h2>
+                        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.65 }}>
+                          {lead.motivo_score}
+                        </p>
+                      </div>
+                    )}
 
-                {/* ── Modo TEXTO ── */}
-                {modoPropuesta === 'texto' && (
-                  <>
-                    {lead.propuesta_md ? (
-                      <>
-                        {editandoPropuesta ? (
-                          <>
-                            <textarea value={propuestaDraft} onChange={(e) => setPropuestaDraft(e.target.value)} style={{ ...promptTextareaStyle, minHeight: 400 }} />
-                            <div style={{ display: 'flex', gap: 10 }}>
+                    {/* Brechas detectadas */}
+                    {analisis.brechas.length > 0 && (
+                      <div>
+                        <h2 style={{ fontSize: 15, marginBottom: 10 }}>Brechas detectadas</h2>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {analisis.brechas.map((b, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                              <Warning size={16} weight="fill" style={{ color: 'var(--color-warning)', flexShrink: 0, marginTop: 2 }} />
+                              <span style={{ fontSize: 14, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>{b}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3 puntos para el email */}
+                    {analisis.puntos_email.length > 0 && (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                          <h2 style={{ fontSize: 15, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Lightbulb size={16} weight="fill" style={{ color: 'var(--color-primary)' }} />
+                            3 puntos para tu email
+                          </h2>
+                          <button
+                            className="btn-primary"
+                            onClick={() => copiar(analisis.puntos_email.map((p, i) => `${i + 1}. ${p}`).join('\n'), 'Los 3 puntos')}
+                            style={{ fontSize: 13, padding: '6px 14px', minHeight: 34 }}
+                          >
+                            <Copy size={15} /> Copiar los 3 puntos
+                          </button>
+                        </div>
+                        <div style={{
+                          background: '#0f1117', border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 'var(--radius-lg)', padding: 20, display: 'flex', flexDirection: 'column', gap: 14,
+                        }}>
+                          {analisis.puntos_email.map((p, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                              <span style={{
+                                fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--color-primary)',
+                                borderRadius: 'var(--radius-full)', width: 22, height: 22, flexShrink: 0,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginTop: 1,
+                              }}>{i + 1}</span>
+                              <span style={{ flex: 1, fontSize: 14, color: 'rgba(255,255,255,0.9)', lineHeight: 1.55 }}>{p}</span>
                               <button
-                                className="btn-primary"
-                                onClick={async () => { await actualizar({ propuesta_md: propuestaDraft }); setEditandoPropuesta(false) }}
+                                onClick={() => copiar(p, 'Punto')}
+                                title="Copiar punto"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}
                               >
-                                Guardar
-                              </button>
-                              <button className="btn-secondary" onClick={() => setEditandoPropuesta(false)}>Cancelar</button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <PropuestaViewer
-                              markdown={lead.propuesta_md}
-                              nombreNegocio={lead.nombre}
-                              onMarcarEnviada={
-                                lead.fase !== 'propuesta_enviada' && lead.fase !== 'cerrado'
-                                  ? () => actualizar({ fase: 'propuesta_enviada' })
-                                  : undefined
-                              }
-                            />
-                            <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
-                              <button className="btn-secondary" onClick={() => { setPropuestaDraft(lead.propuesta_md ?? ''); setEditandoPropuesta(true) }}>
-                                <PencilSimple size={16} /> Editar
-                              </button>
-                              <button className="btn-secondary" onClick={generarProp} disabled={generandoPropuesta}>
-                                <ArrowClockwise size={16} /> {generandoPropuesta ? 'Regenerando…' : 'Regenerar'}
+                                <Copy size={14} />
                               </button>
                             </div>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <h2 style={{ fontSize: 17 }}>Propuesta comercial</h2>
-                        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
-                          Genera una propuesta personalizada con ROI calculado para {lead.nombre}.
-                        </p>
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                          <button className="btn-primary" onClick={generarProp} disabled={generandoPropuesta} style={{ alignSelf: 'flex-start' }}>
-                            <FileText size={16} /> {generandoPropuesta ? 'Generando con Claude…' : 'Generar propuesta texto'}
-                          </button>
-                          <button className="btn-secondary" onClick={generarSlides} disabled={generandoSlides} style={{ alignSelf: 'flex-start' }}>
-                            <ArrowClockwise size={16} /> {generandoSlides ? 'Generando slides…' : 'Generar slides'}
-                          </button>
+                          ))}
                         </div>
-                      </>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 8, lineHeight: 1.5 }}>
+                          Pega estos puntos en tu plantilla de email del nicho. El email lo redactas tú.
+                        </p>
+                      </div>
                     )}
-                  </>
-                )}
 
-                {/* ── Modo SLIDES ── */}
-                {modoPropuesta === 'slides' && (
-                  <>
-                    {lead.propuesta_slides ? (
-                      <>
-                        <PropuestaSlides
-                          slides={lead.propuesta_slides as unknown as SlidesContent}
-                          nombreNegocio={lead.nombre}
-                        />
-                        <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
-                          <button className="btn-secondary" onClick={generarSlides} disabled={generandoSlides}>
-                            <ArrowClockwise size={16} /> {generandoSlides ? 'Regenerando…' : 'Regenerar slides'}
-                          </button>
-                          {lead.fase !== 'propuesta_enviada' && lead.fase !== 'cerrado' && (
-                            <button className="btn-secondary" onClick={() => actualizar({ fase: 'propuesta_enviada' })}>
-                              <CheckCircle size={16} /> Marcar como enviada
-                            </button>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <h2 style={{ fontSize: 17 }}>Propuesta en slides</h2>
-                        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
-                          Genera un deck visual de 7 slides personalizado para {lead.nombre}.
-                        </p>
-                        <button className="btn-primary" onClick={generarSlides} disabled={generandoSlides} style={{ alignSelf: 'flex-start' }}>
-                          <FileText size={16} /> {generandoSlides ? 'Generando slides…' : 'Generar slides'}
+                    {/* Acciones del funnel */}
+                    <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
+                      {lead.fase === 'negocio_analizado' && (
+                        <button className="btn-secondary" onClick={confirmarBrechas}>
+                          <CheckCircle size={16} /> Confirmar brechas
                         </button>
-                      </>
-                    )}
+                      )}
+                      <button
+                        className="btn-secondary"
+                        onClick={abrirGmail}
+                        disabled={!lead.email}
+                        title={!lead.email ? 'Email no disponible' : undefined}
+                      >
+                        <EnvelopeSimple size={16} /> Abrir Gmail
+                      </button>
+                      {lead.fase !== 'email_enviado' && (
+                        <button
+                          className="btn-primary"
+                          onClick={marcarEnviado}
+                          disabled={marcandoEnviado || lead.fase === 'nuevo'}
+                          title={lead.fase === 'nuevo' ? 'Analiza y confirma brechas antes' : undefined}
+                          style={{ background: 'var(--color-success)' }}
+                        >
+                          <CheckCircle size={16} /> {marcandoEnviado ? 'Marcando…' : 'Marcar como enviado'}
+                        </button>
+                      )}
+                      <button className="btn-ghost" onClick={analizar} disabled={analizando}>
+                        <ArrowClockwise size={16} /> {analizando ? 'Reanalizando…' : 'Reanalizar'}
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
@@ -913,7 +665,7 @@ export default function LeadDetalle() {
                 </table>
                 {lead.mrr_estimado == null && (
                   <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 14 }}>
-                    Lead sin cualificar — cálculo con MRR por defecto de 190€.
+                    Negocio sin analizar — cálculo con MRR por defecto de 190€.
                   </p>
                 )}
               </div>
@@ -932,244 +684,6 @@ export default function LeadDetalle() {
                 />
                 {notasGuardadas && (
                   <p style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Guardado a las {notasGuardadas}</p>
-                )}
-              </div>
-            )}
-
-            {/* ── TAB EMAIL OUTREACH ── */}
-            {tab === 'email' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {/* Aviso límite blando */}
-                {emailsHoy >= DAILY_EMAIL_LIMIT && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
-                    borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 13,
-                    color: 'var(--color-warning)',
-                  }}>
-                    <Warning size={15} weight="fill" />
-                    Has enviado {emailsHoy} emails hoy (recomendado: {DAILY_EMAIL_LIMIT}/día)
-                  </div>
-                )}
-
-                {/* ── PASO 1: Estrategia ── */}
-                {outreachStep === 'idle' && (
-                  <>
-                    <div>
-                      <h2 style={{ fontSize: 17, marginBottom: 6 }}>Email Outreach</h2>
-                      <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
-                        Analiza el perfil de {lead.nombre} y genera un email personalizado listo para enviar.
-                      </p>
-                    </div>
-                    <button
-                      className="btn-primary"
-                      onClick={crearEstrategia}
-                      disabled={generandoEstrategia}
-                      style={{ alignSelf: 'flex-start' }}
-                    >
-                      <Brain size={16} />
-                      {generandoEstrategia ? 'Analizando…' : 'Analizar y crear estrategia'}
-                    </button>
-                    {generandoEstrategia && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
-                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '80%', animation: 'pulse 1.5s ease-in-out infinite' }} />
-                        <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '45%', animation: 'pulse 1.5s ease-in-out infinite' }} />
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* ── PASO 1 resultado: estrategia cards ── */}
-                {outreachStep === 'estrategia' && estrategia && (
-                  <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      {[
-                        { label: 'Ángulo', value: estrategia.angulo },
-                        { label: 'Dolor elegido', value: estrategia.dolor_elegido },
-                        { label: 'Dato específico', value: estrategia.dato_especifico },
-                        { label: 'Urgencia', value: estrategia.urgencia },
-                      ].map(({ label, value }) => (
-                        <div key={label} style={{
-                          background: 'var(--color-surface)',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: 'var(--radius-md)',
-                          padding: '12px 14px',
-                        }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 4 }}>
-                            {label}
-                          </div>
-                          <div style={{ fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.4 }}>{value}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Tono badge */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontWeight: 500 }}>Tono:</span>
-                      <span style={{
-                        padding: '2px 10px', borderRadius: 'var(--radius-full)', fontSize: 12, fontWeight: 600,
-                        background: 'var(--color-primary-subtle)', color: 'var(--color-primary)',
-                        textTransform: 'capitalize',
-                      }}>
-                        {estrategia.tono}
-                      </span>
-                    </div>
-
-                    {/* Asuntos seleccionables */}
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
-                        Elige asunto
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {estrategia.opciones_asunto.map((asunto, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setAsuntoSeleccionado(i)}
-                            style={{
-                              textAlign: 'left', padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 13,
-                              border: asuntoSeleccionado === i ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                              background: asuntoSeleccionado === i ? 'var(--color-primary-subtle)' : 'var(--color-surface)',
-                              color: asuntoSeleccionado === i ? 'var(--color-primary)' : 'var(--color-text-primary)',
-                              fontWeight: asuntoSeleccionado === i ? 600 : 400,
-                              minHeight: 'auto', transition: 'all 150ms cubic-bezier(0.4,0,0.2,1)',
-                            }}
-                          >
-                            {asunto}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button className="btn-primary" onClick={crearEmail} disabled={generandoEmail}>
-                        <EnvelopeSimple size={16} />
-                        {generandoEmail ? 'Generando email…' : 'Generar email'}
-                      </button>
-                      <button className="btn-ghost" onClick={() => setOutreachStep('idle')}>
-                        <ArrowClockwise size={16} /> Nueva estrategia
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {/* ── PASO 2: Email preview ── */}
-                {outreachStep === 'email' && emailOutreach && (
-                  <>
-                    {/* Selector de 3 asuntos */}
-                    {emailOutreach.asuntos?.length > 0 && (
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
-                          Elige asunto
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {emailOutreach.asuntos.map((asunto, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setAsuntoEmailIdx(i)}
-                              style={{
-                                textAlign: 'left', padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 13,
-                                border: asuntoEmailIdx === i ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                background: asuntoEmailIdx === i ? 'var(--color-primary-subtle)' : 'var(--color-surface)',
-                                color: asuntoEmailIdx === i ? 'var(--color-primary)' : 'var(--color-text-primary)',
-                                fontWeight: asuntoEmailIdx === i ? 600 : 400,
-                                minHeight: 'auto', transition: 'all 150ms cubic-bezier(0.4,0,0.2,1)',
-                                display: 'flex', alignItems: 'center', gap: 8,
-                              }}
-                            >
-                              {asuntoEmailIdx === i && (
-                                <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 'var(--radius-full)', background: 'var(--color-primary)', color: '#fff', flexShrink: 0 }}>
-                                  ✓
-                                </span>
-                              )}
-                              {asunto}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Card oscura tipo bandeja */}
-                    <div style={{
-                      background: '#0f1117',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: 'var(--radius-lg)',
-                      padding: 24,
-                      display: 'flex', flexDirection: 'column', gap: 16,
-                    }}>
-                      {[
-                        { label: 'De', value: `info@wiaresolution.com` },
-                        { label: 'Para', value: lead.email ?? '(sin email guardado)' },
-                        { label: 'Asunto', value: emailOutreach.asuntos?.[asuntoEmailIdx] ?? emailOutreach.asunto },
-                      ].map(({ label, value }) => (
-                        <div key={label} style={{ display: 'flex', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 12 }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', width: 52, flexShrink: 0, paddingTop: 1 }}>{label}</span>
-                          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4 }}>{value}</span>
-                        </div>
-                      ))}
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>Cuerpo</div>
-                        <textarea
-                          value={cuerpoEditado}
-                          onChange={(e) => setCuerpoEditado(e.target.value)}
-                          style={{
-                            width: '100%', minHeight: 160, resize: 'vertical',
-                            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 'var(--radius-sm)', padding: 12, fontSize: 13,
-                            color: 'rgba(255,255,255,0.9)', lineHeight: 1.6, fontFamily: 'var(--font-body)',
-                            outline: 'none',
-                          }}
-                        />
-                      </div>
-                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.3)', marginRight: 8 }}>Firma</span>
-                        El email va firmado como Jacobo (sin empresa ni web, tono personal)
-                      </div>
-                    </div>
-
-                    {/* Botones de acción */}
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <button
-                        className="btn-primary"
-                        onClick={abrirGmail}
-                        disabled={!lead.email}
-                        title={!lead.email ? 'Email no disponible' : undefined}
-                        style={{ background: '#6366F1' }}
-                      >
-                        <EnvelopeSimple size={16} /> Abrir en Gmail
-                      </button>
-                      <button className="btn-secondary" onClick={copiarEmail}>
-                        <Copy size={16} /> Copiar email completo
-                      </button>
-                      <button
-                        className="btn-ghost"
-                        onClick={abrirMailto}
-                        disabled={!lead.email}
-                        title={!lead.email ? 'Email no disponible' : undefined}
-                      >
-                        <PaperPlane size={16} /> Abrir en mi correo
-                      </button>
-                      <button className="btn-ghost" onClick={guardarBorrador}>
-                        <FloppyDisk size={16} /> Guardar borrador
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        className="btn-ghost"
-                        onClick={() => setAsuntoEmailIdx(i => emailOutreach.asuntos?.length ? (i + 1) % emailOutreach.asuntos.length : 0)}
-                        style={{ fontSize: 12 }}
-                      >
-                        <ArrowClockwise size={14} /> Ciclar asunto
-                      </button>
-                      <button className="btn-ghost" onClick={crearEmail} disabled={generandoEmail} style={{ fontSize: 12 }}>
-                        <ArrowClockwise size={14} /> {generandoEmail ? 'Regenerando…' : 'Regenerar email'}
-                      </button>
-                      <button className="btn-ghost" onClick={() => setOutreachStep('idle')} style={{ fontSize: 12 }}>
-                        Empezar de nuevo
-                      </button>
-                    </div>
-                  </>
                 )}
               </div>
             )}

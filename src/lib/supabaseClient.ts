@@ -41,15 +41,19 @@ export interface Lead {
   // ── Email finder (Bloque 3) ──
   email_fuente: string | null
   email_verificado: boolean | null
-  // ── Propuesta slides (Bloque 4) ──
-  propuesta_slides: Record<string, unknown> | null
-  propuesta_tipo: string | null
   // ── Extracción (sesión de extracción Apify) ──
   extraccion_id: string | null
   extraccion_fecha: string | null
-  // ── Email outreach generado ──
-  outreach_asunto: string | null
-  outreach_cuerpo: string | null
+  // ── Análisis de brechas (v6) ──
+  analisis_brechas: AnalisisBrechas | null
+  analizado_at: string | null
+}
+
+// Resultado del análisis de brechas que se guarda en leads_os.analisis_brechas (jsonb).
+export interface AnalisisBrechas {
+  brechas: string[]        // 3 brechas detectadas del negocio
+  puntos_email: string[]   // 3 puntos clave listos para pegar en la plantilla
+  ahorro_estimado: string  // p.ej. "~1.200€/mes en reservas perdidas"
 }
 
 export interface Extraccion {
@@ -62,14 +66,11 @@ export interface Extraccion {
   extraccion_id?: string | null
 }
 
-export const FASES = ['nuevo', 'cualificado', 'demo_creada', 'propuesta_creada', 'email_generado', 'propuesta_enviada', 'cerrado'] as const
+export const FASES = ['nuevo', 'negocio_analizado', 'brechas_detectadas', 'email_enviado'] as const
 
 export const FASE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
-  cualificado: 'Cualificado',
-  demo_creada: 'Demo creada',
-  propuesta_creada: 'Propuesta creada',
-  email_generado: 'Email generado',
-  propuesta_enviada: 'Propuesta enviada',
-  cerrado: 'Cerrado',
+  negocio_analizado: 'Negocio analizado',
+  brechas_detectadas: 'Brechas detectadas',
+  email_enviado: 'Email enviado',
 }

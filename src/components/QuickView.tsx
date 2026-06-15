@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   X, ArrowRight, Phone, Globe, MapPin, Star, Clock,
-  Microphone, FileText, Sparkle, CurrencyEur, CheckCircle,
+  MagnifyingGlassPlus, CurrencyEur,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { scoreLead } from '../lib/claudeApi'
+import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
 import ScoreBadge from './ScoreBadge'
 import FaseSelector from './FaseSelector'
 import { useToast } from './Toast'
@@ -31,7 +31,7 @@ export default function QuickView({
   const toast = useToast()
   const [tab, setTab] = useState<Tab>('info')
   const [notas, setNotas] = useState('')
-  const [cualificando, setCualificando] = useState(false)
+  const [analizando, setAnalizando] = useState(false)
   const [localLead, setLocalLead] = useState<Lead | null>(lead)
 
   // Sincroniza el estado local cuando cambia el lead recibido.
@@ -64,26 +64,28 @@ export default function QuickView({
     }
   }
 
-  const cualificar = async () => {
-    setCualificando(true)
+  const analizar = async () => {
+    setAnalizando(true)
     try {
-      const r = await scoreLead(l)
+      const r = await analizarBrechas(l)
       const campos = {
         score_cualificacion: r.score,
-        motivo_score: r.motivo,
+        motivo_score: r.resumen,
         volumen_llamadas: r.volumen,
         mrr_estimado: r.mrr,
-        fase: l.fase === 'nuevo' ? 'cualificado' : l.fase,
+        analisis_brechas: toAnalisisBrechas(r),
+        analizado_at: new Date().toISOString(),
+        fase: l.fase === 'nuevo' ? 'negocio_analizado' : l.fase,
       }
       const { error } = await supabase.from('leads_os').update(campos).eq('id', l.id)
       if (error) throw error
       setLocalLead({ ...l, ...campos })
       onUpdated?.()
-      toast(`${l.nombre} cualificado`, 'success')
+      toast(`${l.nombre} analizado`, 'success')
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Error al cualificar', 'error')
+      toast(err instanceof Error ? err.message : 'Error al analizar', 'error')
     } finally {
-      setCualificando(false)
+      setAnalizando(false)
     }
   }
 
@@ -97,11 +99,6 @@ export default function QuickView({
       toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
     }
   }
-
-  const acciones = [
-    { icon: Microphone, label: 'Generar demo', tab: 'demo' },
-    { icon: FileText, label: 'Generar propuesta', tab: 'propuesta' },
-  ]
 
   return (
     <>
@@ -258,29 +255,17 @@ export default function QuickView({
           {/* ── TAB ACCIONES ── */}
           {tab === 'acciones' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {acciones.map((a) => (
-                <button
-                  key={a.label}
-                  onClick={() => navigate(`/leads/${l.id}`)}
-                  style={accionBtnStyle}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.background = 'var(--color-primary-subtle)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = '#fff' }}
-                >
-                  <a.icon size={22} weight="regular" style={{ color: 'var(--color-primary)' }} />
-                  <span>{a.label}</span>
-                </button>
-              ))}
               <button
-                onClick={cualificar}
-                disabled={cualificando}
+                onClick={analizar}
+                disabled={analizando || l.analizado_at != null}
                 style={accionBtnStyle}
-                onMouseEnter={(e) => { if (cualificando) return; e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.background = 'var(--color-primary-subtle)' }}
+                onMouseEnter={(e) => { if (analizando || l.analizado_at) return; e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.background = 'var(--color-primary-subtle)' }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = '#fff' }}
               >
-                {cualificando
+                {analizando
                   ? <span className="spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
-                  : <Sparkle size={22} weight="regular" style={{ color: 'var(--color-primary)' }} />}
-                <span>{cualificando ? 'Cualificando…' : 'Cualificar con IA'}</span>
+                  : <MagnifyingGlassPlus size={22} weight="regular" style={{ color: 'var(--color-primary)' }} />}
+                <span>{analizando ? 'Analizando…' : l.analizado_at ? 'Ya analizado' : 'Analizar brechas'}</span>
               </button>
               <button
                 onClick={() => navigate(`/leads/${l.id}`)}
@@ -289,14 +274,8 @@ export default function QuickView({
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = '#fff' }}
               >
                 <CurrencyEur size={22} weight="regular" style={{ color: 'var(--color-primary)' }} />
-                <span>Ver costes y margen</span>
+                <span>Ver informe y costes</span>
               </button>
-
-              {l.agent_id_retell && (
-                <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-success)', fontSize: 13, fontWeight: 500, marginTop: 4 }}>
-                  <CheckCircle size={16} weight="fill" /> Demo activa en Retell
-                </div>
-              )}
             </div>
           )}
 

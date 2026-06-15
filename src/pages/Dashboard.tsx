@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Users, Fire, Microphone, CurrencyEur, Clock, CheckCircle, ArrowRight, CaretRight, ArrowsClockwise, Globe } from '@phosphor-icons/react'
+import { Users, Fire, MagnifyingGlassPlus, CurrencyEur, Clock, CheckCircle, ArrowRight, CaretRight, ArrowsClockwise, Globe } from '@phosphor-icons/react'
 import { supabase, type Lead, type Extraccion } from '../lib/supabaseClient'
 import { syncWebLeads } from '../lib/syncWebLeads'
 import KanbanBoard from '../components/KanbanBoard'
@@ -76,17 +76,14 @@ export default function Dashboard() {
   }
 
   const calientes = leads.filter((l) => (l.score_cualificacion ?? 0) >= 7).length
-  const demos = leads.filter((l) => l.agent_id_retell).length
+  const analizados = leads.filter((l) => l.analizado_at != null).length
   const mrrTotal = leads.reduce((acc, l) => acc + (l.mrr_estimado ?? 0), 0)
-  const sinScore = leads.filter((l) => l.score_cualificacion == null).length
+  const sinAnalizar = leads.filter((l) => l.analizado_at == null).length
   const nuevosSemana = leads.filter((l) => Date.now() - new Date(l.created_at).getTime() < DIAS_7_MS).length
 
   // ── Alertas de "tu lista de hoy" ──
   const calientesSinTrabajar = leads.filter(
     (l) => (l.score_cualificacion ?? 0) >= 7 && l.fase === 'nuevo'
-  )
-  const demoSinPropuesta = leads.filter(
-    (l) => l.fase === 'demo_creada' && !l.propuesta_md
   )
   const sinActividad = leads.filter(
     (l) => l.fase === 'nuevo' && Date.now() - new Date(l.created_at).getTime() > DIAS_7_MS
@@ -96,7 +93,7 @@ export default function Dashboard() {
     .filter((l) => l.fuente === 'web_calculadora' && l.fase === 'nuevo')
     .sort((a, b) => (b.perdida_mensual_real ?? 0) - (a.perdida_mensual_real ?? 0))
   const totalAlertas =
-    leadsWebSinContactar.length + calientesSinTrabajar.length + demoSinPropuesta.length + sinActividad.length
+    leadsWebSinContactar.length + calientesSinTrabajar.length + sinActividad.length
 
   const porSector = leads.reduce<Record<string, number>>((acc, l) => {
     acc[l.sector] = (acc[l.sector] ?? 0) + 1
@@ -111,7 +108,7 @@ export default function Dashboard() {
       value: leads.length,
       icon: Users,
       color: 'var(--color-text-secondary)',
-      contexto: sinScore > 0 ? `${sinScore} sin score` : 'Todos cualificados',
+      contexto: sinAnalizar > 0 ? `${sinAnalizar} sin analizar` : 'Todos analizados',
     },
     {
       label: 'Leads calientes',
@@ -121,11 +118,11 @@ export default function Dashboard() {
       contexto: `${calientesSinTrabajar.length} sin contactar`,
     },
     {
-      label: 'Demos creadas',
-      value: demos,
-      icon: Microphone,
+      label: 'Negocios analizados',
+      value: analizados,
+      icon: MagnifyingGlassPlus,
       color: 'var(--color-primary)',
-      contexto: `${demos} activas`,
+      contexto: `${sinAnalizar} pendientes`,
     },
     {
       label: 'MRR potencial',
@@ -268,7 +265,6 @@ export default function Dashboard() {
         leadsWeb={leadsWebSinContactar.length}
         leadWebTopPerdida={leadsWebSinContactar[0]?.perdida_mensual_real ?? null}
         calientes={calientesSinTrabajar.length}
-        demoSinPropuesta={demoSinPropuesta.length}
         sinActividad={sinActividad.length}
         navigate={navigate}
       />
@@ -367,7 +363,6 @@ function AlertasHoy({
   leadsWeb,
   leadWebTopPerdida,
   calientes,
-  demoSinPropuesta,
   sinActividad,
   navigate,
 }: {
@@ -375,7 +370,6 @@ function AlertasHoy({
   leadsWeb: number
   leadWebTopPerdida: number | null
   calientes: number
-  demoSinPropuesta: number
   sinActividad: number
   navigate: (to: string) => void
 }) {
@@ -387,14 +381,6 @@ function AlertasHoy({
       bg: 'color-mix(in srgb, var(--color-warning) 10%, transparent)',
       texto: `${calientes} ${calientes === 1 ? 'lead caliente sin contactar' : 'leads calientes sin contactar'}`,
       to: '/leads?score_min=7&fase=nuevo',
-    },
-    demoSinPropuesta > 0 && {
-      key: 'demo',
-      icon: Microphone,
-      color: 'var(--color-primary)',
-      bg: 'var(--color-primary-subtle)',
-      texto: `${demoSinPropuesta} con demo pero sin propuesta`,
-      to: '/leads?fase=demo_creada&sin_propuesta=1',
     },
     sinActividad > 0 && {
       key: 'inactivos',

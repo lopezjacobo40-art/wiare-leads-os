@@ -4,13 +4,10 @@ import { FASES, FASE_LABELS } from '../lib/supabaseClient'
 
 /* Colores semánticos por fase (compartidos con el Kanban). */
 export const FASE_COLOR: Record<string, string> = {
-  nuevo: '#A1A1AA',
-  cualificado: '#F59E0B',
-  demo_creada: '#6366F1',
-  propuesta_creada: '#8B5CF6',
-  email_generado: '#9B6DF3',
-  propuesta_enviada: '#A855F7',
-  cerrado: '#22C55E',
+  nuevo: '#A1A1AA',               // --color-text-tertiary
+  negocio_analizado: '#6366F1',   // --color-primary (indigo)
+  brechas_detectadas: '#A855F7',  // violeta
+  email_enviado: '#22C55E',       // --color-success
 }
 
 interface Props {

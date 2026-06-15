@@ -5,7 +5,8 @@ import {
   Scissors, Bed, Barbell, Pill, Storefront, CheckCircle, Warning, X,
 } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
-import { extraerLeadsConApify, type ApifyLead } from '../lib/apifyClient'
+import { extraerLeadsConApify, buscarEmailCascada, type ApifyLead } from '../lib/apifyClient'
+import { processBatch } from '../lib/tokenGuard'
 import LoadingBar from '../components/LoadingBar'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
@@ -25,6 +26,16 @@ function esCadena(nombre: string): boolean {
   return PALABRAS_CADENA.some((c) => n.includes(c))
 }
 
+// Heurística "empresa grande / +50 trabajadores". Apify no da nº de empleados
+// fiable, así que se usa un proxy: cadenas conocidas o un volumen de reseñas
+// muy alto (típico de grandes superficies, franquicias o multinacionales).
+const RESENAS_EMPRESA_GRANDE = 1500
+function esEmpresaGrande(l: ApifyLead): boolean {
+  if (esCadena(l.title)) return true
+  if ((l.reviewsCount ?? 0) > RESENAS_EMPRESA_GRANDE) return true
+  return false
+}
+
 const SECTORES = [
   { nombre: 'Restaurante', icon: ForkKnife },
   { nombre: 'Clínica', icon: FirstAid },
@@ -38,7 +49,7 @@ const SECTORES = [
   { nombre: 'Otro', icon: Storefront },
 ]
 
-type Estado = 'idle' | 'buscando' | 'extrayendo' | 'completado' | 'error'
+type Estado = 'idle' | 'buscando' | 'extrayendo' | 'enriqueciendo' | 'completado' | 'error'
 
 export default function Extraccion() {
   const navigate = useNavigate()
@@ -53,16 +64,19 @@ export default function Extraccion() {
   const [guardados, setGuardados] = useState(0)
   const [duplicados, setDuplicados] = useState(0)
   const [filtradosCadena, setFiltradosCadena] = useState(0)
+  const [emailsEnriquecidos, setEmailsEnriquecidos] = useState(0)
   const logRef = useRef<HTMLDivElement>(null)
 
   // Filtros de extracción avanzados
   const [cpZona, setCpZona] = useState('')
   const [excluirCadenas, setExcluirCadenas] = useState(false)
   const [soloConQuejas, setSoloConQuejas] = useState(false)
+  const [excluirGrandes, setExcluirGrandes] = useState(true) // regla dura: nada de +50 trabajadores
 
   // Pills de filtros activos
   const filtrosActivos = [
     cpZona.trim() ? { key: 'cp', label: `Zona: "${cpZona.trim()}"`, clear: () => setCpZona('') } : null,
+    excluirGrandes ? { key: 'grandes', label: 'Sin empresas grandes', clear: () => setExcluirGrandes(false) } : null,
     excluirCadenas ? { key: 'cadenas', label: 'Sin cadenas', clear: () => setExcluirCadenas(false) } : null,
     soloConQuejas ? { key: 'quejas', label: 'Solo con quejas', clear: () => setSoloConQuejas(false) } : null,
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[]
@@ -72,7 +86,7 @@ export default function Extraccion() {
   }, [log])
 
   const sectorFinal = sector === 'Otro' ? otroSector.trim() : sector
-  const puedeExtraer = sectorFinal && ciudad.trim() && estado !== 'buscando' && estado !== 'extrayendo'
+  const puedeExtraer = sectorFinal && ciudad.trim() && estado !== 'buscando' && estado !== 'extrayendo' && estado !== 'enriqueciendo'
 
   const [extraccionId, setExtraccionId] = useState('')
 
@@ -84,6 +98,7 @@ export default function Extraccion() {
     setErrorMsg('')
     setProgreso({ actual: 0, total: cantidad })
     setFiltradosCadena(0)
+    setEmailsEnriquecidos(0)
     try {
       const leadsRaw = await extraerLeadsConApify(sectorFinal, ciudad.trim(), cantidad, (mensaje) => {
         setEstado('extrayendo')
@@ -95,12 +110,18 @@ export default function Extraccion() {
       // ── Filtros post-extracción ──
       let leads: ApifyLead[] = leadsRaw
       let numCadenasExcluidas = 0
+      // Regla dura: excluir empresas grandes (+50 trabajadores, por heurística)
+      if (excluirGrandes) {
+        const antes = leads.length
+        leads = leads.filter((l) => !esEmpresaGrande(l))
+        numCadenasExcluidas += antes - leads.length
+      }
       if (excluirCadenas) {
         const antes = leads.length
         leads = leads.filter((l) => !esCadena(l.title))
-        numCadenasExcluidas = antes - leads.length
-        setFiltradosCadena(numCadenasExcluidas)
+        numCadenasExcluidas += antes - leads.length
       }
+      setFiltradosCadena(numCadenasExcluidas)
       if (cpZona.trim()) {
         const zona = cpZona.trim().toLowerCase()
         leads = leads.filter((l) => (l.address ?? '').toLowerCase().includes(zona))
@@ -124,15 +145,16 @@ export default function Extraccion() {
       const numDuplicados = leads.length - nuevos.length
 
       const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
+      let insertados: { id: string; email: string | null; web: string | null; descripcion: string | null }[] = []
       if (nuevos.length > 0) {
-        const { error: insError } = await supabase
+        const { data: insData, error: insError } = await supabase
           .from('leads_os')
           .insert(nuevos.map((l) => ({
             nombre: l.title,
             sector: sectorFinal,
             telefono: l.phone,
             email: l.email,
-            email_fuente: l.email ? 'apify' : null,
+            email_fuente: l.email ? 'apify_maps' : null,
             email_verificado: false,
             web: l.website,
             google_maps_url: l.url,
@@ -149,7 +171,9 @@ export default function Extraccion() {
             extraccion_id: sessionId,
             extraccion_fecha: new Date().toISOString(),
           })))
+          .select('id, email, web, descripcion')
         if (insError) throw insError
+        insertados = (insData ?? []) as typeof insertados
       }
 
       await supabase.from('extracciones_os').insert({
@@ -162,6 +186,38 @@ export default function Extraccion() {
 
       setGuardados(nuevos.length)
       setDuplicados(numDuplicados)
+      setEstado('completado')
+
+      // ── Cascada de email en background: rellena el email de los que no lo traen ──
+      const sinEmail = insertados.filter((l) => !l.email && l.web)
+      if (sinEmail.length > 0) {
+        setEstado('enriqueciendo')
+        setProgreso({ actual: 0, total: sinEmail.length })
+        setLog((prev) => [...prev, `Buscando email de ${sinEmail.length} negocios sin email…`])
+        let encontrados = 0
+        let hechos = 0
+        await processBatch(
+          sinEmail,
+          async (l) => {
+            const { email, fuente } = await buscarEmailCascada({ email: null, web: l.web, descripcion: l.descripcion })
+            hechos++
+            setProgreso({ actual: hechos, total: sinEmail.length })
+            if (email) {
+              encontrados++
+              setEmailsEnriquecidos(encontrados)
+              await supabase
+                .from('leads_os')
+                .update({ email, email_fuente: fuente, email_verificado: fuente !== 'patron' })
+                .eq('id', l.id)
+              setLog((prev) => [...prev, `${email} (${fuente})`])
+            } else {
+              setLog((prev) => [...prev, `— sin email tras la cascada`])
+            }
+          },
+          (done) => setProgreso({ actual: done, total: sinEmail.length })
+        )
+        setLog((prev) => [...prev, `${encontrados} de ${sinEmail.length} emails encontrados`])
+      }
       setEstado('completado')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Error desconocido')
@@ -257,6 +313,15 @@ export default function Extraccion() {
 
           {/* Checkboxes */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }} title="Excluye cadenas y negocios con muchísimas reseñas (proxy de +50 trabajadores)">
+              <input
+                type="checkbox"
+                checked={excluirGrandes}
+                onChange={(e) => setExcluirGrandes(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: 'var(--color-primary)', minHeight: 'auto' }}
+              />
+              <span>Excluir empresas grandes (+50 trabajadores)</span>
+            </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
               <input
                 type="checkbox"
@@ -341,6 +406,21 @@ export default function Extraccion() {
         </div>
       )}
 
+      {estado === 'enriqueciendo' && (
+        <div className="card" style={{ padding: 24, marginTop: 20 }}>
+          <LoadingBar
+            progress={progreso.total ? (progreso.actual / progreso.total) * 100 : 0}
+            label={`Buscando email ${progreso.actual} de ${progreso.total}…`}
+          />
+          <div
+            ref={logRef}
+            style={{ marginTop: 16, maxHeight: 200, overflowY: 'auto', fontSize: 13, fontFamily: 'monospace', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 4 }}
+          >
+            {log.map((line, i) => <span key={i}>{line}</span>)}
+          </div>
+        </div>
+      )}
+
       {estado === 'completado' && (
         <div className="card" style={{ padding: 24, marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -348,12 +428,13 @@ export default function Extraccion() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <p style={{ fontSize: 15, fontWeight: 600 }}>
                 {guardados} {guardados === 1 ? 'lead nuevo' : 'leads nuevos'}
+                {emailsEnriquecidos > 0 && ` · ${emailsEnriquecidos} con email encontrado`}
               </p>
               {(duplicados > 0 || filtradosCadena > 0) && (
                 <p style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
                   {duplicados > 0 && `${duplicados} ${duplicados === 1 ? 'duplicado omitido' : 'duplicados omitidos'}`}
                   {duplicados > 0 && filtradosCadena > 0 && ' · '}
-                  {filtradosCadena > 0 && `${filtradosCadena} ${filtradosCadena === 1 ? 'cadena excluida' : 'cadenas excluidas'}`}
+                  {filtradosCadena > 0 && `${filtradosCadena} ${filtradosCadena === 1 ? 'grande/cadena excluida' : 'grandes/cadenas excluidas'}`}
                 </p>
               )}
             </div>

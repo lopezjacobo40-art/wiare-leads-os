@@ -158,61 +158,106 @@ export async function extraerLeadsConApify(
   }))
 }
 
-export async function buscarEmailApify(
-  _placeId: string,
-  web: string | null
-): Promise<string | null> {
-  if (!web) return null
-
+// Lanza un actor de Apify y devuelve los items del dataset, o [] si falla.
+// Hace polling hasta SUCCEEDED (máx ~90s). No lanza: cualquier fallo → [].
+async function correrActor(actor: string, input: Record<string, unknown>): Promise<Record<string, unknown>[]> {
   try {
-    const runRes = await fetch(
-      `${APIFY_BASE}/acts/apify~website-content-crawler/runs?token=${APIFY_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startUrls: [{ url: web }],
-          maxCrawlPages: 3,
-          maxCrawlDepth: 1,
-        }),
-      }
-    )
-
-    if (!runRes.ok) return null
-
+    const runRes = await fetch(`${APIFY_BASE}/acts/${actor}/runs?token=${APIFY_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    if (!runRes.ok) return []
     const runData = await runRes.json()
     const runId = runData.data.id
 
-    // Polling igual que extraerLeadsConApify — máx 90s (18 × 5s)
     let status = 'RUNNING'
     let intentos = 0
     while ((status === 'RUNNING' || status === 'READY') && intentos < 18) {
-      await new Promise(r => setTimeout(r, 5000))
+      await new Promise((r) => setTimeout(r, 5000))
       intentos++
       const statusRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_KEY}`)
       if (!statusRes.ok) break
       const statusData = await statusRes.json()
       status = statusData.data.status
     }
+    if (status !== 'SUCCEEDED') return []
 
-    if (status !== 'SUCCEEDED') return null
-
-    const dataRes = await fetch(
-      `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_KEY}`
-    )
-    if (!dataRes.ok) return null
-
-    const items: Record<string, unknown>[] = await dataRes.json()
-
-    for (const item of items) {
-      const email = extractEmailFromText(
-        String(item.text || item.html || item.content || '')
-      )
-      if (email) return email
-    }
+    const dataRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_KEY}`)
+    if (!dataRes.ok) return []
+    return await dataRes.json()
   } catch (e) {
-    console.warn('Error scraping web con Apify:', e)
+    console.warn(`Error en actor Apify ${actor}:`, e)
+    return []
+  }
+}
+
+// Deriva info@{dominio} a partir de una URL de web (último recurso, sin verificar).
+function patronDominio(web: string | null): string | null {
+  if (!web) return null
+  try {
+    const host = new URL(web.startsWith('http') ? web : `https://${web}`).hostname.replace(/^www\./, '')
+    if (!host.includes('.')) return null
+    return `info@${host}`
+  } catch {
+    return null
+  }
+}
+
+export interface EmailCascada {
+  email: string | null
+  fuente: string // 'apify_maps' | 'apify_web' | 'apify_contact' | 'patron'
+}
+
+// Cascada de búsqueda de email: para al primer éxito.
+//   1. Email ya presente (del crawler de Maps).
+//   2. apify~website-content-crawler sobre la web.
+//   3. apify~contact-info-scraper sobre la web (respaldo).
+//   4. Patrón info@{dominio} (sin verificar).
+export async function buscarEmailCascada(lead: {
+  email?: string | null
+  web?: string | null
+  descripcion?: string | null
+}): Promise<EmailCascada> {
+  // 1. Ya lo trajo Maps
+  if (lead.email) return { email: lead.email, fuente: 'apify_maps' }
+
+  // Email en la descripción de Maps (gratis, sin actor)
+  const desdeDescripcion = extractEmailFromText(lead.descripcion ?? null)
+  if (desdeDescripcion) return { email: desdeDescripcion, fuente: 'apify_maps' }
+
+  if (lead.web) {
+    // 2. website-content-crawler
+    const itemsWeb = await correrActor('apify~website-content-crawler', {
+      startUrls: [{ url: lead.web }],
+      maxCrawlPages: 3,
+      maxCrawlDepth: 1,
+    })
+    for (const item of itemsWeb) {
+      const email = extractEmailFromText(String(item.text || item.html || item.content || ''))
+      if (email) return { email, fuente: 'apify_web' }
+    }
+
+    // 3. contact-info-scraper (respaldo; si el actor no existe en la cuenta → [] y sigue)
+    const itemsContact = await correrActor('vdrmota~contact-info-scraper', {
+      startUrls: [{ url: lead.web }],
+      maxRequestsPerStartUrl: 5,
+      maxDepth: 1,
+    })
+    for (const item of itemsContact) {
+      const emails = item.emails as string[] | undefined
+      if (Array.isArray(emails) && emails.length > 0) {
+        const valido = emails.find((e) => EMAIL_PRIORITY_PREFIXES.some((p) => e.toLowerCase().startsWith(p))) ?? emails[0]
+        if (valido) return { email: valido, fuente: 'apify_contact' }
+      }
+      const email = extractEmailFromText(String(item.text || item.html || ''))
+      if (email) return { email, fuente: 'apify_contact' }
+    }
+
+    // 4. Patrón de dominio
+    const patron = patronDominio(lead.web)
+    if (patron) return { email: patron, fuente: 'patron' }
   }
 
-  return null
+  return { email: null, fuente: 'patron' }
 }

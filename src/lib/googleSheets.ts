@@ -7,7 +7,7 @@ import type { Lead } from './supabaseClient'
    y devolvemos la URL del sheet creado/actualizado.
    ───────────────────────────────────────────── */
 
-// Campos que el endpoint necesita de cada lead (subconjunto de Lead).
+// Campos que el endpoint necesita de cada lead (subconjunto del nuevo funnel v6).
 function aDTO(lead: Lead) {
   return {
     id: lead.id,
@@ -15,36 +15,14 @@ function aDTO(lead: Lead) {
     nombre: lead.nombre,
     sector: lead.sector,
     ciudad: lead.ciudad,
-    direccion: lead.direccion,
     telefono: lead.telefono,
-    web: lead.web,
-    google_maps_url: lead.google_maps_url,
-    valoracion: lead.valoracion,
-    num_resenas: lead.num_resenas,
-    score_cualificacion: lead.score_cualificacion,
-    motivo_score: lead.motivo_score,
-    volumen_llamadas: lead.volumen_llamadas,
-    fase: lead.fase,
-    mrr_estimado: lead.mrr_estimado,
-    agent_id_retell: lead.agent_id_retell,
-    propuesta_md: lead.propuesta_md,
-    notas: lead.notas,
-    // ── campos v5 ──
     email: lead.email,
-    email_verificado: lead.email_verificado,
-    email_fuente: lead.email_fuente,
-    fuente: lead.fuente,
-    // ── campos funnel completos ──
-    outreach_asunto: lead.outreach_asunto,
-    outreach_cuerpo: lead.outreach_cuerpo,
-    horario: lead.horario,
-    perdida_mensual_real: lead.perdida_mensual_real,
-    perdida_anual_real: lead.perdida_anual_real,
-    extraccion_fecha: lead.extraccion_fecha,
-    propuesta_slides: lead.propuesta_slides,
-    propuesta_tipo: lead.propuesta_tipo,
-    tag: lead.tag,
-    descripcion: lead.descripcion,
+    web: lead.web,
+    score_cualificacion: lead.score_cualificacion,
+    fase: lead.fase,
+    ahorro_estimado: lead.analisis_brechas?.ahorro_estimado ?? null,
+    resumen: lead.motivo_score,
+    analizado_at: lead.analizado_at,
   }
 }
 

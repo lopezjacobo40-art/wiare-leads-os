@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core'
 import { useSortable, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { MapPin, Microphone, FileText, DotsNine } from '@phosphor-icons/react'
+import { MapPin, MagnifyingGlassPlus, DotsNine } from '@phosphor-icons/react'
 import { supabase, type Lead } from '../lib/supabaseClient'
 import { FASES, FASE_LABELS } from '../lib/supabaseClient'
 import ScoreBadge from './ScoreBadge'
@@ -24,13 +24,10 @@ import { useToast } from './Toast'
 // Color por fase. Cada hex corresponde 1:1 con un token de globals.css
 // (se mantiene en hex porque rgbaFromHex() deriva los fondos translúcidos a partir de él).
 const FASE_COLOR: Record<string, string> = {
-  nuevo: '#A1A1AA',             // --color-text-tertiary
-  cualificado: '#F59E0B',       // --color-warning
-  demo_creada: '#6366F1',       // --color-primary
-  propuesta_creada: '#8B5CF6',  // violeta medio
-  email_generado: '#9B6DF3',    // violeta intermedio
-  propuesta_enviada: '#A855F7', // violeta claro
-  cerrado: '#22C55E',           // --color-success
+  nuevo: '#A1A1AA',               // --color-text-tertiary
+  negocio_analizado: '#6366F1',   // --color-primary (indigo)
+  brechas_detectadas: '#A855F7',  // violeta
+  email_enviado: '#22C55E',       // --color-success
 }
 
 function rgbaFromHex(hex: string, alpha: number): string {
@@ -42,7 +39,7 @@ function rgbaFromHex(hex: string, alpha: number): string {
 }
 
 /* Pill de estado muy compacto */
-function EstadoPill({ icon: Icon, label, color, bg }: { icon: typeof Microphone; label: string; color: string; bg: string }) {
+function EstadoPill({ icon: Icon, label, color, bg }: { icon: typeof MagnifyingGlassPlus; label: string; color: string; bg: string }) {
   return (
     <span
       style={{
@@ -65,7 +62,7 @@ function EstadoPill({ icon: Icon, label, color, bg }: { icon: typeof Microphone;
 
 /* ── Contenido visual de la card (compartido entre card real y ghost) ── */
 function CardContenido({ lead }: { lead: Lead }) {
-  const tienePropuesta = !!lead.propuesta_md
+  const analizado = !!lead.analizado_at
   return (
     <>
       {/* Fila 1: nombre (2 líneas máx) */}
@@ -125,14 +122,9 @@ function CardContenido({ lead }: { lead: Lead }) {
       </div>
 
       {/* Indicadores de estado */}
-      {(lead.agent_id_retell || tienePropuesta) && (
+      {analizado && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-          {lead.agent_id_retell && (
-            <EstadoPill icon={Microphone} label="Demo" color="var(--color-primary)" bg="var(--color-primary-subtle)" />
-          )}
-          {tienePropuesta && (
-            <EstadoPill icon={FileText} label="Propuesta" color="var(--color-success)" bg="rgba(34,197,94,0.1)" />
-          )}
+          <EstadoPill icon={MagnifyingGlassPlus} label="Analizado" color="var(--color-success)" bg="rgba(34,197,94,0.1)" />
         </div>
       )}
     </>

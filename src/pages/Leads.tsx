@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise } from '@phosphor-icons/react'
+import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
-import { scoreLead } from '../lib/claudeApi'
+import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
 import ScoreBadge from '../components/ScoreBadge'
 import LoadingBar from '../components/LoadingBar'
@@ -18,10 +18,8 @@ import { useToast } from '../components/Toast'
 const PAGE_SIZE = 25
 const DIAS_7_MS = 7 * 24 * 60 * 60 * 1000
 
-// ¿El lead es "caliente sin trabajar"? (score≥7 + fase nuevo)
+// ¿El lead es "caliente sin analizar"? (score≥7 + fase nuevo)
 const esCalienteSinTrabajar = (l: Lead) => (l.score_cualificacion ?? 0) >= 7 && l.fase === 'nuevo'
-// ¿Demo creada pero sin propuesta?
-const esDemoSinPropuesta = (l: Lead) => l.fase === 'demo_creada' && !l.propuesta_md
 // ¿Sin actividad (creado hace >7d y aún en fase nuevo)?
 const esInactivo = (l: Lead) => l.fase === 'nuevo' && Date.now() - new Date(l.created_at).getTime() > DIAS_7_MS
 
@@ -41,7 +39,6 @@ export default function Leads() {
   const [orden, setOrden] = useState('prioridad')
   const [pagina, setPagina] = useState(1)
   // Filtros especiales activados por deep-link desde el Dashboard.
-  const [soloSinPropuesta, setSoloSinPropuesta] = useState(false)
   const [soloInactivos, setSoloInactivos] = useState(false)
 
   const [scoringId, setScoringId] = useState<string | null>(null)
@@ -71,17 +68,15 @@ export default function Leads() {
   useEffect(() => {
     const sm = searchParams.get('score_min')
     const f = searchParams.get('fase')
-    const sp = searchParams.get('sin_propuesta')
     const inact = searchParams.get('inactivo')
     const fu = searchParams.get('fuente')
     const ext = searchParams.get('extraccion')
     if (sm) setScoreMin(Number(sm))
     if (f) setFaseFiltro(f)
-    if (sp) setSoloSinPropuesta(true)
     if (inact) setSoloInactivos(true)
     if (fu) setFuenteFiltro(fu)
     if (ext) setExtraccionFiltro(ext)
-    if (sm || f || sp || inact || fu || ext) {
+    if (sm || f || inact || fu || ext) {
       setOrden('prioridad')
       // Limpia la URL para no "fijar" el filtro al recargar manualmente.
       setSearchParams({}, { replace: true })
@@ -119,7 +114,6 @@ export default function Leads() {
       // 'extraccion' = todo lo que no es lead web (los leads antiguos tienen fuente null pero son extracción)
       if (fuenteFiltro === 'extraccion' && l.fuente === 'web_calculadora') return false
       if (scoreMin > 0 && (l.score_cualificacion ?? -1) < scoreMin) return false
-      if (soloSinPropuesta && l.propuesta_md) return false
       if (soloInactivos && !esInactivo(l)) return false
       return true
     })
@@ -133,7 +127,7 @@ export default function Leads() {
     else if (orden === 'resenas') res = [...res].sort((a, b) => (b.num_resenas ?? 0) - (a.num_resenas ?? 0))
     else if (orden === 'mrr') res = [...res].sort((a, b) => (b.mrr_estimado ?? 0) - (a.mrr_estimado ?? 0))
     return res
-  }, [leads, busqueda, sectorFiltro, faseFiltro, fuenteFiltro, scoreMin, orden, soloSinPropuesta, soloInactivos])
+  }, [leads, busqueda, sectorFiltro, faseFiltro, fuenteFiltro, scoreMin, orden, soloInactivos])
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE))
   const paginaActual = Math.min(pagina, totalPaginas)
@@ -141,14 +135,13 @@ export default function Leads() {
 
   const hayFiltros =
     busqueda !== '' || sectorFiltro !== 'todos' || faseFiltro !== 'todas' ||
-    fuenteFiltro !== 'todos' || scoreMin > 0 || soloSinPropuesta || soloInactivos
+    fuenteFiltro !== 'todos' || scoreMin > 0 || soloInactivos
   const limpiarFiltros = () => {
     setBusqueda('')
     setSectorFiltro('todos')
     setFaseFiltro('todas')
     setFuenteFiltro('todos')
     setScoreMin(0)
-    setSoloSinPropuesta(false)
     setSoloInactivos(false)
     setPagina(1)
   }
@@ -179,37 +172,44 @@ export default function Leads() {
   const limpiarSeleccion = () => setSelectedIds(new Set())
   const seleccionados = useMemo(() => leads.filter((l) => selectedIds.has(l.id)), [leads, selectedIds])
 
-  const cualificar = async (lead: Lead) => {
+  // Guarda el resultado del análisis de brechas en un lead.
+  // Pone el negocio en verde (analizado_at) y avanza la fase si está en 'nuevo'.
+  const guardarAnalisis = async (lead: Lead) => {
+    const r = await analizarBrechas(lead)
+    await supabase
+      .from('leads_os')
+      .update({
+        score_cualificacion: r.score,
+        motivo_score: r.resumen,
+        volumen_llamadas: r.volumen,
+        mrr_estimado: r.mrr,
+        analisis_brechas: toAnalisisBrechas(r),
+        analizado_at: new Date().toISOString(),
+        fase: lead.fase === 'nuevo' ? 'negocio_analizado' : lead.fase,
+      })
+      .eq('id', lead.id)
+  }
+
+  const analizar = async (lead: Lead) => {
     setScoringId(lead.id)
     setError('')
     try {
-      const r = await scoreLead(lead)
-      const { error: err } = await supabase
-        .from('leads_os')
-        .update({
-          score_cualificacion: r.score,
-          motivo_score: r.motivo,
-          volumen_llamadas: r.volumen,
-          mrr_estimado: r.mrr,
-          fase: lead.fase === 'nuevo' ? 'cualificado' : lead.fase,
-        })
-        .eq('id', lead.id)
-      if (err) throw err
+      await guardarAnalisis(lead)
       await cargar()
-      toast(`${lead.nombre} cualificado`, 'success')
+      toast(`${lead.nombre} analizado`, 'success')
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Error al cualificar', 'error')
+      toast(err instanceof Error ? err.message : 'Error al analizar', 'error')
     } finally {
       setScoringId(null)
     }
   }
 
   // Abre confirmación si el batch es grande; si no, ejecuta directamente
-  const cualificarTodos = () => {
-    const sinScore = leads.filter((l) => l.score_cualificacion == null)
-    if (sinScore.length === 0) return
-    if (sinScore.length > BATCH_CONFIRM_THRESHOLD) {
-      setConfirmBatch(sinScore.length)
+  const analizarTodos = () => {
+    const sinAnalizar = leads.filter((l) => l.analizado_at == null)
+    if (sinAnalizar.length === 0) return
+    if (sinAnalizar.length > BATCH_CONFIRM_THRESHOLD) {
+      setConfirmBatch(sinAnalizar.length)
     } else {
       ejecutarBatch()
     }
@@ -217,28 +217,18 @@ export default function Leads() {
 
   const ejecutarBatch = async () => {
     setConfirmBatch(null)
-    const sinScore = leads.filter((l) => l.score_cualificacion == null)
-    if (sinScore.length === 0) return
-    setBatch({ actual: 0, total: sinScore.length })
+    const sinAnalizar = leads.filter((l) => l.analizado_at == null)
+    if (sinAnalizar.length === 0) return
+    setBatch({ actual: 0, total: sinAnalizar.length })
     setError('')
 
     try {
       // Máx 5 llamadas en paralelo, 500ms entre grupos (rate limit)
       await processBatch(
-        sinScore,
+        sinAnalizar,
         async (lead) => {
           try {
-            const r = await scoreLead(lead)
-            await supabase
-              .from('leads_os')
-              .update({
-                score_cualificacion: r.score,
-                motivo_score: r.motivo,
-                volumen_llamadas: r.volumen,
-                mrr_estimado: r.mrr,
-                fase: lead.fase === 'nuevo' ? 'cualificado' : lead.fase,
-              })
-              .eq('id', lead.id)
+            await guardarAnalisis(lead)
           } catch {
             // continúa con el siguiente lead
           }
@@ -254,14 +244,14 @@ export default function Leads() {
 
     setBatch(null)
     await cargar()
-    toast(`${sinScore.length} leads cualificados`, 'success')
+    toast(`${sinAnalizar.length} negocios analizados`, 'success')
   }
 
-  // ── Cualificar solo los seleccionados (barra de lote) ──
-  const cualificarSeleccionados = async () => {
-    const objetivo = seleccionados.filter((l) => l.score_cualificacion == null)
+  // ── Analizar solo los seleccionados (barra de lote) ──
+  const analizarSeleccionados = async () => {
+    const objetivo = seleccionados.filter((l) => l.analizado_at == null)
     if (objetivo.length === 0) {
-      toast('Los leads seleccionados ya están cualificados', 'info')
+      toast('Los negocios seleccionados ya están analizados', 'info')
       return
     }
     setBatch({ actual: 0, total: objetivo.length })
@@ -271,17 +261,7 @@ export default function Leads() {
         objetivo,
         async (lead) => {
           try {
-            const r = await scoreLead(lead)
-            await supabase
-              .from('leads_os')
-              .update({
-                score_cualificacion: r.score,
-                motivo_score: r.motivo,
-                volumen_llamadas: r.volumen,
-                mrr_estimado: r.mrr,
-                fase: lead.fase === 'nuevo' ? 'cualificado' : lead.fase,
-              })
-              .eq('id', lead.id)
+            await guardarAnalisis(lead)
           } catch {
             // continúa con el siguiente
           }
@@ -295,7 +275,7 @@ export default function Leads() {
     }
     setBatch(null)
     await cargar()
-    toast(`${objetivo.length} leads cualificados`, 'success')
+    toast(`${objetivo.length} negocios analizados`, 'success')
   }
 
   // ── Cambiar fase de los seleccionados ──
@@ -406,7 +386,7 @@ export default function Leads() {
     }
   }
 
-  const rescorarTodos = async () => {
+  const reanalizarTodos = async () => {
     setConfirmRescorar(false)
     setRescorando(true)
     setBatch({ actual: 0, total: leads.length })
@@ -416,16 +396,7 @@ export default function Leads() {
         leads,
         async (lead) => {
           try {
-            const r = await scoreLead(lead)
-            await supabase
-              .from('leads_os')
-              .update({
-                score_cualificacion: r.score,
-                motivo_score: r.motivo,
-                volumen_llamadas: r.volumen,
-                mrr_estimado: r.mrr,
-              })
-              .eq('id', lead.id)
+            await guardarAnalisis(lead)
           } catch {
             // continúa con el siguiente
           }
@@ -433,17 +404,17 @@ export default function Leads() {
         (done, total) => setBatch({ actual: done, total })
       )
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error en el rescore'
+      const msg = err instanceof Error ? err.message : 'Error al reanalizar'
       setError(msg)
       toast(msg, 'error')
     }
     setBatch(null)
     setRescorando(false)
     await cargar()
-    toast(`${leads.length} leads rescorados con el nuevo sistema`, 'success')
+    toast(`${leads.length} negocios reanalizados`, 'success')
   }
 
-  const sinScoreCount = leads.filter((l) => l.score_cualificacion == null).length
+  const sinAnalizarCount = leads.filter((l) => l.analizado_at == null).length
 
   const inputStyle: React.CSSProperties = {
     height: 32,
@@ -480,13 +451,13 @@ export default function Leads() {
             {!batch && !rescorando && leads.length > 0 && (
               <button className="btn-ghost" onClick={() => setConfirmRescorar(true)} style={{ fontSize: 13 }}>
                 <ArrowClockwise size={15} />
-                Rescorar todos
+                Reanalizar todos
               </button>
             )}
-            {sinScoreCount > 0 && !batch && (
-              <button className="btn-secondary" onClick={cualificarTodos}>
-                <Sparkle size={16} weight="fill" />
-                Cualificar selección ({sinScoreCount})
+            {sinAnalizarCount > 0 && !batch && (
+              <button className="btn-secondary" onClick={analizarTodos}>
+                <MagnifyingGlassPlus size={16} weight="fill" />
+                Analizar brechas ({sinAnalizarCount})
               </button>
             )}
           </>
@@ -495,7 +466,7 @@ export default function Leads() {
 
       {batch && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-          <LoadingBar progress={(batch.actual / batch.total) * 100} label={`Cualificando lead ${batch.actual} de ${batch.total}…`} />
+          <LoadingBar progress={(batch.actual / batch.total) * 100} label={`Analizando negocio ${batch.actual} de ${batch.total}…`} />
         </div>
       )}
 
@@ -520,9 +491,9 @@ export default function Leads() {
             onClick={(e) => e.stopPropagation()}
             style={{ padding: 28, maxWidth: 380, width: '100%' }}
           >
-            <h2 style={{ fontSize: 18, marginBottom: 12 }}>Cualificar {confirmBatch} leads</h2>
+            <h2 style={{ fontSize: 18, marginBottom: 12 }}>Analizar {confirmBatch} negocios</h2>
             <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 6 }}>
-              Vas a cualificar <strong style={{ color: 'var(--color-text-primary)' }}>{confirmBatch} leads</strong> con Claude.
+              Vas a analizar las brechas de <strong style={{ color: 'var(--color-text-primary)' }}>{confirmBatch} negocios</strong> con Claude.
             </p>
             <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 24 }}>
               Coste estimado: <strong style={{ color: 'var(--color-text-primary)' }}>
@@ -531,7 +502,7 @@ export default function Leads() {
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setConfirmBatch(null)}>Cancelar</button>
-              <button className="btn-primary" onClick={ejecutarBatch}>Confirmar y cualificar</button>
+              <button className="btn-primary" onClick={ejecutarBatch}>Confirmar y analizar</button>
             </div>
           </div>
         </div>
@@ -601,14 +572,14 @@ export default function Leads() {
             onClick={(e) => e.stopPropagation()}
             style={{ padding: 28, maxWidth: 400, width: '100%' }}
           >
-            <h2 style={{ fontSize: 18, marginBottom: 12 }}>Rescorar {leads.length} leads</h2>
+            <h2 style={{ fontSize: 18, marginBottom: 12 }}>Reanalizar {leads.length} negocios</h2>
             <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 24 }}>
-              Vas a rescorar <strong style={{ color: 'var(--color-text-primary)' }}>{leads.length} leads</strong> con el nuevo sistema de puntuación. Los scores actuales se actualizarán.
+              Vas a reanalizar las brechas de <strong style={{ color: 'var(--color-text-primary)' }}>{leads.length} negocios</strong>. El informe y los puntos de cada uno se regenerarán.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setConfirmRescorar(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={rescorarTodos}>
-                <ArrowClockwise size={16} /> Rescorar todos
+              <button className="btn-primary" onClick={reanalizarTodos}>
+                <ArrowClockwise size={16} /> Reanalizar todos
               </button>
             </div>
           </div>
@@ -767,7 +738,7 @@ export default function Leads() {
           })}
         </div>
 
-        {(soloSinPropuesta || soloInactivos) && (
+        {soloInactivos && (
           <button className="btn-ghost" onClick={limpiarFiltros} style={{ fontSize: 12, padding: '4px 10px', minHeight: 'auto' }}>
             <X size={12} /> Quitar filtro de alerta
           </button>
@@ -849,6 +820,10 @@ export default function Leads() {
             <tbody>
               {visibles.map((lead) => {
                 const selected = selectedIds.has(lead.id)
+                const analizado = lead.analizado_at != null
+                const bgBase = selected
+                  ? 'var(--color-primary-subtle)'
+                  : analizado ? 'rgba(34,197,94,0.04)' : 'transparent'
                 return (
                 <tr
                   key={lead.id}
@@ -856,14 +831,14 @@ export default function Leads() {
                   style={{
                     height: 56,
                     borderBottom: '1px solid var(--color-border)',
-                    borderLeft: selected ? '2px solid var(--color-primary)' : '2px solid transparent',
-                    background: selected ? 'var(--color-primary-subtle)' : 'transparent',
+                    borderLeft: selected ? '2px solid var(--color-primary)' : analizado ? '2px solid var(--color-success)' : '2px solid transparent',
+                    background: bgBase,
                     cursor: 'pointer',
                     transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
                   }}
                   onClick={() => setQuickViewLead(lead)}
                   onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'var(--color-surface-2)' }}
-                  onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent' }}
+                  onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = bgBase }}
                 >
                   <td style={{ padding: '0 8px 0 16px' }} onClick={(e) => e.stopPropagation()}>
                     <input
@@ -963,14 +938,14 @@ export default function Leads() {
                         <Eye size={16} />
                       </button>
                       <button
-                        aria-label={`Cualificar ${lead.nombre} con IA`}
-                        title="Cualificar"
+                        aria-label={`Analizar brechas de ${lead.nombre}`}
+                        title="Analizar brechas"
                         className={`btn-ghost acciones-extra${menuFilaId === lead.id ? ' show' : ''}`}
                         style={{ padding: 8, minHeight: 36, minWidth: 36 }}
                         disabled={scoringId === lead.id || !!batch}
-                        onClick={() => cualificar(lead)}
+                        onClick={() => analizar(lead)}
                       >
-                        {scoringId === lead.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Lightning size={16} />}
+                        {scoringId === lead.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <MagnifyingGlassPlus size={16} />}
                       </button>
                       <button
                         aria-label={`Descartar ${lead.nombre}`}
@@ -1063,8 +1038,8 @@ export default function Leads() {
           </span>
           <span style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.15)' }} />
 
-          <button className="lote-bar-btn" onClick={cualificarSeleccionados} disabled={!!batch} style={loteBtnStyle}>
-            <Sparkle size={16} weight="fill" /> Cualificar con IA
+          <button className="lote-bar-btn" onClick={analizarSeleccionados} disabled={!!batch} style={loteBtnStyle}>
+            <Sparkle size={16} weight="fill" /> Analizar brechas
           </button>
 
           <ExportSheet leads={seleccionados} variant="dark" />
@@ -1155,11 +1130,10 @@ export default function Leads() {
   )
 }
 
-// Orden de prioridad: 0 = caliente sin trabajar, 1 = demo sin propuesta, 2 = resto.
+// Orden de prioridad: 0 = caliente sin analizar, 1 = resto.
 function prioridad(l: Lead): number {
   if (esCalienteSinTrabajar(l)) return 0
-  if (esDemoSinPropuesta(l)) return 1
-  return 2
+  return 1
 }
 
 // Pills de urgencia bajo el nombre — solo se muestran las relevantes.
@@ -1175,16 +1149,10 @@ function UrgenciaPills({ lead }: { lead: Lead }) {
     })
   }
   if (esCalienteSinTrabajar(lead)) {
-    pills.push({ texto: '· Caliente sin trabajar', bg: 'rgba(239,68,68,0.08)', color: '#EF4444' })
-  }
-  if (esDemoSinPropuesta(lead)) {
-    pills.push({ texto: '· Demo sin propuesta', bg: 'rgba(245,158,11,0.08)', color: '#F59E0B' })
+    pills.push({ texto: '· Caliente sin analizar', bg: 'rgba(239,68,68,0.08)', color: '#EF4444' })
   }
   if (esInactivo(lead)) {
     pills.push({ texto: '· Sin actividad 7d+', bg: 'rgba(161,161,170,0.1)', color: 'var(--color-text-tertiary)' })
-  }
-  if (lead.agent_id_retell) {
-    pills.push({ texto: '· Demo activa', bg: 'var(--color-primary-subtle)', color: 'var(--color-primary)' })
   }
   if (pills.length === 0) return null
   return (
