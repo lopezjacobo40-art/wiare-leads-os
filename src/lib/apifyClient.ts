@@ -32,12 +32,28 @@ function extractEmailFromText(text: string | null): string | null {
 
 function normalizeOpeningHours(raw: unknown): string[] {
   if (!raw) return []
-  if (Array.isArray(raw)) return raw.map(String)
+  if (typeof raw === 'string') return [raw]
+  if (Array.isArray(raw)) {
+    return raw.map((item) => {
+      if (typeof item === 'string') return item
+      if (item && typeof item === 'object') {
+        const o = item as Record<string, unknown>
+        // { day: "Lunes", hours: "13:00-16:00, 20:00-00:00" }
+        if (o.day && o.hours) return `${o.day}: ${o.hours}`
+        // { day: "Lunes", opens: "13:00", closes: "16:00" }
+        if (o.day && o.opens) return `${o.day}: ${o.opens}-${o.closes ?? ''}`
+        // { dayOfWeek: "Monday", opens: "09:00", closes: "22:00" }
+        if (o.dayOfWeek && o.opens) return `${o.dayOfWeek}: ${o.opens}-${o.closes ?? ''}`
+        // Cualquier otro objeto: serializar sus valores
+        return Object.entries(o).map(([k, v]) => `${k}: ${v}`).join(', ')
+      }
+      return String(item)
+    }).filter(Boolean)
+  }
   if (typeof raw === 'object') {
-    // Apify a veces devuelve { "Monday": "9:00-18:00", ... }
+    // { "Monday": "9:00-18:00", ... }
     return Object.entries(raw as Record<string, string>).map(([day, hours]) => `${day}: ${hours}`)
   }
-  if (typeof raw === 'string') return [raw]
   return []
 }
 
