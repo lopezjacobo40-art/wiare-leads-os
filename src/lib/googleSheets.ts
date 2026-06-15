@@ -34,6 +34,17 @@ function aDTO(lead: Lead) {
     email_verificado: lead.email_verificado,
     email_fuente: lead.email_fuente,
     fuente: lead.fuente,
+    // ── campos funnel completos ──
+    outreach_asunto: lead.outreach_asunto,
+    outreach_cuerpo: lead.outreach_cuerpo,
+    horario: lead.horario,
+    perdida_mensual_real: lead.perdida_mensual_real,
+    perdida_anual_real: lead.perdida_anual_real,
+    extraccion_fecha: lead.extraccion_fecha,
+    propuesta_slides: lead.propuesta_slides,
+    propuesta_tipo: lead.propuesta_tipo,
+    tag: lead.tag,
+    descripcion: lead.descripcion,
   }
 }
 
