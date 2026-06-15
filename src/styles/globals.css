@@ -283,7 +283,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   }
 
   /* ── Tabla Leads: ocultar columnas secundarias ── */
-  .col-resenas, .col-valoracion { display: none !important; }
+  .col-resenas, .col-valoracion, .hide-mobile { display: none !important; }
 
   /* Mostrar solo Eye + menú contextual en acciones */
   .acciones-extra { display: none !important; }

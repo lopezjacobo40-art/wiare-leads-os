@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe } from '@phosphor-icons/react'
+import { Eye, Lightning, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { scoreLead } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
@@ -668,6 +668,7 @@ export default function Leads() {
                   { label: 'Nombre' },
                   { label: 'Sector' },
                   { label: 'Teléfono' },
+                  { label: 'Email', cls: 'hide-mobile' },
                   { label: 'Reseñas', cls: 'col-resenas' },
                   { label: 'Val.', cls: 'col-valoracion' },
                   { label: 'Fase' },
@@ -757,6 +758,22 @@ export default function Leads() {
                   </td>
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.sector}</td>
                   <td style={{ padding: '0 16px', whiteSpace: 'nowrap' }}>{lead.telefono ?? '—'}</td>
+                  <td className="hide-mobile" style={{ padding: '0 16px' }}>
+                    {lead.email ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{lead.email}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(lead.email!); toast('Email copiado', 'info') }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--color-text-tertiary)' }}
+                          title="Copiar email"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>Sin email</span>
+                    )}
+                  </td>
                   <td className="col-resenas" style={{ padding: '0 16px' }}>{lead.num_resenas ?? '—'}</td>
                   <td className="col-valoracion" style={{ padding: '0 16px' }}>
                     {lead.valoracion ? (
@@ -806,7 +823,7 @@ export default function Leads() {
               })}
               {visibles.length === 0 && (
                 <tr>
-                  <td colSpan={9} style={{ padding: 0 }}>
+                  <td colSpan={10} style={{ padding: 0 }}>
                     {hayFiltros ? (
                       <EmptyState
                         icon={MagnifyingGlass}
