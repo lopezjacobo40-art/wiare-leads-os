@@ -145,7 +145,7 @@ export default function LeadDetalle() {
   const [emailOutreach, setEmailOutreach] = useState<{ asunto: string; cuerpo: string; asuntos: string[]; asunto_recomendado: string } | null>(null)
   const [asuntoEmailIdx, setAsuntoEmailIdx] = useState(0)
   const [cuerpoEditado, setCuerpoEditado] = useState('')
-  const [vendedor, setVendedor] = useState(() => sessionStorage.getItem('wiare_user') ?? 'Jacobo')
+  const vendedor = sessionStorage.getItem('wiare_user') ?? 'Jacobo'
   const [emailsHoy, setEmailsHoy] = useState(0)
 
   useEffect(() => {
