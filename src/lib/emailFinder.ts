@@ -1,6 +1,6 @@
 export interface EmailResult {
   email: string | null
-  fuente: 'web_scraping' | 'patron_dominio' | 'maps_descripcion' | 'no_encontrado'
+  fuente: 'apify_crawler' | 'web_scraping' | 'patron_dominio' | 'maps_descripcion' | 'no_encontrado'
   verificado: boolean
 }
 
@@ -26,9 +26,10 @@ export async function buscarEmail(params: {
 
 export function labelFuente(fuente: EmailResult['fuente']): string {
   switch (fuente) {
-    case 'web_scraping':    return 'Extraído de la web'
-    case 'patron_dominio':  return 'Patrón de dominio'
+    case 'apify_crawler':    return 'Crawled con Apify'
+    case 'web_scraping':     return 'Extraído de la web'
+    case 'patron_dominio':   return 'Patrón de dominio'
     case 'maps_descripcion': return 'Descripción Maps'
-    default:                return 'No encontrado'
+    default:                 return 'No encontrado'
   }
 }
