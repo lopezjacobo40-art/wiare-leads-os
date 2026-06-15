@@ -312,24 +312,53 @@ export default function Leads() {
     }
   }
 
+  const limpiarExtracciones = async (idsEliminados: string[]) => {
+    // Recoge los extraccion_id de los leads que se van a eliminar
+    const extIds = [...new Set(
+      leads
+        .filter((l) => idsEliminados.includes(l.id) && l.extraccion_id)
+        .map((l) => l.extraccion_id as string)
+    )]
+    if (extIds.length === 0) return
+    // Para cada extraccion_id, comprueba si quedan leads después del borrado
+    for (const extId of extIds) {
+      // Cuenta leads de esa extracción que NO están en la lista a eliminar
+      const leadsRestantes = leads.filter(
+        (l) => l.extraccion_id === extId && !idsEliminados.includes(l.id)
+      )
+      if (leadsRestantes.length === 0) {
+        await supabase.from('extracciones_os').delete().eq('extraccion_id', extId)
+      }
+    }
+  }
+
   const eliminarSeleccionados = async () => {
     setConfirmEliminarLote(false)
     setEliminandoLote(true)
     const ids = [...selectedIds]
+    await limpiarExtracciones(ids)
     const { error: err } = await supabase.from('leads_os').delete().in('id', ids)
     setEliminandoLote(false)
     if (err) toast(err.message, 'error')
     else {
       limpiarSeleccion()
+      if (extraccionFiltro && !leads.some((l) => !ids.includes(l.id) && l.extraccion_id === extraccionFiltro)) {
+        setExtraccionFiltro(null)
+      }
       await cargar()
       toast(`${ids.length} leads eliminados`, 'info')
     }
   }
 
   const descartar = async (lead: Lead) => {
+    await limpiarExtracciones([lead.id])
     const { error: err } = await supabase.from('leads_os').delete().eq('id', lead.id)
     if (err) toast(err.message, 'error')
     else {
+      if (extraccionFiltro && lead.extraccion_id === extraccionFiltro) {
+        const quedan = leads.filter((l) => l.id !== lead.id && l.extraccion_id === extraccionFiltro)
+        if (quedan.length === 0) setExtraccionFiltro(null)
+      }
       await cargar()
       toast(`${lead.nombre} descartado`, 'info')
     }
