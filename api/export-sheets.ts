@@ -37,6 +37,7 @@ const HEADER = [
 const FASE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
   negocio_analizado: 'Negocio analizado',
+  listo_para_enviar: 'Listo para enviar',
   brechas_detectadas: 'Brechas detectadas',
   email_enviado: 'Email enviado',
   respondido: 'Respondió',

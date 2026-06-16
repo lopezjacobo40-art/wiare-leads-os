@@ -66,11 +66,13 @@ export interface Extraccion {
   extraccion_id?: string | null
 }
 
-export const FASES = ['nuevo', 'negocio_analizado', 'brechas_detectadas', 'email_enviado', 'respondido', 'reunion_agendada'] as const
+export const FASES = ['nuevo', 'negocio_analizado', 'listo_para_enviar', 'email_enviado', 'respondido', 'reunion_agendada'] as const
 
 export const FASE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
   negocio_analizado: 'Negocio analizado',
+  listo_para_enviar: 'Listo para enviar',
+  // Legacy — pueden existir en BD hasta migrar
   brechas_detectadas: 'Brechas detectadas',
   email_enviado: 'Email enviado',
   respondido: 'Respondió',

@@ -24,12 +24,13 @@ import { useToast } from './Toast'
 // Color por fase. Cada hex corresponde 1:1 con un token de globals.css
 // (se mantiene en hex porque rgbaFromHex() deriva los fondos translúcidos a partir de él).
 const FASE_COLOR: Record<string, string> = {
-  nuevo: '#A1A1AA',               // --color-text-tertiary
-  negocio_analizado: '#6366F1',   // --color-primary (indigo)
-  brechas_detectadas: '#A855F7',  // violeta
-  email_enviado: '#22D3EE',       // cyan (enviado, esperando)
-  respondido: '#22C55E',          // verde (respondió — buena señal)
-  reunion_agendada: '#16A34A',    // verde fuerte (la conversión que importa)
+  nuevo: '#A1A1AA',
+  negocio_analizado: '#6366F1',
+  listo_para_enviar: '#A855F7',
+  brechas_detectadas: '#A855F7',  // legacy
+  email_enviado: '#22D3EE',
+  respondido: '#22C55E',
+  reunion_agendada: '#16A34A',
 }
 
 function rgbaFromHex(hex: string, alpha: number): string {

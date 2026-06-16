@@ -192,53 +192,58 @@ async function correrActor(actor: string, input: Record<string, unknown>): Promi
   }
 }
 
-// Deriva info@{dominio} a partir de una URL de web (último recurso, sin verificar).
-function patronDominio(web: string | null): string | null {
-  if (!web) return null
-  try {
-    const host = new URL(web.startsWith('http') ? web : `https://${web}`).hostname.replace(/^www\./, '')
-    if (!host.includes('.')) return null
-    return `info@${host}`
-  } catch {
-    return null
-  }
+// Emails a descartar (bots, sistemas, no-personas)
+const EMAIL_BLACKLIST = ['noreply', 'no-reply', 'donotreply', 'ejemplo', 'example', 'sentry', 'wordpress', 'wix', 'mailer', 'bounce']
+
+function esEmailValido(email: string): boolean {
+  const local = email.split('@')[0].toLowerCase()
+  return !EMAIL_BLACKLIST.some((b) => local.includes(b))
+}
+
+function extraerEmailReal(texto: string): string | null {
+  const email = extractEmailFromText(texto)
+  if (!email || !esEmailValido(email)) return null
+  return email
 }
 
 export interface EmailCascada {
   email: string | null
-  fuente: string // 'apify_maps' | 'apify_web' | 'apify_contact' | 'patron'
+  fuente: string // 'apify_maps' | 'apify_web' | 'apify_contact' | 'apify_extractor' | 'sin_email'
 }
 
-// Cascada de búsqueda de email: para al primer éxito.
+// Cascada de búsqueda de email real: para al primer éxito.
+// NUNCA devuelve un patrón info@dominio inventado.
 //   1. Email ya presente (del crawler de Maps).
-//   2. apify~website-content-crawler sobre la web.
-//   3. apify~contact-info-scraper sobre la web (respaldo).
-//   4. Patrón info@{dominio} (sin verificar).
+//   2. Email en descripción de Maps (extraído del texto publicado).
+//   3. apify~website-content-crawler sobre la web (crawl 3 págs).
+//   4. vdrmota~contact-info-scraper (extrae emails/teléfonos/redes de la web).
+//   5. apify~web-email-extractor (2º scraper independiente, distinto motor).
+//   Si ninguno da email real → { email: null, fuente: 'sin_email' }.
 export async function buscarEmailCascada(lead: {
   email?: string | null
   web?: string | null
   descripcion?: string | null
 }): Promise<EmailCascada> {
   // 1. Ya lo trajo Maps
-  if (lead.email) return { email: lead.email, fuente: 'apify_maps' }
+  if (lead.email && esEmailValido(lead.email)) return { email: lead.email, fuente: 'apify_maps' }
 
-  // Email en la descripción de Maps (gratis, sin actor)
-  const desdeDescripcion = extractEmailFromText(lead.descripcion ?? null)
+  // 2. Email en la descripción de Maps (publicado por el negocio, gratis)
+  const desdeDescripcion = extraerEmailReal(lead.descripcion ?? '')
   if (desdeDescripcion) return { email: desdeDescripcion, fuente: 'apify_maps' }
 
   if (lead.web) {
-    // 2. website-content-crawler
+    // 3. website-content-crawler
     const itemsWeb = await correrActor('apify~website-content-crawler', {
       startUrls: [{ url: lead.web }],
       maxCrawlPages: 3,
       maxCrawlDepth: 1,
     })
     for (const item of itemsWeb) {
-      const email = extractEmailFromText(String(item.text || item.html || item.content || ''))
+      const email = extraerEmailReal(String(item.text || item.html || item.content || ''))
       if (email) return { email, fuente: 'apify_web' }
     }
 
-    // 3. contact-info-scraper (respaldo; si el actor no existe en la cuenta → [] y sigue)
+    // 4. contact-info-scraper (si el actor no existe en la cuenta → [] y sigue)
     const itemsContact = await correrActor('vdrmota~contact-info-scraper', {
       startUrls: [{ url: lead.web }],
       maxRequestsPerStartUrl: 5,
@@ -247,17 +252,30 @@ export async function buscarEmailCascada(lead: {
     for (const item of itemsContact) {
       const emails = item.emails as string[] | undefined
       if (Array.isArray(emails) && emails.length > 0) {
-        const valido = emails.find((e) => EMAIL_PRIORITY_PREFIXES.some((p) => e.toLowerCase().startsWith(p))) ?? emails[0]
+        const valido =
+          emails.find((e) => esEmailValido(e) && EMAIL_PRIORITY_PREFIXES.some((p) => e.toLowerCase().startsWith(p))) ??
+          emails.find((e) => esEmailValido(e))
         if (valido) return { email: valido, fuente: 'apify_contact' }
       }
-      const email = extractEmailFromText(String(item.text || item.html || ''))
+      const email = extraerEmailReal(String(item.text || item.html || ''))
       if (email) return { email, fuente: 'apify_contact' }
     }
 
-    // 4. Patrón de dominio
-    const patron = patronDominio(lead.web)
-    if (patron) return { email: patron, fuente: 'patron' }
+    // 5. web-email-extractor — 2º motor independiente (si falla → sigue)
+    const itemsExtractor = await correrActor('apify~web-email-extractor', {
+      startUrls: [{ url: lead.web }],
+      maxPagesPerCrawl: 5,
+    })
+    for (const item of itemsExtractor) {
+      const emails = item.emails as string[] | undefined
+      if (Array.isArray(emails) && emails.length > 0) {
+        const valido =
+          emails.find((e) => esEmailValido(e) && EMAIL_PRIORITY_PREFIXES.some((p) => e.toLowerCase().startsWith(p))) ??
+          emails.find((e) => esEmailValido(e))
+        if (valido) return { email: valido, fuente: 'apify_extractor' }
+      }
+    }
   }
 
-  return { email: null, fuente: 'patron' }
+  return { email: null, fuente: 'sin_email' }
 }

@@ -196,11 +196,11 @@ export default function LeadDetalle() {
     toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
   }
 
-  // Confirmar brechas → pasa la fase a 'brechas_detectadas'.
-  const confirmarBrechas = async () => {
+  // Listo para enviar → pasa la fase a 'listo_para_enviar'.
+  const marcarListoParaEnviar = async () => {
     if (!lead) return
-    await actualizar({ fase: 'brechas_detectadas' })
-    toast('Brechas confirmadas', 'success')
+    await actualizar({ fase: 'listo_para_enviar' })
+    toast('Listo para enviar', 'success')
   }
 
   // Abre el redactor de Gmail con el destinatario prerrellenado.
@@ -393,17 +393,16 @@ export default function LeadDetalle() {
                   {buscandoEmail ? 'Buscando…' : 'Buscar email'}
                 </button>
               </div>
-              {/* Aviso si el email es un patrón adivinado (info@dominio): puede rebotar
-                  y dañar la reputación de envío. Verificar antes de mandar. */}
-              {lead.email && lead.email_fuente === 'patron' && (
+              {/* Sin email real — badge informativo */}
+              {!lead.email && lead.email_fuente === 'sin_email' && (
                 <div style={{
                   display: 'flex', alignItems: 'flex-start', gap: 6,
-                  background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                  background: 'rgba(161,161,170,0.08)', border: '1px solid rgba(161,161,170,0.2)',
                   borderRadius: 'var(--radius-sm)', padding: '6px 10px', fontSize: 11,
-                  color: 'var(--color-warning)', lineHeight: 1.4,
+                  color: 'var(--color-text-tertiary)', lineHeight: 1.4,
                 }}>
                   <Warning size={13} weight="fill" style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>Dirección <strong>adivinada</strong> (info@dominio), no verificada. Puede rebotar y dañar tu reputación de envío — confírmala antes de enviar.</span>
+                  <span>No se encontró ningún email real en su web. Puedes añadirlo manualmente o dejarlo sin email.</span>
                 </div>
               )}
               <div style={{ display: 'flex', gap: 6 }}>
@@ -613,8 +612,8 @@ export default function LeadDetalle() {
                     {/* Acciones del funnel */}
                     <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
                       {lead.fase === 'negocio_analizado' && (
-                        <button className="btn-secondary" onClick={confirmarBrechas}>
-                          <CheckCircle size={16} /> Confirmar brechas
+                        <button className="btn-secondary" onClick={marcarListoParaEnviar}>
+                          <CheckCircle size={16} /> Listo para enviar
                         </button>
                       )}
                       <button

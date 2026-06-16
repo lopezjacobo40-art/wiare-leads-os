@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise } from '@phosphor-icons/react'
+import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
@@ -172,8 +172,29 @@ export default function Leads() {
   const limpiarSeleccion = () => setSelectedIds(new Set())
   const seleccionados = useMemo(() => leads.filter((l) => selectedIds.has(l.id)), [leads, selectedIds])
 
+  // Avanza la fase de un lead a 'listo_para_enviar'
+  const marcarListoParaEnviar = async (lead: Lead) => {
+    const { error: err } = await supabase.from('leads_os').update({ fase: 'listo_para_enviar' }).eq('id', lead.id)
+    if (err) toast(err.message, 'error')
+    else {
+      await cargar()
+      toast(`${lead.nombre} → Listo para enviar`, 'success')
+    }
+  }
+
+  // Avanza la fase de un lead a 'email_enviado'
+  const marcarEmailEnviado = async (lead: Lead) => {
+    const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
+    await supabase.from('token_usage_os').insert({ usuario, accion: 'email_enviado', tokens_estimados: 0 })
+    const { error: err } = await supabase.from('leads_os').update({ fase: 'email_enviado' }).eq('id', lead.id)
+    if (err) toast(err.message, 'error')
+    else {
+      await cargar()
+      toast(`${lead.nombre} → Email enviado`, 'success')
+    }
+  }
+
   // Guarda el resultado del análisis de brechas en un lead.
-  // Pone el negocio en verde (analizado_at) y avanza la fase si está en 'nuevo'.
   const guardarAnalisis = async (lead: Lead) => {
     const r = await analizarBrechas(lead)
     await supabase
@@ -820,10 +841,10 @@ export default function Leads() {
             <tbody>
               {visibles.map((lead) => {
                 const selected = selectedIds.has(lead.id)
-                const analizado = lead.analizado_at != null
+                const listoParaEnviar = lead.fase === 'listo_para_enviar'
                 const bgBase = selected
                   ? 'var(--color-primary-subtle)'
-                  : analizado ? 'rgba(34,197,94,0.04)' : 'transparent'
+                  : listoParaEnviar ? 'rgba(34,197,94,0.04)' : 'transparent'
                 return (
                 <tr
                   key={lead.id}
@@ -831,7 +852,7 @@ export default function Leads() {
                   style={{
                     height: 56,
                     borderBottom: '1px solid var(--color-border)',
-                    borderLeft: selected ? '2px solid var(--color-primary)' : analizado ? '2px solid var(--color-success)' : '2px solid transparent',
+                    borderLeft: selected ? '2px solid var(--color-primary)' : listoParaEnviar ? '2px solid var(--color-success)' : '2px solid transparent',
                     background: bgBase,
                     cursor: 'pointer',
                     transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
@@ -934,28 +955,61 @@ export default function Leads() {
                   <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{FASE_LABELS[lead.fase] ?? lead.fase}</td>
                   <td style={{ padding: '0 16px' }} onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {/* Ver siempre */}
                       <button aria-label={`Vista rápida de ${lead.nombre}`} title="Vista rápida" className="btn-ghost" style={{ padding: 8, minHeight: 36, minWidth: 36 }} onClick={() => setQuickViewLead(lead)}>
                         <Eye size={16} />
                       </button>
-                      <button
-                        aria-label={`Analizar brechas de ${lead.nombre}`}
-                        title="Analizar brechas"
-                        className={`btn-ghost acciones-extra${menuFilaId === lead.id ? ' show' : ''}`}
-                        style={{ padding: 8, minHeight: 36, minWidth: 36 }}
-                        disabled={scoringId === lead.id || !!batch}
-                        onClick={() => analizar(lead)}
-                      >
-                        {scoringId === lead.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <MagnifyingGlassPlus size={16} />}
-                      </button>
-                      <button
-                        aria-label={`Descartar ${lead.nombre}`}
-                        title="Descartar"
-                        className={`btn-ghost acciones-extra${menuFilaId === lead.id ? ' show' : ''}`}
-                        style={{ padding: 8, minHeight: 36, minWidth: 36, color: 'var(--color-error)' }}
-                        onClick={() => setLeadADescartar(lead)}
-                      >
-                        <X size={16} />
-                      </button>
+
+                      {/* Acción principal dinámica por fase */}
+                      {lead.fase === 'nuevo' && (
+                        <button
+                          aria-label={`Analizar ${lead.nombre}`}
+                          title="Analizar negocio"
+                          className="btn-ghost"
+                          style={{ padding: 8, minHeight: 36, minWidth: 36 }}
+                          disabled={scoringId === lead.id || !!batch}
+                          onClick={() => analizar(lead)}
+                        >
+                          {scoringId === lead.id ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <MagnifyingGlassPlus size={16} />}
+                        </button>
+                      )}
+                      {lead.fase === 'negocio_analizado' && (
+                        <button
+                          aria-label={`Marcar ${lead.nombre} listo para enviar`}
+                          title="Listo para enviar"
+                          className="btn-ghost"
+                          style={{ padding: 8, minHeight: 36, minWidth: 36, color: '#A855F7' }}
+                          onClick={() => marcarListoParaEnviar(lead)}
+                        >
+                          <PaperPlaneTilt size={16} />
+                        </button>
+                      )}
+                      {lead.fase === 'listo_para_enviar' && (
+                        <button
+                          aria-label={`Marcar ${lead.nombre} como enviado`}
+                          title="Marcar como enviado"
+                          className="btn-ghost"
+                          style={{ padding: 8, minHeight: 36, minWidth: 36, color: 'var(--color-success)' }}
+                          onClick={() => marcarEmailEnviado(lead)}
+                        >
+                          <CheckCircle size={16} weight="fill" />
+                        </button>
+                      )}
+
+                      {/* Eliminar — solo en nuevo y negocio_analizado */}
+                      {(lead.fase === 'nuevo' || lead.fase === 'negocio_analizado') && (
+                        <button
+                          aria-label={`Descartar ${lead.nombre}`}
+                          title="Descartar"
+                          className="btn-ghost"
+                          style={{ padding: 8, minHeight: 36, minWidth: 36, color: 'var(--color-error)' }}
+                          onClick={() => setLeadADescartar(lead)}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+
+                      {/* Menú extra en móvil */}
                       <button
                         aria-label={`Más acciones para ${lead.nombre}`}
                         title="Más acciones"
