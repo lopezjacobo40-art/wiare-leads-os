@@ -3,13 +3,10 @@ import { guardedCall } from './tokenGuard'
 import { SECTORES, RESISTENCIAS, type Resistencia } from './simuladorData'
 import { WIARE_CONTEXTO } from './wiareContexto'
 import { getNichoBrechas } from './brechasConfig'
+import { callGemini } from './geminiApi'
 
 const API_URL = 'https://api.anthropic.com/v1/messages'
 const KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
-
-async function callClaude(model: string, maxTokens: number, prompt: string): Promise<string> {
-  return callClaudeChat(model, maxTokens, [{ role: 'user', content: prompt }])
-}
 
 /* Mensaje de una conversación multi-turno. */
 export type ChatMsg = { role: 'user' | 'assistant'; content: string }
@@ -54,13 +51,15 @@ async function callClaudeChat(
    ───────────────────────────────────────────── */
 
 export interface ResultadoBrechas {
-  score: number                  // 1-10, encaje del negocio con WIARE
-  resumen: string                // informe profesional, 3-4 frases
-  brechas: string[]              // 3 brechas detectadas
-  puntos_email: string[]         // 3 puntos clave para el email (frases concretas)
-  ahorro_estimado: string        // p.ej. "~1.200€/mes en reservas perdidas"
+  score: number
+  resumen: string
+  brechas: string[]
+  puntos_email: string[]
+  ahorro_estimado: string
   volumen: 'bajo' | 'medio' | 'alto' | 'muy_alto'
-  mrr: number                    // 90-390, alimenta la pestaña Costes
+  mrr: number
+  recomendacion: 'contactar' | 'dudoso' | 'descartar'
+  encaje: string
 }
 
 export async function analizarBrechas(lead: Lead): Promise<ResultadoBrechas> {
@@ -71,53 +70,67 @@ export async function analizarBrechas(lead: Lead): Promise<ResultadoBrechas> {
       ? JSON.stringify(lead.horario)
       : 'Desconocido'
 
-  const prompt = `Eres consultor de WIARE. WIARE instala un sistema de atención al cliente
-disponible 24/7 para negocios locales en España, que les hace AHORRAR DINERO Y TIEMPO
-captando las llamadas y consultas que hoy pierden.
+  const prompt = `Eres analista CRÍTICO de WIARE. WIARE instala un sistema de atención 24/7
+para negocios locales en España que pierden llamadas y consultas fuera de horario.
 
-Analiza las BRECHAS de este negocio respecto a lo que WIARE puede resolverle.
+REGLA FUNDAMENTAL: La mayoría de negocios NO son clientes ideales. Sé brutalmente honesto.
+Si el encaje es débil, puntuación BAJA (1-4) y recomendación DESCARTAR. No infles el score.
 
-DATOS REALES DEL NEGOCIO (de Google Maps):
+DATOS DEL NEGOCIO (Google Maps):
 Nombre: ${lead.nombre}
 Sector: ${lead.sector}
 Ciudad: ${lead.ciudad ?? 'España'}
-Valoración: ${lead.valoracion ?? 'N/D'}/5
-Reseñas: ${lead.num_resenas ?? 0}
+Valoración: ${lead.valoracion ?? 'N/D'}/5 — Reseñas: ${lead.num_resenas ?? 0}
 Tiene web: ${lead.web ? 'Sí' : 'No'}
 Horario: ${horario}
 Descripción: ${lead.descripcion ?? 'Sin descripción'}
 
-CONOCIMIENTO DEL NICHO "${nicho.label}" (úsalo como guía, no lo copies literal):
-Problema central del sector: ${nicho.problema_core}
-Palancas que WIARE activa en este nicho:
+NICHO "${nicho.label}":
+Problema core: ${nicho.problema_core}
+Palancas WIARE:
 ${nicho.palancas.map((p) => `- ${p}`).join('\n')}
 
-REGLAS ABSOLUTAS:
-- NUNCA escribas "IA", "bot", "agente", "inteligencia artificial", "automatización", "algoritmo".
-- SÍ usa lenguaje de negocio: "atención", "recepción", "respuesta", "ahorro", "clientes perdidos".
-- Las brechas y los puntos deben ser ESPECÍFICOS de ESTE negocio (usa su horario, reseñas, sector, web/sin web), no genéricos.
-- Los 3 "puntos_email" son frases concretas y persuasivas, listas para que un comercial las pegue en su plantilla de email. Cada punto en 1 frase.
-- Sé honesto en el score: la mayoría de negocios buenos caen entre 5 y 8. Reserva 9-10 para encajes evidentes.
+CUÁNDO PUNTUAR BAJO (1-4) y DESCARTAR:
+- Cadena o franquicia (ya tiene centralita/recepcionista)
+- Sector con atención online ya resuelta (e-commerce, SaaS, apps)
+- Horario 24/7 ya cubierto o sin citas
+- Pocas reseñas + sin web = negocio pequeño sin presupuesto
+- El problema que WIARE resuelve no aplica a este sector
 
-ESCALA DE SCORE (encaje con WIARE):
-1-4: encaje débil (ya digitalizado, o problema que WIARE no resuelve)
-5-7: buen encaje, merece contacto
-8-10: encaje fuerte, contactar ya
+CUÁNDO PUNTUAR ALTO (7-10) y CONTACTAR:
+- Clínica/peluquería/restaurante con horario limitado y muchas reseñas
+- Sin web o web básica + volumen visible de clientes
+- Sector donde la cita previa o reserva es crítica
+- Probable pérdida real de clientes fuera de horario
+
+ESCALA HONESTA:
+1-3: descartar, no merece email
+4-5: dudoso, solo si no hay mejores leads
+6-7: buen encaje, contactar
+8-10: reservar para encajes MUY evidentes (no más del 15% de negocios)
+
+LENGUAJE: NUNCA "IA", "bot", "algoritmo". SÍ "atención", "recepción", "clientes perdidos".
+Los puntos_email son frases persuasivas concretas, listas para pegar en plantilla. 1 frase cada una.
 
 Responde SOLO en JSON sin markdown:
 {
   "score": número 1-10,
-  "resumen": "informe profesional en 3-4 frases sobre las brechas de atención de este negocio y por qué WIARE le ahorra dinero/tiempo",
-  "brechas": ["brecha 1 específica", "brecha 2 específica", "brecha 3 específica"],
-  "puntos_email": ["punto 1 listo para el email", "punto 2", "punto 3"],
-  "ahorro_estimado": "estimación realista, p.ej. ~1.200€/mes en reservas perdidas",
+  "recomendacion": "contactar|dudoso|descartar",
+  "encaje": "1 frase explicando POR QUÉ encaja o no encaja con WIARE",
+  "resumen": "informe 3-4 frases sobre brechas de atención de ESTE negocio concreto",
+  "brechas": ["brecha 1 específica de este negocio", "brecha 2", "brecha 3"],
+  "puntos_email": ["punto 1 listo para email", "punto 2", "punto 3"],
+  "ahorro_estimado": "estimación orientativa, p.ej. ~800€/mes en citas perdidas",
   "volumen": "bajo|medio|alto|muy_alto",
   "mrr": número entre 90 y 390
 }`
 
-  const text = await guardedCall('score', () => callClaude('claude-haiku-4-5', 800, prompt))
+  const text = await guardedCall('score', () => callGemini(prompt))
   const json = text.replace(/```json|```/g, '').trim()
   const parsed = JSON.parse(json)
+  const recomendacion = ['contactar', 'dudoso', 'descartar'].includes(parsed.recomendacion)
+    ? parsed.recomendacion as ResultadoBrechas['recomendacion']
+    : 'dudoso'
   return {
     score: Math.max(0, Math.min(10, Number(parsed.score))),
     resumen: String(parsed.resumen ?? ''),
@@ -126,12 +139,20 @@ Responde SOLO en JSON sin markdown:
     ahorro_estimado: String(parsed.ahorro_estimado ?? ''),
     volumen: parsed.volumen ?? 'medio',
     mrr: Number(parsed.mrr) || 190,
+    recomendacion,
+    encaje: String(parsed.encaje ?? ''),
   }
 }
 
 // Extrae el subconjunto que se persiste en leads_os.analisis_brechas (jsonb).
 export function toAnalisisBrechas(r: ResultadoBrechas): AnalisisBrechas {
-  return { brechas: r.brechas, puntos_email: r.puntos_email, ahorro_estimado: r.ahorro_estimado }
+  return {
+    brechas: r.brechas,
+    puntos_email: r.puntos_email,
+    ahorro_estimado: r.ahorro_estimado,
+    recomendacion: r.recomendacion,
+    encaje: r.encaje,
+  }
 }
 
 /* ─────────────────────────────────────────────

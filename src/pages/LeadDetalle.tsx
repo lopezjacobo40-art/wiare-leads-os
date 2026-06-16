@@ -540,6 +540,32 @@ export default function LeadDetalle() {
                       </div>
                     )}
 
+                    {/* Badge de recomendación (v7 Gemini) */}
+                    {analisis?.recomendacion && (() => {
+                      const cfg = {
+                        contactar: { bg: 'rgba(34,197,94,0.1)', color: '#16A34A', label: 'Contactar' },
+                        dudoso:    { bg: 'rgba(245,158,11,0.1)', color: '#D97706', label: 'Dudoso' },
+                        descartar: { bg: 'rgba(239,68,68,0.1)', color: '#DC2626', label: 'Descartar' },
+                      }[analisis.recomendacion]
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+                            padding: '4px 12px', borderRadius: 'var(--radius-full)',
+                            fontSize: 13, fontWeight: 600,
+                            background: cfg.bg, color: cfg.color,
+                          }}>
+                            {cfg.label}
+                          </span>
+                          {analisis.encaje && (
+                            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                              {analisis.encaje}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                     {/* Resumen (informe) */}
                     {lead.motivo_score && (
                       <div>

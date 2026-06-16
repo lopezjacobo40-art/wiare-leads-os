@@ -51,9 +51,12 @@ export interface Lead {
 
 // Resultado del análisis de brechas que se guarda en leads_os.analisis_brechas (jsonb).
 export interface AnalisisBrechas {
-  brechas: string[]        // 3 brechas detectadas del negocio
-  puntos_email: string[]   // 3 puntos clave listos para pegar en la plantilla
-  ahorro_estimado: string  // p.ej. "~1.200€/mes en reservas perdidas"
+  brechas: string[]
+  puntos_email: string[]
+  ahorro_estimado: string
+  // v7 — campos nuevos (opcionales para compatibilidad con análisis anteriores)
+  recomendacion?: 'contactar' | 'dudoso' | 'descartar'
+  encaje?: string
 }
 
 export interface Extraccion {
