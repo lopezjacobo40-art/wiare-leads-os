@@ -39,6 +39,8 @@ const FASE_LABELS: Record<string, string> = {
   negocio_analizado: 'Negocio analizado',
   brechas_detectadas: 'Brechas detectadas',
   email_enviado: 'Email enviado',
+  respondido: 'Respondió',
+  reunion_agendada: 'Reunión agendada',
 }
 
 interface LeadDTO {

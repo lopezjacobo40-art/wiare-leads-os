@@ -393,6 +393,19 @@ export default function LeadDetalle() {
                   {buscandoEmail ? 'Buscando…' : 'Buscar email'}
                 </button>
               </div>
+              {/* Aviso si el email es un patrón adivinado (info@dominio): puede rebotar
+                  y dañar la reputación de envío. Verificar antes de mandar. */}
+              {lead.email && lead.email_fuente === 'patron' && (
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 6,
+                  background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                  borderRadius: 'var(--radius-sm)', padding: '6px 10px', fontSize: 11,
+                  color: 'var(--color-warning)', lineHeight: 1.4,
+                }}>
+                  <Warning size={13} weight="fill" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>Dirección <strong>adivinada</strong> (info@dominio), no verificada. Puede rebotar y dañar tu reputación de envío — confírmala antes de enviar.</span>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 6 }}>
                 <input
                   type="email"
@@ -507,19 +520,21 @@ export default function LeadDetalle() {
                   </>
                 ) : (
                   <>
-                    {/* Ahorro estimado destacado */}
+                    {/* Ahorro estimado — INTERNO. Es una estimación orientativa de la IA
+                        a partir de datos públicos (reseñas, horario); NO una cifra calculada.
+                        No citarla al cliente como dato concreto: se hunde en la 1ª llamada. */}
                     {analisis.ahorro_estimado && (
                       <div style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.18)',
-                        borderRadius: 'var(--radius-lg)', padding: '16px 20px',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)', padding: '10px 14px',
                       }}>
-                        <CurrencyEur size={28} weight="fill" style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 2 }}>
-                            Ahorro / recuperación estimada
+                        <CurrencyEur size={16} weight="bold" style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)' }}>
+                            Orientativo interno · no citar al cliente
                           </div>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-success)' }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
                             {analisis.ahorro_estimado}
                           </div>
                         </div>

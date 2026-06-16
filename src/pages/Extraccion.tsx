@@ -27,12 +27,15 @@ function esCadena(nombre: string): boolean {
 }
 
 // Heurística "empresa grande / +50 trabajadores". Apify no da nº de empleados
-// fiable, así que se usa un proxy: cadenas conocidas o un volumen de reseñas
-// muy alto (típico de grandes superficies, franquicias o multinacionales).
-const RESENAS_EMPRESA_GRANDE = 1500
-function esEmpresaGrande(l: ApifyLead): boolean {
+// fiable, así que se usa un proxy. OJO: muchas reseñas NO implica empresa grande
+// — una clínica dental top de Madrid supera 1500 reseñas y es ICP perfecto.
+// Por eso el umbral es alto (solo grandes superficies/franquicias lo superan) y
+// la exclusión dura se reserva a cadenas conocidas; el volumen de reseñas solo
+// se usa para des-priorizar (ver `ordenarPorEncaje`), no para excluir en duro.
+const RESENAS_GRAN_SUPERFICIE = 3000
+function esCadena_o_GranSuperficie(l: ApifyLead): boolean {
   if (esCadena(l.title)) return true
-  if ((l.reviewsCount ?? 0) > RESENAS_EMPRESA_GRANDE) return true
+  if ((l.reviewsCount ?? 0) > RESENAS_GRAN_SUPERFICIE) return true
   return false
 }
 
@@ -110,10 +113,12 @@ export default function Extraccion() {
       // ── Filtros post-extracción ──
       let leads: ApifyLead[] = leadsRaw
       let numCadenasExcluidas = 0
-      // Regla dura: excluir empresas grandes (+50 trabajadores, por heurística)
+      // Excluir empresas grandes: solo cadenas conocidas y grandes superficies
+      // (>3000 reseñas). Umbral alto a propósito para no descartar negocios ICP
+      // muy reseñados (p.ej. una clínica dental top con 1500-2500 reseñas).
       if (excluirGrandes) {
         const antes = leads.length
-        leads = leads.filter((l) => !esEmpresaGrande(l))
+        leads = leads.filter((l) => !esCadena_o_GranSuperficie(l))
         numCadenasExcluidas += antes - leads.length
       }
       if (excluirCadenas) {
@@ -313,14 +318,14 @@ export default function Extraccion() {
 
           {/* Checkboxes */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }} title="Excluye cadenas y negocios con muchísimas reseñas (proxy de +50 trabajadores)">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }} title="Excluye cadenas conocidas y grandes superficies (>3000 reseñas). No descarta negocios ICP muy reseñados.">
               <input
                 type="checkbox"
                 checked={excluirGrandes}
                 onChange={(e) => setExcluirGrandes(e.target.checked)}
                 style={{ width: 16, height: 16, accentColor: 'var(--color-primary)', minHeight: 'auto' }}
               />
-              <span>Excluir empresas grandes (+50 trabajadores)</span>
+              <span>Excluir cadenas y empresas grandes</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
               <input

@@ -7,7 +7,9 @@ export const FASE_COLOR: Record<string, string> = {
   nuevo: '#A1A1AA',               // --color-text-tertiary
   negocio_analizado: '#6366F1',   // --color-primary (indigo)
   brechas_detectadas: '#A855F7',  // violeta
-  email_enviado: '#22C55E',       // --color-success
+  email_enviado: '#22D3EE',       // cyan (enviado, esperando)
+  respondido: '#22C55E',          // verde (respondió)
+  reunion_agendada: '#16A34A',    // verde fuerte (conversión)
 }
 
 interface Props {
