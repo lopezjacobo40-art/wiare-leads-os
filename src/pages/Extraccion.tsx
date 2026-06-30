@@ -272,8 +272,9 @@ export default function Extraccion() {
         setLog((prev) => [...prev, `${encontrados} de ${sinEmail.length} emails encontrados`])
       }
       setEstado('completado')
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Error desconocido')
+    } catch (err: any) {
+      console.error('Error en extracción:', err)
+      setErrorMsg(err?.message || (typeof err === 'string' ? err : 'Error desconocido'))
       setEstado('error')
     }
   }
