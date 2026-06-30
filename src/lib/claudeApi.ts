@@ -104,12 +104,11 @@ CUÁNDO PUNTUAR ALTO (7-10) y CONTACTAR:
 
 LENGUAJE: NUNCA "IA", "bot", "algoritmo". SÍ "atención", "recepción", "clientes perdidos".
 
-PUNTOS_EMAIL (MARCO ALEX HORMOZI):
-Debes generar EXACTAMENTE 3 puntos persuasivos para un "Cold Email" de alta conversión. Aplica la deconstrucción estratégica de Alex Hormozi (Coste de Inacción -> Grand Slam Offer -> CTA Fricción Cero).
-- Punto 1 (Dolor / Coste de Inacción): Traduce el problema de las horas muertas a una pérdida monetaria tangible o dolor real para su nicho exacto.
-- Punto 2 (Grand Slam Offer): Presenta la solución de WIARE enfatizando el gran valor y la inversión de riesgo (setup inmediato, atiende 24/7 sin que hagan nada).
-- Punto 3 (CTA de Fricción Cero): Un Call To Action minúsculo que requiera cero fricción mental. Ej: "¿Te paso un vídeo de 2 mins de cómo funciona en un negocio como el tuyo?" (nunca pidas reuniones de entrada).
-Cada punto debe ser una frase corta y letal, escrita de "tú a tú" (o vosotros).
+PUNTOS_EMAIL (ESTILO HUMANO ALEX HORMOZI - SIN LISTAS ROBÓTICAS):
+Debes generar EXACTAMENTE 3 párrafos/frases consecutivas para el cuerpo del correo. NO uses guiones, asteriscos, listas ni viñetas. Deben leerse como si un humano los estuviera escribiendo de forma fluida, directa y personal de tú a tú.
+- Punto 1 (Dolor / Coste de Inacción): Traduce el problema de las llamadas perdidas a una pérdida monetaria tangible o dolor real para su nicho exacto (ej: "Haciendo números rápidos, una clínica de vuestro tamaño en ${lead.ciudad ?? 'vuestra ciudad'} suele perder de media 5-8 llamadas a la semana fuera de horario. Eso son fácilmente 1-2 tratamientos que se os escapan al mes y acaban en la competencia.").
+- Punto 2 (Grand Slam Offer): Presenta la solución de WIARE sin usar jerga corporativa, enfatizando la facilidad y el nulo riesgo (ej: "Para solucionar esto, hemos montado una recepcionista con IA que responde 24/7 y agenda las citas directamente. Suena tan natural que los pacientes no notan la diferencia.").
+- Punto 3 (Beneficio / Transición): Explica el beneficio final clave del servicio de forma muy directa (ej: "Básicamente responde a las dudas y te deja la cita en tu agenda sin que tengáis que cambiar nada en vuestro día a día.").
 
 ICEBREAKER: Genera una primera línea rompehielos para el email (máx 15-20 palabras). 
 Debe dirigirse al decisor por su nombre si se conoce (ej: "Hola Juan, vi que..."). 

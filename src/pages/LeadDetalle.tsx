@@ -230,7 +230,7 @@ Jacobo.`
     // Preparar variables
     const nombreDecisor = lead.decisor_nombre ? lead.decisor_nombre.split(' ')[0] : 'propietario'
     const icebreaker = lead.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${lead.nombre} y me pareció muy interesante.`
-    const puntosFormat = (lead.analisis_brechas?.puntos_email || []).map(p => `- ${p}`).join('\n')
+    const puntosFormat = (lead.analisis_brechas?.puntos_email || []).join('\n\n')
 
     // Reemplazar variables
     let finalSubject = subjectTemplate
