@@ -49,6 +49,12 @@ export interface Lead {
   decisor_cargo: string | null
   decisor_linkedin: string | null
   icebreaker?: string | null
+  
+  // Nurturing & Audio
+  demo_audio_url?: string | null
+  proximo_toque_fecha?: string | null
+  proximo_toque_tipo?: 'Llamada' | 'Email' | 'WhatsApp' | null
+  
   // ── Análisis de brechas (v6) ──
   analisis_brechas: AnalisisBrechas | null
   analizado_at: string | null
@@ -64,6 +70,18 @@ export interface AnalisisBrechas {
   encaje?: string
   email_asunto?: string
   email_cuerpo?: string
+}
+
+export interface SupabaseConfig {
+  url: string
+  key: string
+}
+
+export interface TelemetriaEvent {
+  id: string
+  lead_id: string
+  evento: string
+  created_at: string
 }
 
 export interface Extraccion {

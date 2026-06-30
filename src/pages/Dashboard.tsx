@@ -108,6 +108,15 @@ export default function Dashboard() {
   const totalAlertas =
     leadsWebSinContactar.length + calientesSinTrabajar.length + sinActividad.length
 
+  // ── Tareas de Nurturing para hoy ──
+  const tareasDeHoy = leads.filter(l => {
+    if (!l.proximo_toque_fecha) return false
+    const fecha = new Date(l.proximo_toque_fecha)
+    const hoy = new Date()
+    hoy.setHours(23, 59, 59, 999)
+    return fecha <= hoy
+  }).sort((a, b) => new Date(a.proximo_toque_fecha!).getTime() - new Date(b.proximo_toque_fecha!).getTime())
+
   const porSector = leads.reduce<Record<string, number>>((acc, l) => {
     acc[l.sector] = (acc[l.sector] ?? 0) + 1
     return acc
@@ -281,6 +290,41 @@ export default function Dashboard() {
         sinActividad={sinActividad.length}
         navigate={navigate}
       />
+
+      {/* ── Tareas de Hoy (Nurturing) ── */}
+      {tareasDeHoy.length > 0 && (
+        <div style={{ marginTop: 32, marginBottom: 32 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle size={20} color="var(--color-primary)" weight="fill" />
+              Tareas de Nurturing ({tareasDeHoy.length})
+            </h2>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+            {tareasDeHoy.map(t => (
+              <div key={t.id} style={{
+                background: '#fff', padding: '16px 20px', borderRadius: 12, border: '1px solid var(--color-border)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>{t.nombre}</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                    Toque: <strong style={{ color: 'var(--color-primary)' }}>{t.proximo_toque_tipo || 'Contacto inicial'}</strong>
+                  </div>
+                </div>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setQuickViewLead(t)}
+                  style={{ fontSize: 12, padding: '6px 12px', minHeight: 32 }}
+                >
+                  Atender <ArrowRight size={14} style={{ marginLeft: 4 }} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pipeline */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 32, marginBottom: 16 }}>

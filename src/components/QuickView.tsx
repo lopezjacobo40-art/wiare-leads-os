@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   X, ArrowRight, Phone, Globe, MapPin, Star, Clock,
-  MagnifyingGlassPlus, CurrencyEur, PaperPlaneTilt, Copy,
+  MagnifyingGlassPlus, PaperPlaneTilt, Copy, PlayCircle,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
@@ -10,7 +10,7 @@ import ScoreBadge from './ScoreBadge'
 import FaseSelector from './FaseSelector'
 import { useToast } from './Toast'
 
-type Tab = 'info' | 'acciones' | 'notas'
+
 
 const PANEL_WIDTH = 480
 
@@ -29,15 +29,14 @@ export default function QuickView({
 }) {
   const navigate = useNavigate()
   const toast = useToast()
-  const [tab, setTab] = useState<Tab>('info')
   const [notas, setNotas] = useState('')
   const [analizando, setAnalizando] = useState(false)
+  const [generandoAudio, setGenerandoAudio] = useState(false)
   const [localLead, setLocalLead] = useState<Lead | null>(lead)
 
   // Sincroniza el estado local cuando cambia el lead recibido.
   useEffect(() => {
     setLocalLead(lead)
-    setTab('info')
     if (lead) setNotas(lead.notas ?? '')
   }, [lead])
 
@@ -89,6 +88,69 @@ export default function QuickView({
     }
   }
 
+  const generarDemoAudio = async () => {
+    const apiKey = localStorage.getItem('elevenlabs_api_key')
+    const voiceId = localStorage.getItem('elevenlabs_voice_id')
+    if (!apiKey || !voiceId) {
+      toast('Configura las claves de ElevenLabs en Configuración primero', 'error')
+      return
+    }
+    
+    setGenerandoAudio(true)
+    try {
+      // 1. Llamar a ElevenLabs
+      const prompt = `Hola, se ha comunicado con la recepcionista virtual de ${l.nombre}. ¿En qué le puedo ayudar hoy?`
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': apiKey
+        },
+        body: JSON.stringify({
+          text: prompt,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75
+          }
+        })
+      })
+
+      if (!res.ok) throw new Error('Error al generar audio en ElevenLabs')
+      
+      const audioBlob = await res.blob()
+      
+      // 2. Subir a Supabase Storage
+      const fileName = `demo_${l.id}_${Date.now()}.mp3`
+      const { error } = await supabase.storage.from('demos_audio').upload(fileName, audioBlob, {
+        contentType: 'audio/mpeg',
+        upsert: false
+      })
+
+      if (error) throw error
+
+      // 3. Obtener URL pública
+      const { data: { publicUrl } } = supabase.storage.from('demos_audio').getPublicUrl(fileName)
+
+      // 4. Actualizar el lead en la BD
+      const { error: dbError } = await supabase
+        .from('leads_os')
+        .update({ demo_audio_url: publicUrl })
+        .eq('id', l.id)
+
+      if (dbError) throw dbError
+
+      setLocalLead({ ...l, demo_audio_url: publicUrl })
+      onUpdated?.()
+      toast('Demo de voz generada con éxito', 'success')
+      
+    } catch (err: any) {
+      toast(err.message || 'Error al generar demo', 'error')
+    } finally {
+      setGenerandoAudio(false)
+    }
+  }
+
   const cambiarFase = async (fase: string) => {
     if (fase === l.fase) return
     const { error } = await supabase.from('leads_os').update({ fase }).eq('id', l.id)
@@ -97,6 +159,23 @@ export default function QuickView({
       setLocalLead({ ...l, fase })
       onUpdated?.()
       toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
+    }
+  }
+
+  const programarSiguienteToque = async (tipo: 'Llamada' | 'WhatsApp' | 'Email' | null, diasAdelante: number) => {
+    let proximo_toque_fecha = null
+    if (diasAdelante > 0) {
+      const d = new Date()
+      d.setDate(d.getDate() + diasAdelante)
+      proximo_toque_fecha = d.toISOString()
+    }
+    const { error } = await supabase.from('leads_os').update({ proximo_toque_fecha, proximo_toque_tipo: tipo }).eq('id', l.id)
+    if (error) {
+      toast('Error al programar toque', 'error')
+    } else {
+      setLocalLead({ ...l, proximo_toque_fecha, proximo_toque_tipo: tipo })
+      onUpdated?.()
+      toast(tipo ? `Programado: ${tipo} en ${diasAdelante} días` : 'Secuencia finalizada', 'success')
     }
   }
 
@@ -221,49 +300,11 @@ Jacobo.`
           </div>
         </div>
 
-        {/* Tabs */}
-        <div
-          role="tablist"
-          aria-label="Secciones de la vista rápida"
-          style={{ display: 'flex', gap: 4, padding: '0 24px', borderBottom: '1px solid var(--color-border)' }}
-        >
-          {([
-            { id: 'info', label: 'Info' },
-            { id: 'acciones', label: 'Acciones' },
-            { id: 'notas', label: 'Notas' },
-          ] as { id: Tab; label: string }[]).map((t) => {
-            const activo = tab === t.id
-            return (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={activo}
-                onClick={() => setTab(t.id)}
-                style={{
-                  padding: '12px 10px',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: activo ? '2px solid var(--color-primary)' : '2px solid transparent',
-                  color: activo ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                  marginBottom: -1,
-                  borderRadius: 0,
-                  minHeight: 44,
-                  transition: 'color 150ms cubic-bezier(0.4,0,0.2,1)',
-                }}
-              >
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Cuerpo */}
-        <div style={{ flex: 1, padding: '20px 24px' }}>
-          {/* ── TAB INFO ── */}
-          {tab === 'info' && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* Cuerpo (Todo en una vista, sin pestañas) */}
+        <div style={{ flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 32 }}>
+          
+          {/* ── INFO BÁSICA ── */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
               {l.telefono && (
                 <InfoFila icon={Phone} color="var(--color-success)" label="Teléfono">
                   <a href={`tel:${l.telefono.replace(/\s/g, '')}`}>{l.telefono}</a>
@@ -372,38 +413,81 @@ Jacobo.`
                   </button>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* ── TAB ACCIONES ── */}
-          {tab === 'acciones' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <button
-                onClick={analizar}
-                disabled={analizando || l.analizado_at != null}
-                style={accionBtnStyle}
-                onMouseEnter={(e) => { if (analizando || l.analizado_at) return; e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.background = 'var(--color-primary-subtle)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = '#fff' }}
-              >
-                {analizando
-                  ? <span className="spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
-                  : <MagnifyingGlassPlus size={22} weight="regular" style={{ color: 'var(--color-primary)' }} />}
-                <span>{analizando ? 'Analizando…' : l.analizado_at ? 'Ya analizado' : 'Analizar brechas'}</span>
-              </button>
-              <button
-                onClick={() => navigate(`/leads/${l.id}`)}
-                style={accionBtnStyle}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.background = 'var(--color-primary-subtle)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = '#fff' }}
-              >
-                <CurrencyEur size={22} weight="regular" style={{ color: 'var(--color-primary)' }} />
-                <span>Ver informe y costes</span>
-              </button>
-            </div>
-          )}
+              {/* ── SECCIÓN DE DEMO DE VOZ ── */}
+              <div style={{ marginTop: 20, padding: 16, background: 'var(--color-surface-2)', borderRadius: 12, border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-primary)', margin: 0 }}>Demo Robada (Audio)</h3>
+                  {!l.demo_audio_url && (
+                    <button
+                      onClick={generarDemoAudio}
+                      className="btn-primary"
+                      disabled={generandoAudio}
+                      style={{ padding: '6px 12px', fontSize: 12, minHeight: 'auto', gap: 6, display: 'inline-flex', alignItems: 'center' }}
+                    >
+                      {generandoAudio ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <PlayCircle size={14} />}
+                      Generar 30s
+                    </button>
+                  )}
+                </div>
+                
+                {l.demo_audio_url ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <audio src={l.demo_audio_url} controls style={{ width: '100%', height: 36 }} />
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/d/${l.id}`
+                        navigator.clipboard.writeText(url)
+                        toast('Enlace copiado (wiare-leads.com/d/...)', 'info')
+                      }}
+                      className="btn-ghost"
+                      style={{ fontSize: 12, padding: '4px 8px', alignSelf: 'flex-start', color: 'var(--color-text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                    >
+                      <Copy size={12} style={{ marginRight: 4 }} /> Copiar enlace para prospecto
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+                    No hay demo de voz generada todavía.
+                  </div>
+                )}
+              </div>
+              
+              {/* ── SECCIÓN DE NURTURING (SECUENCIA) ── */}
+              <div style={{ padding: 16, background: 'var(--color-surface-2)', borderRadius: 12, border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-primary)', margin: 0 }}>Secuencia de Nurturing</h3>
+                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
+                  Actual: <strong style={{ color: 'var(--color-text-primary)' }}>{l.proximo_toque_tipo || 'Ninguno'}</strong>
+                  {l.proximo_toque_fecha && ` (Para: ${new Date(l.proximo_toque_fecha).toLocaleDateString()})`}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button className="btn-secondary" style={{ flex: 1, fontSize: 11, minHeight: 32, padding: '4px 8px' }} onClick={() => programarSiguienteToque('Llamada', 3)}>
+                    Email Hecho → Prog. Llamada (Día 3)
+                  </button>
+                  <button className="btn-secondary" style={{ flex: 1, fontSize: 11, minHeight: 32, padding: '4px 8px' }} onClick={() => programarSiguienteToque('WhatsApp', 2)}>
+                    Llamada Hecha → Prog. WA (Día 5)
+                  </button>
+                  <button className="btn-secondary" style={{ flex: 1, fontSize: 11, minHeight: 32, padding: '4px 8px' }} onClick={() => programarSiguienteToque(null, 0)}>
+                    Finalizar Secuencia
+                  </button>
+                </div>
+              </div>
+          </div>
 
-          {/* ── TAB NOTAS ── */}
-          {tab === 'notas' && (
+          {/* ── NOTAS ── */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)', margin: 0 }}>Notas Internas</h3>
+              {notas !== (l.notas ?? '') && (
+                <button
+                  onClick={guardarNotas}
+                  className="btn-primary"
+                  style={{ fontSize: 11, padding: '4px 10px', minHeight: 28 }}
+                >
+                  Guardar notas
+                </button>
+              )}
+            </div>
             <textarea
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
@@ -411,15 +495,16 @@ Jacobo.`
               placeholder="Apuntes de llamadas, objeciones, próximos pasos…"
               style={{
                 width: '100%',
-                minHeight: 240,
+                minHeight: 160,
                 resize: 'vertical',
                 borderRadius: 'var(--radius-md)',
                 padding: 14,
                 fontSize: 14,
                 lineHeight: 1.6,
+                border: '1px solid var(--color-border)'
               }}
             />
-          )}
+          </div>
         </div>
 
         {/* Footer */}
@@ -434,45 +519,17 @@ Jacobo.`
   )
 }
 
-const accionBtnStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  background: '#fff',
-  border: '1px solid var(--color-border)',
-  borderRadius: 10,
-  padding: 16,
-  minHeight: 88,
-  fontSize: 13,
-  fontWeight: 500,
-  color: 'var(--color-text-primary)',
-  textAlign: 'center',
-  transition: 'border-color 150ms cubic-bezier(0.4,0,0.2,1), background 150ms cubic-bezier(0.4,0,0.2,1)',
-}
 
-function InfoFila({
-  icon: Icon,
-  color,
-  label,
-  children,
-}: {
-  icon: typeof Phone
-  color: string
-  label: string
-  children: React.ReactNode
-}) {
+
+function InfoFila({ icon: Icon, color, label, children }: { icon: any; color: string; label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
-      <Icon size={14} weight="fill" style={{ color, flexShrink: 0, marginTop: 3 }} />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)', marginBottom: 2 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid var(--color-border)' }}>
+      <Icon size={16} weight="fill" style={{ color, marginTop: 2, marginRight: 12 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>
           {label}
         </div>
-        <div style={{ fontSize: 14, fontWeight: 400, color: 'var(--color-text-primary)', lineHeight: 1.4, wordBreak: 'break-word' }}>
-          {children}
-        </div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{children}</div>
       </div>
     </div>
   )

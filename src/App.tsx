@@ -14,14 +14,32 @@ import Biblioteca from './pages/Biblioteca'
 import Generador from './pages/contenido/Generador'
 import Calendario from './pages/contenido/Calendario'
 import BibliotecaContent from './pages/contenido/BibliotecaContent'
+import DemoPlayer from './pages/DemoPlayer'
 import Sidebar from './components/Sidebar'
+import { useToast } from './components/Toast'
+import { supabase } from './lib/supabaseClient'
 
 function Shell({ onLogout }: { onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
+  const toast = useToast()
 
   // Cierra el drawer al navegar
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
+
+  // Radar de Telemetría
+  useEffect(() => {
+    const channel = supabase.channel('telemetria_radar')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetria_os' }, async (payload) => {
+        if (payload.new.evento === 'demo_escuchada') {
+          const { data } = await supabase.from('leads_os').select('nombre').eq('id', payload.new.lead_id).single()
+          const nombre = data?.nombre || 'Un prospecto'
+          toast(`🔥 ¡${nombre} está escuchando tu demo de voz ahora mismo!`, 'info')
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [toast])
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -61,6 +79,16 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 
 export default function App() {
   const [user, setUser] = useState<string | null>(sessionStorage.getItem('wiare_user'))
+  const location = useLocation()
+
+  // Ruta pública para leads (bypass de autenticación)
+  if (location.pathname.startsWith('/d/')) {
+    return (
+      <Routes>
+        <Route path="/d/:id" element={<DemoPlayer />} />
+      </Routes>
+    )
+  }
 
   if (!user) {
     return <Login onLogin={(u) => setUser(u)} />

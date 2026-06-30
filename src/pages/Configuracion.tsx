@@ -425,7 +425,10 @@ export default function Configuracion() {
       {/* ── SECCIÓN 4 — Integraciones ── */}
       <SeccionIntegraciones />
 
-      {/* ── SECCIÓN 5 — Plantillas de Email ── */}
+      {/* ── SECCIÓN 5 — Voz de IA (ElevenLabs) ── */}
+      <SeccionElevenLabs />
+
+      {/* ── SECCIÓN 6 — Plantillas de Email ── */}
       <SeccionPlantillas />
     </motion.div>
   )
@@ -955,7 +958,69 @@ const codeStyle: React.CSSProperties = {
 }
 
 /* ─────────────────────────────────────────────
-   SECCIÓN 5 — Plantillas de Email
+   SECCIÓN 5 — Voz de IA (ElevenLabs)
+   ───────────────────────────────────────────── */
+function SeccionElevenLabs() {
+  const [apiKey, setApiKey] = useState('')
+  const [voiceId, setVoiceId] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setApiKey(localStorage.getItem('elevenlabs_api_key') || '')
+    setVoiceId(localStorage.getItem('elevenlabs_voice_id') || '')
+  }, [])
+
+  const guardar = () => {
+    localStorage.setItem('elevenlabs_api_key', apiKey)
+    localStorage.setItem('elevenlabs_voice_id', voiceId)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <section style={seccionStyle}>
+      <TituloSeccion titulo="Voz de IA (ElevenLabs)" />
+      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: -8, marginBottom: 20, lineHeight: 1.5 }}>
+        Configura tus claves para generar la "Demo Robada" de 30 segundos automáticamente desde QuickView. Las claves se guardan localmente en tu navegador de forma segura.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+            ElevenLabs API Key
+          </label>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-..."
+            style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+            Voice ID (El clon de la recepcionista)
+          </label>
+          <input
+            value={voiceId}
+            onChange={(e) => setVoiceId(e.target.value)}
+            placeholder="ej: Xb7hH8..."
+            style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+          />
+        </div>
+        
+        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 12 }}>
+          <button className="btn-primary" onClick={guardar} style={{ padding: '8px 24px' }}>
+            <FloppyDisk size={16} /> {saved ? 'Guardadas localmente' : 'Guardar Claves'}
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   SECCIÓN 6 — Plantillas de Email
    ───────────────────────────────────────────── */
 function SeccionPlantillas() {
   const [subject, setSubject] = useState('')
