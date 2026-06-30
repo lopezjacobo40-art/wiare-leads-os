@@ -87,7 +87,7 @@ REGLAS:
 
   const messages: ChatMsg[] = [{ role: 'user', content: prompt }]
   
-  return await guardedCall('generarGuionAudio', async () => {
+  return await guardedCall('score', async () => {
     // Usamos el modelo rápido (Haiku) para la demo instantánea.
     const raw = await callClaudeChat('claude-3-5-haiku-20241022', 400, messages)
     try {
