@@ -67,9 +67,10 @@ export default function AuditorPanel() {
     <div
       style={{
         border: '1px solid var(--color-border)',
-        borderRadius: 14,
-        background: '#fff',
-        padding: 24,
+        borderRadius: 'var(--radius-xl)',
+        background: 'var(--color-card)',
+        backdropFilter: 'blur(12px)',
+        padding: 32,
         marginBottom: 32,
         boxShadow: 'var(--shadow-sm)',
       }}

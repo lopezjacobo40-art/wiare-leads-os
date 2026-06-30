@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useLayoutEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { gsap } from 'gsap'
 import { Users, Fire, MagnifyingGlassPlus, CurrencyEur, Clock, CheckCircle, ArrowRight, CaretRight, ArrowsClockwise, Globe } from '@phosphor-icons/react'
 import { supabase, type Lead, type Extraccion } from '../lib/supabaseClient'
 import { syncWebLeads } from '../lib/syncWebLeads'
@@ -53,6 +53,21 @@ export default function Dashboard() {
   }
 
   useEffect(() => { cargar() }, [])
+
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (!loading && containerRef.current) {
+      const ctx = gsap.context(() => {
+        gsap.fromTo(
+          '.gsap-stagger',
+          { opacity: 0, y: 40, scale: 0.95 },
+          { opacity: 1, y: 0, scale: 1, duration: 1.2, ease: 'power4.out', stagger: 0.1 }
+        )
+      }, containerRef)
+      return () => ctx.revert()
+    }
+  }, [loading])
 
   // ── Sincronización automática de leads de wiaresolution.com ──
   // Corre al montar y cada 5 min. Solo recarga el dashboard si trajo algo nuevo.
@@ -205,81 +220,119 @@ export default function Dashboard() {
           </button>
         }
       />
+      {/* Título Cinemático (Hero adaptado al Dashboard interno) */}
+      <div style={{ marginBottom: 48, marginTop: 16 }}>
+        <h1 style={{ 
+          fontSize: 'clamp(2rem, 4vw, 3rem)', 
+          lineHeight: 1.1, 
+          letterSpacing: '-0.03em', 
+          maxWidth: '1000px', 
+          background: 'var(--gradient-brand)', 
+          WebkitBackgroundClip: 'text', 
+          WebkitTextFillColor: 'transparent',
+          marginBottom: 16 
+        }}>
+          Control de Flujo.
+        </h1>
+        <p style={{ fontSize: 18, color: 'var(--color-text-secondary)', maxWidth: 600 }}>
+          Resumen en tiempo real del pipeline de leads y oportunidades generadas.
+        </p>
+      </div>
+
       {error && <p style={{ color: 'var(--color-error)', marginBottom: 16 }}>Error: {error}</p>}
 
-      {/* Métricas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-        {metricas.map((m, i) => (
-          <motion.div
-            key={m.label}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06, duration: 0.25 }}
-            whileHover={{ y: -2 }}
-            style={{
-              background: '#fff',
-              border: '1px solid var(--color-border)',
-              borderRadius: 14,
-              padding: 24,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04)',
-              transition: 'box-shadow 200ms cubic-bezier(0.4,0,0.2,1)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05), 0 16px 40px rgba(0,0,0,0.08)')}
-            onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04)')}
-          >
-            {/* Fila superior: icono container */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div ref={containerRef}>
+        {/* Métricas Bento Grid (Gapless / Dense) */}
+        <div className="bento-grid" style={{ marginBottom: 40 }}>
+          {metricas.map((m) => {
+            const isHeroCard = m.label === 'MRR potencial' || m.label === 'Leads calientes'
+            const colSpan = isHeroCard ? 'col-span-2' : 'col-span-1'
+            const rowSpan = isHeroCard ? 'row-span-2' : 'row-span-1'
+            
+            return (
               <div
+                key={m.label}
+                className={`gsap-stagger ${colSpan} ${rowSpan}`}
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  background: `color-mix(in srgb, ${m.color} 10%, transparent)`,
+                  background: 'var(--color-card)',
+                  backdropFilter: 'blur(12px)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-xl)',
+                  padding: isHeroCard ? 40 : 32,
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: m.color,
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  minHeight: isHeroCard ? 260 : 200,
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+                  cursor: 'default',
+                  overflow: 'hidden',
+                  position: 'relative'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.02) translateY(-4px)'
+                  e.currentTarget.style.boxShadow = 'var(--shadow-lg)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1) translateY(0)'
+                  e.currentTarget.style.boxShadow = 'var(--shadow-sm)'
                 }}
               >
-                <m.icon size={20} weight="bold" />
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', zIndex: 10 }}>
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 14,
+                      background: `color-mix(in srgb, ${m.color} 10%, transparent)`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: m.color,
+                    }}
+                  >
+                    <m.icon size={24} weight="fill" />
+                  </div>
+                </div>
+
+                <div style={{ zIndex: 10, marginTop: 'auto' }}>
+                  <p
+                    style={{
+                      fontSize: isHeroCard ? 56 : 36,
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-display)',
+                      color: 'var(--color-text-primary)',
+                      lineHeight: 1,
+                      marginTop: 32,
+                      letterSpacing: '-0.04em'
+                    }}
+                  >
+                    {m.value}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: isHeroCard ? 18 : 14,
+                      fontFamily: 'var(--font-body)',
+                      fontWeight: 500,
+                      color: 'var(--color-text-secondary)',
+                      marginTop: 12,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}
+                  >
+                    {m.label}
+                  </p>
+                </div>
+
+                {isHeroCard && (
+                  <div style={{ position: 'absolute', bottom: -20, right: -20, opacity: 0.03, pointerEvents: 'none' }}>
+                    <m.icon size={200} weight="fill" />
+                  </div>
+                )}
               </div>
-            </div>
-
-            {/* Número principal */}
-            <p
-              style={{
-                fontSize: 36,
-                fontWeight: 800,
-                fontFamily: 'var(--font-display)',
-                color: 'var(--color-text-primary)',
-                lineHeight: 1.05,
-                marginTop: 16,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {m.value}
-            </p>
-
-            {/* Label */}
-            <p
-              style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--color-text-secondary)',
-                marginTop: 4,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              {m.label}
-            </p>
-
-            {/* Línea inferior: separador + contexto */}
-            <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 12 }}>
-              <p style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-tertiary)' }}>{m.contexto}</p>
-            </div>
-          </motion.div>
-        ))}
+            )
+          })}
+        </div>
       </div>
 
       {/* Tu lista de hoy — alertas */}
