@@ -215,19 +215,14 @@ export default function LeadDetalle() {
     if (!lead?.email) return
     
     // Plantillas por defecto
-    const defaultSubject = 'Idea para {{nombre_negocio}}'
+    const defaultSubject = 'pregunta rápida'
     const defaultBody = `{{icebreaker}}
-
-Estuvimos analizando vuestra operativa y notamos que se os están escapando clientes (y facturación) fuera de vuestro horario comercial.
 
 {{puntos}}
 
-Hemos ayudado a otros negocios locales en {{ciudad}} a recuperar hasta un 30% de la facturación perdida instalando una recepcionista IA que atiende 24/7 de forma 100% natural.
+Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches cómo sonaría con el nombre de {{nombre_negocio}}? Si no encaja, cero compromiso.
 
-¿Te interesaría que hablemos 5 minutos esta semana para ver si tiene sentido para vosotros?
-
-Un saludo,
-[Tu Nombre]`
+Jacobo.`
 
     const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
     const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody

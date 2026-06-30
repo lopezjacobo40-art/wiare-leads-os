@@ -1093,13 +1093,14 @@ export default function Leads() {
                                 toast('Este lead no tiene email', 'error')
                                 return
                               }
-                              const defaultSubject = 'idea rápida para {{nombre_negocio}}'
+                              const defaultSubject = 'pregunta rápida'
                               const defaultBody = `{{icebreaker}}
 
 {{puntos}}
 
-Un saludo,
-[Tu Nombre]`
+Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches cómo sonaría con el nombre de {{nombre_negocio}}? Si no encaja, cero compromiso.
+
+Jacobo.`
 
                               const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
                               const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody

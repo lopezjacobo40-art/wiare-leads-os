@@ -962,13 +962,14 @@ function SeccionPlantillas() {
   const [body, setBody] = useState('')
   const [saved, setSaved] = useState(false)
 
-  const defaultSubject = 'idea rápida para {{nombre_negocio}}'
+  const defaultSubject = 'pregunta rápida'
   const defaultBody = `{{icebreaker}}
 
 {{puntos}}
 
-Un saludo,
-[Tu Nombre]`
+Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches cómo sonaría con el nombre de {{nombre_negocio}}? Si no encaja, cero compromiso.
+
+Jacobo.`
 
   useEffect(() => {
     setSubject(localStorage.getItem('email_template_subject') || defaultSubject)
@@ -1019,9 +1020,21 @@ Un saludo,
           />
         </div>
         
-        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 12 }}>
           <button className="btn-primary" onClick={guardar} style={{ padding: '8px 24px' }}>
             <FloppyDisk size={16} /> {saved ? 'Guardado' : 'Guardar plantilla'}
+          </button>
+          <button 
+            className="btn-ghost" 
+            onClick={() => {
+              setSubject(defaultSubject)
+              setBody(defaultBody)
+              localStorage.removeItem('email_template_subject')
+              localStorage.removeItem('email_template_body')
+            }} 
+            style={{ padding: '8px 16px', fontSize: 13 }}
+          >
+            Restaurar estilo Hormozi
           </button>
         </div>
       </div>
