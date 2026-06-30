@@ -62,6 +62,8 @@ export interface AnalisisBrechas {
   // v7 — campos nuevos (opcionales para compatibilidad con análisis anteriores)
   recomendacion?: 'contactar' | 'dudoso' | 'descartar'
   encaje?: string
+  email_asunto?: string
+  email_cuerpo?: string
 }
 
 export interface Extraccion {

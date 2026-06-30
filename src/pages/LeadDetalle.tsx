@@ -213,10 +213,16 @@ export default function LeadDetalle() {
   // Abre el redactor de Gmail con el destinatario y plantilla prerrellenada.
   const abrirGmail = () => {
     if (!lead?.email) return
-    
-    // Plantillas por defecto
-    const defaultSubject = 'pregunta rápida'
-    const defaultBody = `{{icebreaker}}
+
+    let finalSubject = ''
+    let finalBody = ''
+
+    if (lead.analisis_brechas?.email_asunto && lead.analisis_brechas?.email_cuerpo) {
+      finalSubject = lead.analisis_brechas.email_asunto
+      finalBody = lead.analisis_brechas.email_cuerpo
+    } else {
+      const defaultSubject = 'pregunta rápida'
+      const defaultBody = `{{icebreaker}}
 
 {{puntos}}
 
@@ -224,28 +230,26 @@ Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches c
 
 Jacobo.`
 
-    const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
-    const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
+      const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
+      const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
 
-    // Preparar variables
-    const nombreDecisor = lead.decisor_nombre ? lead.decisor_nombre.split(' ')[0] : 'propietario'
-    const icebreaker = lead.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${lead.nombre} y me pareció muy interesante.`
-    const puntosFormat = (lead.analisis_brechas?.puntos_email || []).join('\n\n')
+      const nombreDecisor = lead.decisor_nombre ? lead.decisor_nombre.split(' ')[0] : 'propietario'
+      const icebreaker = lead.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${lead.nombre} y me pareció muy interesante.`
+      const puntosFormat = (lead.analisis_brechas?.puntos_email || []).join('\n\n')
 
-    // Reemplazar variables
-    let finalSubject = subjectTemplate
-      .replace(/{{nombre_negocio}}/g, lead.nombre)
-      .replace(/{{nombre_decisor}}/g, nombreDecisor)
-      .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
+      finalSubject = subjectTemplate
+        .replace(/{{nombre_negocio}}/g, lead.nombre)
+        .replace(/{{nombre_decisor}}/g, nombreDecisor)
+        .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
 
-    let finalBody = bodyTemplate
-      .replace(/{{nombre_negocio}}/g, lead.nombre)
-      .replace(/{{nombre_decisor}}/g, nombreDecisor)
-      .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
-      .replace(/{{icebreaker}}/g, icebreaker)
-      .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+      finalBody = bodyTemplate
+        .replace(/{{nombre_negocio}}/g, lead.nombre)
+        .replace(/{{nombre_decisor}}/g, nombreDecisor)
+        .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
+        .replace(/{{icebreaker}}/g, icebreaker)
+        .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+    }
 
-    // Construir URL de Gmail
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`
     window.open(gmailUrl, '_blank')
   }

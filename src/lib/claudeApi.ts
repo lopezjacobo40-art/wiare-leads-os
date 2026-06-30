@@ -61,6 +61,8 @@ export interface ResultadoBrechas {
   recomendacion: 'contactar' | 'dudoso' | 'descartar'
   encaje: string
   icebreaker: string
+  email_asunto?: string
+  email_cuerpo?: string
 }
 
 export async function analizarBrechas(lead: Lead): Promise<ResultadoBrechas> {
@@ -104,16 +106,25 @@ CUÁNDO PUNTUAR ALTO (7-10) y CONTACTAR:
 
 LENGUAJE: NUNCA "IA", "bot", "algoritmo". SÍ "atención", "recepción", "clientes perdidos".
 
-PUNTOS_EMAIL (ESTILO HUMANO ALEX HORMOZI - SIN LISTAS ROBÓTICAS):
-Debes generar EXACTAMENTE 3 párrafos/frases consecutivas para el cuerpo del correo. NO uses guiones, asteriscos, listas ni viñetas. Deben leerse como si un humano los estuviera escribiendo de forma fluida, directa y personal de tú a tú.
-- Punto 1 (Dolor / Coste de Inacción): Traduce el problema de las llamadas perdidas a una pérdida monetaria tangible o dolor real para su nicho exacto (ej: "Haciendo números rápidos, una clínica de vuestro tamaño en ${lead.ciudad ?? 'vuestra ciudad'} suele perder de media 5-8 llamadas a la semana fuera de horario. Eso son fácilmente 1-2 tratamientos que se os escapan al mes y acaban en la competencia.").
-- Punto 2 (Grand Slam Offer): Presenta la solución de WIARE sin usar jerga corporativa, enfatizando la facilidad y el nulo riesgo (ej: "Para solucionar esto, hemos montado una recepcionista con IA que responde 24/7 y agenda las citas directamente. Suena tan natural que los pacientes no notan la diferencia.").
-- Punto 3 (Beneficio / Transición): Explica el beneficio final clave del servicio de forma muy directa (ej: "Básicamente responde a las dudas y te deja la cita en tu agenda sin que tengáis que cambiar nada en vuestro día a día.").
+PUNTOS_EMAIL e ICEBREAKER (Retrocompatibilidad):
+- Genera en puntos_email 3 frases con el dolor, solución y beneficio para otros usos (en formato array).
+- Genera en icebreaker la primera línea por separado.
 
-ICEBREAKER: Genera una primera línea rompehielos para el email (máx 15-20 palabras). 
-Debe dirigirse al decisor por su nombre si se conoce (ej: "Hola Juan, vi que..."). 
-Debe basarse en un dato real (año de fundación, número de reseñas, ciudad, especialidad de la descripción).
-Debe sonar casual, 100% humano, como si lo escribieras rápido desde el móvil. NO suenes corporativo.
+EMAIL DE OUTREACH PERSONALIZADO (ALEX HORMOZI - 100% HUMANO):
+Debes redactar un correo de venta en frío hiper-personalizado y su respectivo asunto en base a los datos de este negocio. Debe sonar 100% escrito a mano, sincero, casual y directo.
+
+REGLAS DE REDACCIÓN:
+1. LIMPIEZA DE NOMBRE: Limpia el nombre del negocio. Si el nombre en Google Maps incluye slogans o frases SEO (ej: "Clínica Moratín Podología || podólogo centro de Madrid"), acórtalo a lo que diría un humano (ej: "Clínica Moratín" o "Clínica Moratín Podología").
+2. ASUNTO (email_asunto): Un asunto muy corto, en minúsculas y casual que genere curiosidad (ej: "pregunta rápida", "duda sobre vuestras llamadas", "duda sobre {{nombre_limpio}}").
+3. CUERPO (email_cuerpo):
+   - Saludo directo al decisor si se conoce su nombre (ej: "Hola Carlos,") o general si no (ej: "Hola,").
+   - Icebreaker: Una primera línea rápida basada en un detalle real de su negocio (sus reseñas, su web, años abierta).
+   - Dolor/Coste: Traduce la pérdida de llamadas a dinero/pacientes perdidos al mes basándote en su sector y volumen de reseñas (ej: "Haciendo números, una clínica dental de vuestro tamaño en Madrid suele perder 6-8 llamadas a la semana fuera de horario. Con vuestro ticket medio, eso son fácilmente 2.500€/mes que se van directos a la competencia.").
+   - Solución/Grand Slam Offer: Presenta de forma simple el sistema (una recepcionista digital que atiende 24h con vuestro nombre y agenda las citas directamente, sonando idéntica a un humano).
+   - CTA ÚNICO DE FRICCIÓN CERO: Pide permiso para enviarle un audio personalizado de WhatsApp de 30 segundos (ej: "Si te cuadra, ¿te puedo pasar un audio de 30 segundos por WhatsApp para que escuches cómo sonaría contestando con el nombre de Clínica Moratín?").
+   - Firma casual (ej: "Un saludo, Jacobo - WIARE").
+   - IMPORTANTE: No metas listas de viñetas, guiones ni estructures el email como un folleto de ventas. Debe fluir como un correo de texto plano rápido enviado desde el móvil.
+   - NUNCA incluyas múltiples CTAs. El único CTA debe ser el de WhatsApp.
 
 Genera el análisis estructurado del negocio.`
 
@@ -137,9 +148,11 @@ Genera el análisis estructurado del negocio.`
         ahorro_estimado: { type: 'string' },
         volumen: { type: 'string', enum: ['bajo', 'medio', 'alto', 'muy_alto'] },
         mrr: { type: 'integer' },
-        icebreaker: { type: 'string' }
+        icebreaker: { type: 'string' },
+        email_asunto: { type: 'string' },
+        email_cuerpo: { type: 'string' }
       },
-      required: ['score', 'recomendacion', 'encaje', 'resumen', 'brechas', 'puntos_email', 'ahorro_estimado', 'volumen', 'mrr', 'icebreaker']
+      required: ['score', 'recomendacion', 'encaje', 'resumen', 'brechas', 'puntos_email', 'ahorro_estimado', 'volumen', 'mrr', 'icebreaker', 'email_asunto', 'email_cuerpo']
     },
     thinkingConfig: {
       thinkingBudget: 0
@@ -170,6 +183,8 @@ Genera el análisis estructurado del negocio.`
     recomendacion,
     encaje: String(parsed.encaje ?? ''),
     icebreaker: String(parsed.icebreaker ?? ''),
+    email_asunto: String(parsed.email_asunto ?? ''),
+    email_cuerpo: String(parsed.email_cuerpo ?? ''),
   }
 }
 
@@ -181,6 +196,8 @@ export function toAnalisisBrechas(r: ResultadoBrechas): AnalisisBrechas {
     ahorro_estimado: r.ahorro_estimado,
     recomendacion: r.recomendacion,
     encaje: r.encaje,
+    email_asunto: r.email_asunto,
+    email_cuerpo: r.email_cuerpo,
   }
 }
 

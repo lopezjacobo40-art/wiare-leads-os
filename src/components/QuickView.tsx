@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   X, ArrowRight, Phone, Globe, MapPin, Star, Clock,
-  MagnifyingGlassPlus, CurrencyEur, PaperPlaneTilt,
+  MagnifyingGlassPlus, CurrencyEur, PaperPlaneTilt, Copy,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
@@ -105,8 +105,16 @@ export default function QuickView({
       toast('Este lead no tiene email', 'error')
       return
     }
-    const defaultSubject = 'pregunta rápida'
-    const defaultBody = `{{icebreaker}}
+
+    let finalSubject = ''
+    let finalBody = ''
+
+    if (l.analisis_brechas?.email_asunto && l.analisis_brechas?.email_cuerpo) {
+      finalSubject = l.analisis_brechas.email_asunto
+      finalBody = l.analisis_brechas.email_cuerpo
+    } else {
+      const defaultSubject = 'pregunta rápida'
+      const defaultBody = `{{icebreaker}}
 
 {{puntos}}
 
@@ -114,24 +122,25 @@ Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches c
 
 Jacobo.`
 
-    const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
-    const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
+      const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
+      const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
 
-    const nombreDecisor = l.decisor_nombre ? l.decisor_nombre.split(' ')[0] : 'propietario'
-    const icebreaker = l.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${l.nombre} y me pareció muy interesante.`
-    const puntosFormat = (l.analisis_brechas?.puntos_email || []).join('\n\n')
+      const nombreDecisor = l.decisor_nombre ? l.decisor_nombre.split(' ')[0] : 'propietario'
+      const icebreaker = l.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${l.nombre} y me pareció muy interesante.`
+      const puntosFormat = (l.analisis_brechas?.puntos_email || []).join('\n\n')
 
-    let finalSubject = subjectTemplate
-      .replace(/{{nombre_negocio}}/g, l.nombre)
-      .replace(/{{nombre_decisor}}/g, nombreDecisor)
-      .replace(/{{ciudad}}/g, l.ciudad || 'tu ciudad')
+      finalSubject = subjectTemplate
+        .replace(/{{nombre_negocio}}/g, l.nombre)
+        .replace(/{{nombre_decisor}}/g, nombreDecisor)
+        .replace(/{{ciudad}}/g, l.ciudad || 'tu ciudad')
 
-    let finalBody = bodyTemplate
-      .replace(/{{nombre_negocio}}/g, l.nombre)
-      .replace(/{{nombre_decisor}}/g, nombreDecisor)
-      .replace(/{{ciudad}}/g, l.ciudad || 'tu ciudad')
-      .replace(/{{icebreaker}}/g, icebreaker)
-      .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+      finalBody = bodyTemplate
+        .replace(/{{nombre_negocio}}/g, l.nombre)
+        .replace(/{{nombre_decisor}}/g, nombreDecisor)
+        .replace(/{{ciudad}}/g, l.ciudad || 'tu ciudad')
+        .replace(/{{icebreaker}}/g, icebreaker)
+        .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+    }
 
     window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(l.email)}&su=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`, '_blank')
   }
@@ -302,21 +311,53 @@ Jacobo.`
                     )}
                   </div>
                   
+                  {l.analisis_brechas?.brechas && l.analisis_brechas.brechas.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Oportunidades de Mejora</div>
+                      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: 'var(--color-text-primary)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {l.analisis_brechas.brechas.map((b, i) => <li key={i}>{b}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
                   {l.motivo_score && (
                     <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Motivo de Cualificación</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Motivo de Cualificación</div>
                       <div style={{ fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.4 }}>{l.motivo_score}</div>
                     </div>
                   )}
 
-                  {l.analisis_brechas?.puntos_email && l.analisis_brechas.puntos_email.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Copy de Ventas Sugerido (Hormozi)</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email Redactado (Alex Hormozi)</div>
+                    {l.analisis_brechas?.email_cuerpo ? (
+                      <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                            <strong>Asunto:</strong> {l.analisis_brechas.email_asunto}
+                          </span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(`Asunto: ${l.analisis_brechas!.email_asunto}\n\n${l.analisis_brechas!.email_cuerpo}`)
+                              toast('Email copiado', 'info')
+                            }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--color-text-tertiary)' }}
+                            title="Copiar email completo"
+                          >
+                            <Copy size={12} />
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                          {l.analisis_brechas.email_cuerpo}
+                        </div>
+                      </div>
+                    ) : l.analisis_brechas?.puntos_email && l.analisis_brechas.puntos_email.length > 0 ? (
                       <div style={{ fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.5, background: '#fff', padding: 12, borderRadius: 8, border: '1px solid var(--color-border)', whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
                         {l.analisis_brechas.puntos_email.join('\n\n')}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>Sin email pregenerado</div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div style={{ marginTop: 20 }}>
