@@ -220,24 +220,7 @@ export default function Dashboard() {
           </button>
         }
       />
-      {/* Título Cinemático (Hero adaptado al Dashboard interno) */}
-      <div style={{ marginBottom: 48, marginTop: 16 }}>
-        <h1 style={{ 
-          fontSize: 'clamp(2rem, 4vw, 3rem)', 
-          lineHeight: 1.1, 
-          letterSpacing: '-0.03em', 
-          maxWidth: '1000px', 
-          background: 'var(--gradient-brand)', 
-          WebkitBackgroundClip: 'text', 
-          WebkitTextFillColor: 'transparent',
-          marginBottom: 16 
-        }}>
-          Control de Flujo.
-        </h1>
-        <p style={{ fontSize: 18, color: 'var(--color-text-secondary)', maxWidth: 600 }}>
-          Resumen en tiempo real del pipeline de leads y oportunidades generadas.
-        </p>
-      </div>
+
 
       {error && <p style={{ color: 'var(--color-error)', marginBottom: 16 }}>Error: {error}</p>}
 
@@ -245,26 +228,22 @@ export default function Dashboard() {
         {/* Métricas Bento Grid (Gapless / Dense) */}
         <div className="bento-grid" style={{ marginBottom: 40 }}>
           {metricas.map((m) => {
-            const isHeroCard = m.label === 'MRR potencial' || m.label === 'Leads calientes'
-            const colSpan = isHeroCard ? 'col-span-2' : 'col-span-1'
-            const rowSpan = isHeroCard ? 'row-span-2' : 'row-span-1'
-            
             return (
               <div
                 key={m.label}
-                className={`gsap-stagger ${colSpan} ${rowSpan}`}
+                className="gsap-stagger col-span-1"
                 style={{
                   background: 'var(--color-card)',
                   backdropFilter: 'blur(12px)',
                   border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-xl)',
-                  padding: isHeroCard ? 40 : 32,
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 24,
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  minHeight: isHeroCard ? 260 : 200,
+                  minHeight: 160,
                   boxShadow: 'var(--shadow-sm)',
-                  transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+                  transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
                   cursor: 'default',
                   overflow: 'hidden',
                   position: 'relative'
@@ -298,37 +277,34 @@ export default function Dashboard() {
                 <div style={{ zIndex: 10, marginTop: 'auto' }}>
                   <p
                     style={{
-                      fontSize: isHeroCard ? 56 : 36,
-                      fontWeight: 700,
+                      fontSize: 32,
+                      fontWeight: 800,
                       fontFamily: 'var(--font-display)',
-                      color: 'var(--color-text-primary)',
+                      color: m.color,
                       lineHeight: 1,
-                      marginTop: 32,
-                      letterSpacing: '-0.04em'
+                      marginTop: 24,
+                      letterSpacing: '-0.02em',
+                      fontVariantNumeric: 'tabular-nums'
                     }}
                   >
                     {m.value}
                   </p>
                   <p
                     style={{
-                      fontSize: isHeroCard ? 18 : 14,
+                      fontSize: 13,
                       fontFamily: 'var(--font-body)',
-                      fontWeight: 500,
+                      fontWeight: 600,
                       color: 'var(--color-text-secondary)',
-                      marginTop: 12,
+                      marginTop: 8,
                       textTransform: 'uppercase',
-                      letterSpacing: '0.05em'
+                      letterSpacing: '0.04em'
                     }}
                   >
                     {m.label}
                   </p>
                 </div>
 
-                {isHeroCard && (
-                  <div style={{ position: 'absolute', bottom: -20, right: -20, opacity: 0.03, pointerEvents: 'none' }}>
-                    <m.icon size={200} weight="fill" />
-                  </div>
-                )}
+
               </div>
             )
           })}
