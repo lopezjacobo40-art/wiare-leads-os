@@ -29,6 +29,7 @@ export default function Dashboard() {
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads_os')
         .select('*')
+        .neq('fase', 'descartado')
         .order('created_at', { ascending: false })
       if (leadsError) throw leadsError
       setLeads(leadsData as Lead[])

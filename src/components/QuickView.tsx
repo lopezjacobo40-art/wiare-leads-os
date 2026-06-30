@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   X, ArrowRight, Phone, Globe, MapPin, Star, Clock,
-  MagnifyingGlassPlus, CurrencyEur,
+  MagnifyingGlassPlus, CurrencyEur, PaperPlaneTilt,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
@@ -98,6 +98,42 @@ export default function QuickView({
       onUpdated?.()
       toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
     }
+  }
+
+  const redactarGmail = () => {
+    if (!l.email) {
+      toast('Este lead no tiene email', 'error')
+      return
+    }
+    const defaultSubject = 'pregunta rápida'
+    const defaultBody = `{{icebreaker}}
+
+{{puntos}}
+
+Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches cómo sonaría con el nombre de {{nombre_negocio}}? Si no encaja, cero compromiso.
+
+Jacobo.`
+
+    const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
+    const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
+
+    const nombreDecisor = l.decisor_nombre ? l.decisor_nombre.split(' ')[0] : 'propietario'
+    const icebreaker = l.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${l.nombre} y me pareció muy interesante.`
+    const puntosFormat = (l.analisis_brechas?.puntos_email || []).join('\n\n')
+
+    let finalSubject = subjectTemplate
+      .replace(/{{nombre_negocio}}/g, l.nombre)
+      .replace(/{{nombre_decisor}}/g, nombreDecisor)
+      .replace(/{{ciudad}}/g, l.ciudad || 'tu ciudad')
+
+    let finalBody = bodyTemplate
+      .replace(/{{nombre_negocio}}/g, l.nombre)
+      .replace(/{{nombre_decisor}}/g, nombreDecisor)
+      .replace(/{{ciudad}}/g, l.ciudad || 'tu ciudad')
+      .replace(/{{icebreaker}}/g, icebreaker)
+      .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(l.email)}&su=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`, '_blank')
   }
 
   return (
@@ -245,9 +281,55 @@ export default function QuickView({
                 </InfoFila>
               )}
               {l.descripcion && (
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', paddingTop: 12, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', paddingTop: 12, lineHeight: 1.5, marginBottom: 0 }}>
                   {l.descripcion}
                 </p>
+              )}
+
+              {/* ── SECCIÓN DE ANÁLISIS DE IA ── */}
+              {l.analizado_at ? (
+                <div style={{ marginTop: 20, padding: 16, background: 'var(--color-surface-2)', borderRadius: 12, border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-primary)', margin: 0 }}>Análisis de Brechas IA</h3>
+                    {l.email && (
+                      <button
+                        onClick={redactarGmail}
+                        className="btn-primary"
+                        style={{ padding: '6px 12px', fontSize: 12, minHeight: 'auto', gap: 6, display: 'inline-flex', alignItems: 'center' }}
+                      >
+                        <PaperPlaneTilt size={14} /> Enviar email
+                      </button>
+                    )}
+                  </div>
+                  
+                  {l.motivo_score && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Motivo de Cualificación</div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.4 }}>{l.motivo_score}</div>
+                    </div>
+                  )}
+
+                  {l.analisis_brechas?.puntos_email && l.analisis_brechas.puntos_email.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Copy de Ventas Sugerido (Hormozi)</div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.5, background: '#fff', padding: 12, borderRadius: 8, border: '1px solid var(--color-border)', whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                        {l.analisis_brechas.puntos_email.join('\n\n')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ marginTop: 20 }}>
+                  <button
+                    onClick={analizar}
+                    className="btn-primary"
+                    style={{ width: '100%', padding: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+                    disabled={analizando}
+                  >
+                    {analizando ? <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> : <MagnifyingGlassPlus size={16} />}
+                    {analizando ? 'Analizando con IA...' : 'Analizar Brechas con IA'}
+                  </button>
+                </div>
               )}
             </div>
           )}

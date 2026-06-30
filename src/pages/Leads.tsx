@@ -87,7 +87,7 @@ export default function Leads() {
   }, [])
 
   const cargar = async (extId?: string | null) => {
-    let q = supabase.from('leads_os').select('*')
+    let q = supabase.from('leads_os').select('*').neq('fase', 'descartado')
     const filtroExt = extId !== undefined ? extId : extraccionFiltro
     if (filtroExt) {
       q = q.eq('extraccion_id', filtroExt).order('score_cualificacion', { ascending: false, nullsFirst: false })
@@ -101,6 +101,16 @@ export default function Leads() {
   }
 
   useEffect(() => { cargar() }, [extraccionFiltro])
+
+  // Auto-cerrar la vista rápida si el lead cambió de fase y ya no encaja en el filtro actual
+  useEffect(() => {
+    if (quickViewLead && faseFiltro !== 'todas') {
+      const updatedLead = leads.find(l => l.id === quickViewLead.id)
+      if (updatedLead && updatedLead.fase !== faseFiltro) {
+        setQuickViewLead(null)
+      }
+    }
+  }, [leads, faseFiltro, quickViewLead])
 
   const sectores = useMemo(
     () => [...new Set(leads.map((l) => l.sector))].sort(),
@@ -355,7 +365,7 @@ export default function Leads() {
     setEliminandoLote(true)
     const ids = [...selectedIds]
     await Promise.all([registrarDescartados(ids), limpiarExtracciones(ids)])
-    const { error: err } = await supabase.from('leads_os').delete().in('id', ids)
+    const { error: err } = await supabase.from('leads_os').update({ fase: 'descartado' }).in('id', ids)
     setEliminandoLote(false)
     if (err) toast(err.message, 'error')
     else {
@@ -370,7 +380,7 @@ export default function Leads() {
 
   const descartar = async (lead: Lead) => {
     await Promise.all([registrarDescartados([lead.id]), limpiarExtracciones([lead.id])])
-    const { error: err } = await supabase.from('leads_os').delete().eq('id', lead.id)
+    const { error: err } = await supabase.from('leads_os').update({ fase: 'descartado' }).eq('id', lead.id)
     if (err) toast(err.message, 'error')
     else {
       if (extraccionFiltro && lead.extraccion_id === extraccionFiltro) {
@@ -873,11 +883,9 @@ export default function Leads() {
                 {[
                   { label: 'Score' },
                   { label: 'Nombre' },
-                  { label: 'Sector' },
                   { label: 'Teléfono' },
                   { label: 'Email', cls: 'hide-mobile' },
-                  { label: 'Reseñas', cls: 'col-resenas' },
-                  { label: 'Val.', cls: 'col-valoracion' },
+                  { label: 'Google Maps' },
                   { label: 'Fase' },
                   { label: 'Acciones' },
                 ].map((h) => (
@@ -1002,7 +1010,6 @@ export default function Leads() {
                     )}
                     <UrgenciaPills lead={lead} />
                   </td>
-                  <td style={{ padding: '0 16px', color: 'var(--color-text-secondary)' }}>{lead.sector}</td>
                   <td style={{ padding: '0 16px', whiteSpace: 'nowrap' }}>{lead.telefono ?? '—'}</td>
                   <td className="hide-mobile" style={{ padding: '0 16px' }} onClick={(e) => e.stopPropagation()}>
                     {lead.email ? (
@@ -1041,11 +1048,11 @@ export default function Leads() {
                       <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>Sin web</span>
                     )}
                   </td>
-                  <td className="col-resenas" style={{ padding: '0 16px' }}>{lead.num_resenas ?? '—'}</td>
-                  <td className="col-valoracion" style={{ padding: '0 16px' }}>
+                  <td style={{ padding: '0 16px', whiteSpace: 'nowrap' }}>
                     {lead.valoracion ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <Star size={13} weight="fill" style={{ color: 'var(--color-warning)' }} /> {lead.valoracion}
+                        <Star size={13} weight="fill" style={{ color: 'var(--color-warning)' }} />
+                        {lead.valoracion} <span style={{ color: 'var(--color-text-tertiary)' }}>({lead.num_resenas ?? 0})</span>
                       </span>
                     ) : '—'}
                   </td>
