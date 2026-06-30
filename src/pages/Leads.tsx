@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
-import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
+import { analizarBrechas, toAnalisisBrechas, extraerDatosDecisor } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
+import { buscarDecisorLinkedIn, generarPermutacionesEmail } from '../lib/apifyClient'
 import ScoreBadge from '../components/ScoreBadge'
 import LoadingBar from '../components/LoadingBar'
 import EmptyState from '../components/EmptyState'
@@ -61,6 +62,7 @@ export default function Leads() {
 
   const [extraccionFiltro, setExtraccionFiltro] = useState<string | null>(null)
   const [buscandoEmail, setBuscandoEmail] = useState<string | null>(null)
+  const [buscandoDecisor, setBuscandoDecisor] = useState<string | null>(null)
   const [confirmRescorar, setConfirmRescorar] = useState(false)
   const [rescorando, setRescorando] = useState(false)
 
@@ -404,6 +406,66 @@ export default function Leads() {
       toast('Error buscando email', 'error')
     } finally {
       setBuscandoEmail(null)
+    }
+  }
+
+  const buscarDecisorYEmail = async (lead: Lead) => {
+    setBuscandoDecisor(lead.id)
+    try {
+      toast('Buscando dueño en LinkedIn...', 'info')
+      const result = await buscarDecisorLinkedIn(lead.nombre, lead.ciudad || 'España')
+      if (!result) {
+        toast('No se encontró perfil claro en LinkedIn', 'info')
+        return
+      }
+
+      toast('Analizando perfil con Claude...', 'info')
+      const datos = await extraerDatosDecisor(result.textSnippet, lead.nombre)
+      if (!datos) {
+        toast('No se pudo confirmar el nombre del decisor', 'info')
+        return
+      }
+
+      toast(`Dueño: ${datos.nombre} (${datos.cargo})`, 'success')
+
+      let dominio = lead.web
+      if (!dominio && lead.email) {
+        dominio = lead.email.split('@')[1]
+      }
+
+      let emailDeducido = lead.email
+      let fuenteEmail = lead.email_fuente
+      if (dominio && !emailDeducido) {
+        const permutaciones = generarPermutacionesEmail(datos.nombre, dominio)
+        if (permutaciones.length > 0) {
+          emailDeducido = permutaciones[0] // Cogemos la más probable (nombre@dominio)
+          fuenteEmail = 'permutacion_linkedin'
+          toast(`Email deducido: ${emailDeducido}`, 'success')
+        }
+      }
+
+      await supabase.from('leads_os').update({
+        decisor_nombre: datos.nombre,
+        decisor_cargo: datos.cargo,
+        decisor_linkedin: result.url,
+        email: emailDeducido,
+        email_fuente: fuenteEmail
+      }).eq('id', lead.id)
+
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? { 
+        ...l, 
+        decisor_nombre: datos.nombre, 
+        decisor_cargo: datos.cargo, 
+        decisor_linkedin: result.url,
+        email: emailDeducido,
+        email_fuente: fuenteEmail
+      } : l)))
+
+    } catch (err) {
+      toast('Error al buscar decisor', 'error')
+      console.error(err)
+    } finally {
+      setBuscandoDecisor(null)
     }
   }
 
@@ -897,6 +959,41 @@ export default function Leads() {
                   </td>
                   <td style={{ padding: '8px 16px', maxWidth: 240 }}>
                     <div style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{lead.nombre}</div>
+                    {lead.decisor_nombre ? (
+                      <div style={{ fontSize: 12, color: '#A855F7', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }}>
+                        <Users size={12} weight="fill" />
+                        {lead.decisor_nombre} <span style={{ color: 'var(--color-text-tertiary)', fontSize: 10, fontWeight: 400 }}>({lead.decisor_cargo})</span>
+                        {lead.decisor_linkedin && (
+                          <a href={lead.decisor_linkedin} target="_blank" rel="noopener noreferrer" style={{ color: '#A855F7', display: 'flex', marginLeft: 2 }} title="Ver LinkedIn">
+                            <Globe size={10} weight="bold" />
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 4 }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); buscarDecisorYEmail(lead); }}
+                          className="btn-ghost"
+                          style={{
+                            fontSize: 10,
+                            padding: '2px 6px',
+                            minHeight: 'auto',
+                            color: '#A855F7',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            border: '1px solid rgba(168, 85, 247, 0.2)'
+                          }}
+                          disabled={buscandoDecisor === lead.id}
+                        >
+                          {buscandoDecisor === lead.id ? (
+                            <><div className="spinner" style={{ width: 10, height: 10, borderWidth: 2, borderColor: '#A855F7', borderTopColor: 'transparent' }} /> Buscando...</>
+                          ) : (
+                            <><Globe size={10} /> Buscar dueño</>
+                          )}
+                        </button>
+                      </div>
+                    )}
                     {lead.ciudad && (
                       <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 1 }}>{lead.ciudad}</div>
                     )}
@@ -985,6 +1082,49 @@ export default function Leads() {
                         </button>
                       )}
                       {lead.fase === 'listo_para_enviar' && (
+                        <>
+                          <button
+                            aria-label={`Redactar Gmail para ${lead.nombre}`}
+                            title="Redactar Gmail"
+                            className="btn-ghost"
+                            style={{ padding: 8, minHeight: 36, minWidth: 36, color: '#A855F7' }}
+                            onClick={() => {
+                              if (!lead.email) {
+                                toast('Este lead no tiene email', 'error')
+                                return
+                              }
+                              const defaultSubject = 'idea rápida para {{nombre_negocio}}'
+                              const defaultBody = `{{icebreaker}}
+
+{{puntos}}
+
+Un saludo,
+[Tu Nombre]`
+
+                              const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
+                              const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
+
+                              const nombreDecisor = lead.decisor_nombre ? lead.decisor_nombre.split(' ')[0] : 'propietario'
+                              const icebreaker = lead.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${lead.nombre} y me pareció muy interesante.`
+                              const puntosFormat = (lead.analisis_brechas?.puntos_email || []).map(p => `- ${p}`).join('\n')
+
+                              let finalSubject = subjectTemplate
+                                .replace(/{{nombre_negocio}}/g, lead.nombre)
+                                .replace(/{{nombre_decisor}}/g, nombreDecisor)
+                                .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
+
+                              let finalBody = bodyTemplate
+                                .replace(/{{nombre_negocio}}/g, lead.nombre)
+                                .replace(/{{nombre_decisor}}/g, nombreDecisor)
+                                .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
+                                .replace(/{{icebreaker}}/g, icebreaker)
+                                .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+
+                              window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`, '_blank')
+                            }}
+                          >
+                            <PaperPlaneTilt size={16} />
+                          </button>
                         <button
                           aria-label={`Marcar ${lead.nombre} como enviado`}
                           title="Marcar como enviado"
@@ -994,6 +1134,7 @@ export default function Leads() {
                         >
                           <CheckCircle size={16} weight="fill" />
                         </button>
+                        </>
                       )}
 
                       {/* Eliminar — solo en nuevo y negocio_analizado */}

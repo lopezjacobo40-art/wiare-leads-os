@@ -24,19 +24,31 @@ export default function Dashboard() {
   const [quickViewLead, setQuickViewLead] = useState<Lead | null>(null)
   const [syncing, setSyncing] = useState(false)
 
-  const cargar = () =>
-    Promise.all([
-      supabase.from('leads_os').select('*').order('created_at', { ascending: false }),
-      supabase.from('extracciones_os').select('*').order('created_at', { ascending: false }).limit(5),
-    ])
-      .then(([l, e]) => {
-        if (l.error) throw l.error
-        if (e.error) throw e.error
-        setLeads(l.data as Lead[])
-        setExtracciones(e.data as Extraccion[])
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
+  const cargar = async () => {
+    try {
+      const { data: leadsData, error: leadsError } = await supabase
+        .from('leads_os')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (leadsError) throw leadsError
+      setLeads(leadsData as Lead[])
+    } catch (err: unknown) {
+      setError((err as Error).message ?? 'Error cargando leads')
+    } finally {
+      setLoading(false)
+    }
+    // Extracciones es secundario — un error aquí no rompe el dashboard
+    try {
+      const { data: extData } = await supabase
+        .from('extracciones_os')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5)
+      if (extData) setExtracciones(extData as Extraccion[])
+    } catch {
+      // Silencioso: puede fallar por permisos sin romper el resto
+    }
+  }
 
   useEffect(() => { cargar() }, [])
 

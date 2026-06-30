@@ -44,6 +44,11 @@ export interface Lead {
   // ── Extracción (sesión de extracción Apify) ──
   extraccion_id: string | null
   extraccion_fecha: string | null
+  // ── Decisor (B2B LinkedIn) ──
+  decisor_nombre: string | null
+  decisor_cargo: string | null
+  decisor_linkedin: string | null
+  icebreaker?: string | null
   // ── Análisis de brechas (v6) ──
   analisis_brechas: AnalisisBrechas | null
   analizado_at: string | null

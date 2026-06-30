@@ -1,5 +1,10 @@
 {
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  ],
+  "functions": {
+    "api/find-email.ts": {
+      "maxDuration": 60
+    }
+  }
 }

@@ -5,7 +5,7 @@ import {
   Scissors, Bed, Barbell, Pill, Storefront, CheckCircle, Warning, X,
 } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
-import { extraerLeadsConApify, buscarEmailCascada, type ApifyLead } from '../lib/apifyClient'
+import { extraerLeadsConApify, extraerLeadsConApifyAsync, type ApifyLead } from '../lib/apifyClient'
 import { processBatch } from '../lib/tokenGuard'
 import LoadingBar from '../components/LoadingBar'
 import PageHeader from '../components/PageHeader'
@@ -52,7 +52,7 @@ const SECTORES = [
   { nombre: 'Otro', icon: Storefront },
 ]
 
-type Estado = 'idle' | 'buscando' | 'extrayendo' | 'enriqueciendo' | 'completado' | 'error'
+type Estado = 'idle' | 'buscando' | 'extrayendo' | 'enriqueciendo' | 'completado' | 'completado_async' | 'error'
 
 export default function Extraccion() {
   const navigate = useNavigate()
@@ -103,10 +103,28 @@ export default function Extraccion() {
     setFiltradosCadena(0)
     setEmailsEnriquecidos(0)
     try {
+      const { runId, modo } = await extraerLeadsConApifyAsync(sectorFinal, ciudad.trim(), cantidad)
+      
+      // Registrar la extracción inmediatamente
+      await supabase.from('extracciones_os').insert({
+        sector: sectorFinal,
+        ciudad: ciudad.trim(),
+        total_leads: 0, // se actualizará cuando termine
+        estado: 'procesando',
+        extraccion_id: sessionId,
+        run_id: runId
+      })
+
+      if (modo === 'async') {
+        setEstado('completado_async')
+        return
+      }
+
+      // Fallback a modo síncrono para test local
       const leadsRaw = await extraerLeadsConApify(sectorFinal, ciudad.trim(), cantidad, (mensaje) => {
         setEstado('extrayendo')
         setLog((prev) => [...prev, mensaje])
-      })
+      }, runId)
 
       setProgreso({ actual: leadsRaw.length, total: leadsRaw.length })
 
@@ -150,7 +168,7 @@ export default function Extraccion() {
       const numDuplicados = leads.length - nuevos.length
 
       const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
-      let insertados: { id: string; email: string | null; web: string | null; descripcion: string | null }[] = []
+      let insertados: { id: string; email: string | null; web: string | null; descripcion: string | null; nombre: string }[] = []
       if (nuevos.length > 0) {
         const { data: insData, error: insError } = await supabase
           .from('leads_os')
@@ -176,18 +194,15 @@ export default function Extraccion() {
             extraccion_id: sessionId,
             extraccion_fecha: new Date().toISOString(),
           })))
-          .select('id, email, web, descripcion')
+          .select('id, email, web, descripcion, nombre')
         if (insError) throw insError
         insertados = (insData ?? []) as typeof insertados
       }
 
-      await supabase.from('extracciones_os').insert({
-        sector: sectorFinal,
-        ciudad: ciudad.trim(),
+      await supabase.from('extracciones_os').update({
         total_leads: nuevos.length,
         estado: 'completada',
-        extraccion_id: sessionId,
-      })
+      }).eq('run_id', runId)
 
       setGuardados(nuevos.length)
       setDuplicados(numDuplicados)
@@ -204,19 +219,52 @@ export default function Extraccion() {
         await processBatch(
           sinEmail,
           async (l) => {
-            const { email, fuente } = await buscarEmailCascada({ email: null, web: l.web, descripcion: l.descripcion })
+            let email: string | null = null
+            let fuente = 'sin_email'
+            let decisor: any = null
+            try {
+              const res = await fetch('/api/find-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ web: l.web, descripcion: l.descripcion, nombre: l.nombre }),
+              })
+              if (res.ok) {
+                const data = await res.json()
+                email = data.email ?? null
+                fuente = data.fuente ?? 'sin_email'
+                decisor = data.decisor ?? null
+              }
+            } catch {
+              // red error — dejamos email null
+            }
             hechos++
             setProgreso({ actual: hechos, total: sinEmail.length })
-            if (email) {
-              encontrados++
+            
+            // Siempre actualizamos si encontramos algo (email o decisor)
+            if (email || decisor) {
+              if (email) encontrados++
               setEmailsEnriquecidos(encontrados)
               await supabase
                 .from('leads_os')
-                .update({ email, email_fuente: fuente, email_verificado: fuente !== 'patron' })
+                .update({ 
+                  email, 
+                  email_fuente: fuente, 
+                  email_verificado: !!email,
+                  decisor_nombre: decisor?.nombre || null,
+                  decisor_cargo: decisor?.cargo || null,
+                  decisor_linkedin: decisor?.linkedin || null
+                })
                 .eq('id', l.id)
-              setLog((prev) => [...prev, `${email} (${fuente})`])
+                
+              if (email && decisor) {
+                setLog((prev) => [...prev, `${email} (CEO: ${decisor.nombre})`])
+              } else if (email) {
+                setLog((prev) => [...prev, `${email} (${fuente})`])
+              } else if (decisor) {
+                setLog((prev) => [...prev, `CEO encontrado: ${decisor.nombre} (Sin email)`])
+              }
             } else {
-              setLog((prev) => [...prev, `— sin email tras la cascada`])
+              setLog((prev) => [...prev, `— sin info extra`])
             }
           },
           (done) => setProgreso({ actual: done, total: sinEmail.length })
@@ -446,6 +494,25 @@ export default function Extraccion() {
           </div>
           <button className="btn-gradient" onClick={() => navigate(`/leads?extraccion=${extraccionId}`)}>
             Ver leads extraídos →
+          </button>
+        </div>
+      )}
+
+      {estado === 'completado_async' && (
+        <div className="card" style={{ padding: 24, marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="spinner" style={{ borderColor: 'var(--color-primary) transparent var(--color-primary) transparent' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <p style={{ fontSize: 15, fontWeight: 600 }}>
+                Extracción en curso...
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                Apify está buscando los negocios. Puedes cerrar esta pestaña; los leads aparecerán en el Dashboard cuando termine (1-2 minutos).
+              </p>
+            </div>
+          </div>
+          <button className="btn-gradient" onClick={() => navigate('/')}>
+            Ir al Dashboard →
           </button>
         </div>
       )}

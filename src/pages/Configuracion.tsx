@@ -11,6 +11,7 @@ import {
   Phone,
   MapPin,
   Table,
+  FloppyDisk,
 } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
 import Skeleton from '../components/Skeleton'
@@ -423,6 +424,9 @@ export default function Configuracion() {
 
       {/* ── SECCIÓN 4 — Integraciones ── */}
       <SeccionIntegraciones />
+
+      {/* ── SECCIÓN 5 — Plantillas de Email ── */}
+      <SeccionPlantillas />
     </motion.div>
   )
 }
@@ -948,4 +952,79 @@ const codeStyle: React.CSSProperties = {
   background: 'var(--color-surface-2)',
   padding: '1px 6px',
   borderRadius: 4,
+}
+
+/* ─────────────────────────────────────────────
+   SECCIÓN 5 — Plantillas de Email
+   ───────────────────────────────────────────── */
+function SeccionPlantillas() {
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const defaultSubject = 'idea rápida para {{nombre_negocio}}'
+  const defaultBody = `{{icebreaker}}
+
+{{puntos}}
+
+Un saludo,
+[Tu Nombre]`
+
+  useEffect(() => {
+    setSubject(localStorage.getItem('email_template_subject') || defaultSubject)
+    setBody(localStorage.getItem('email_template_body') || defaultBody)
+  }, [])
+
+  const guardar = () => {
+    localStorage.setItem('email_template_subject', subject)
+    localStorage.setItem('email_template_body', body)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  return (
+    <section style={seccionStyle}>
+      <TituloSeccion titulo="Plantillas de Email (1 Clic)" />
+      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16 }}>
+        Configura la plantilla por defecto que se abrirá en Gmail. Usa las siguientes variables mágicas:
+      </p>
+      
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        {['{{nombre_negocio}}', '{{nombre_decisor}}', '{{ciudad}}', '{{icebreaker}}', '{{puntos}}'].map(tag => (
+          <span key={tag} style={{ fontSize: 11, fontWeight: 600, background: 'var(--color-surface-2)', padding: '4px 10px', borderRadius: 'var(--radius-full)', color: 'var(--color-primary)' }}>
+            {tag}
+          </span>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+            Asunto
+          </label>
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+            Cuerpo del mensaje
+          </label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            style={{ width: '100%', height: 260, resize: 'vertical', fontSize: 13, padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none', fontFamily: 'var(--font-body)', lineHeight: 1.6 }}
+          />
+        </div>
+        
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <button className="btn-primary" onClick={guardar} style={{ padding: '8px 24px' }}>
+            <FloppyDisk size={16} /> {saved ? 'Guardado' : 'Guardar plantilla'}
+          </button>
+        </div>
+      </div>
+    </section>
+  )
 }

@@ -57,16 +57,72 @@ function normalizeOpeningHours(raw: unknown): string[] {
   return []
 }
 
+export async function extraerLeadsConApifyAsync(
+  sector: string,
+  ciudad: string,
+  cantidad: number
+): Promise<{ runId: string, modo: 'async' | 'sync' }> {
+  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  
+  // En localhost no podemos recibir webhooks de Apify, forzamos sync o ignoramos webhook
+  // Usamos el origin real para el webhook, pero en dev no llegará
+  const webhookUrl = `${window.location.origin}/api/webhooks/apify-maps`
+  
+  const webhooks = [
+    {
+      eventTypes: ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.ABORTED', 'ACTOR.RUN.TIMED_OUT'],
+      requestUrl: webhookUrl
+    }
+  ]
+  const webhooksBase64 = btoa(JSON.stringify(webhooks))
+  const url = isLocalhost 
+    ? `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}`
+    : `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}&webhooks=${webhooksBase64}`
+
+  const runRes = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        searchStringsArray: [`${sector} en ${ciudad}`],
+        maxCrawledPlacesPerSearch: cantidad,
+        language: 'es',
+        countryCode: 'es',
+        includeWebResults: false,
+        scrapeDirectories: false,
+        deeperCityScrape: false,
+        scrapeTabletsDesktop: false,
+        maxImages: 0,
+        maxReviews: 0,
+        exportPlaceUrls: false,
+        additionalInfo: false,
+        reviewsSort: 'newest',
+        reviewsFilterString: '',
+      }),
+    }
+  )
+
+  if (!runRes.ok) {
+    const err = await runRes.text()
+    throw new Error(`Error lanzando Apify: ${err}`)
+  }
+
+  const runData = await runRes.json()
+  return { runId: runData.data.id, modo: isLocalhost ? 'sync' : 'async' }
+}
+
 export async function extraerLeadsConApify(
   sector: string,
   ciudad: string,
   cantidad: number,
-  onProgress?: (mensaje: string) => void
+  onProgress?: (mensaje: string) => void,
+  existingRunId?: string
 ): Promise<ApifyLead[]> {
   onProgress?.(`Iniciando extracción de ${sector} en ${ciudad}...`)
 
-  // 1. Lanzar el actor
-  const runRes = await fetch(
+  let runId = existingRunId
+  if (!runId) {
+    // 1. Lanzar el actor (modo síncrono clásico)
+    const runRes = await fetch(
     `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}`,
     {
       method: 'POST',
@@ -95,8 +151,9 @@ export async function extraerLeadsConApify(
     throw new Error(`Error lanzando Apify: ${err}`)
   }
 
-  const runData = await runRes.json()
-  const runId = runData.data.id
+    const runData = await runRes.json()
+    runId = runData.data.id
+  }
 
   onProgress?.('Apify procesando... esto tarda 1-2 minutos')
 
@@ -279,3 +336,83 @@ export async function buscarEmailCascada(lead: {
 
   return { email: null, fuente: 'sin_email' }
 }
+
+// Busca el perfil de LinkedIn del fundador/propietario usando Google Search
+export async function buscarDecisorLinkedIn(
+  nombreEmpresa: string,
+  ciudad: string
+): Promise<{ textSnippet: string; url: string } | null> {
+  const query = `site:linkedin.com/in ("fundador" OR "founder" OR "propietario" OR "ceo" OR "director" OR "dueño") "${nombreEmpresa}" "${ciudad}"`
+  
+  const items = await correrActor('apify~google-search-scraper', {
+    queries: query,
+    resultsPerPage: 3,
+    maxPagesPerQuery: 1,
+    languageCode: 'es',
+    countryCode: 'es',
+  })
+  
+  if (!items || items.length === 0) return null
+  
+  // apify~google-search-scraper devuelve un array donde el primer item tiene la propiedad 'organicResults'
+  const firstItem = items[0]
+  const organicResults = firstItem.organicResults as Array<{ title: string; url: string; description: string }>
+  
+  if (!organicResults || organicResults.length === 0) return null
+  
+  // Tomar el primer resultado orgánico que sea de LinkedIn
+  const result = organicResults.find(r => r.url && r.url.includes('linkedin.com/in/'))
+  
+  if (!result) return null
+  
+  return {
+    textSnippet: `${result.title} - ${result.description}`,
+    url: result.url
+  }
+}
+
+// Genera permutaciones de correo electrónico basadas en nombre y dominio
+export function generarPermutacionesEmail(nombreCompleto: string, dominio: string): string[] {
+  if (!nombreCompleto || !dominio) return []
+  
+  // Limpiar dominio
+  let cleanDomain = dominio.toLowerCase().trim()
+  if (cleanDomain.startsWith('http')) {
+    try {
+      const url = new URL(cleanDomain)
+      cleanDomain = url.hostname.replace('www.', '')
+    } catch (e) {
+      // ignorar
+    }
+  }
+  
+  // Limpiar nombre (quitar acentos, etc.)
+  const cleanName = nombreCompleto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+  
+  const partes = cleanName.split(/\s+/)
+  if (partes.length === 0) return []
+  
+  const nombre = partes[0]
+  const apellido = partes.length > 1 ? partes[partes.length - 1] : ''
+  const inicialNombre = nombre.charAt(0)
+  
+  const permutaciones = new Set<string>()
+  
+  // Patrones comunes
+  permutaciones.add(`${nombre}@${cleanDomain}`)
+  if (apellido) {
+    permutaciones.add(`${nombre}.${apellido}@${cleanDomain}`)
+    permutaciones.add(`${inicialNombre}${apellido}@${cleanDomain}`)
+    permutaciones.add(`${nombre}${apellido}@${cleanDomain}`)
+    permutaciones.add(`${nombre}_${apellido}@${cleanDomain}`)
+    permutaciones.add(`${apellido}@${cleanDomain}`)
+    permutaciones.add(`${inicialNombre}.${apellido}@${cleanDomain}`)
+  }
+  
+  return Array.from(permutaciones)
+}
+

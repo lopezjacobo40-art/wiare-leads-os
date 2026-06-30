@@ -8,7 +8,6 @@ import {
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
-import { buscarEmailCascada } from '../lib/apifyClient'
 import { labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
 import FuenteBadge from '../components/FuenteBadge'
@@ -154,6 +153,7 @@ export default function LeadDetalle() {
         analisis_brechas: toAnalisisBrechas(r),
         analizado_at: new Date().toISOString(),
         fase: lead.fase === 'nuevo' ? 'negocio_analizado' : lead.fase,
+        icebreaker: r.icebreaker,
       })
       toast('Brechas analizadas', 'success')
     } catch (err) {
@@ -169,13 +169,20 @@ export default function LeadDetalle() {
     if (!lead) return
     setBuscandoEmail(true)
     try {
-      const { email, fuente } = await buscarEmailCascada(lead)
+      const res = await fetch('/api/find-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ web: lead.web, descripcion: lead.descripcion }),
+      })
+      const data = res.ok ? await res.json() : { email: null }
+      const email: string | null = data.email ?? null
+      const fuente: string = data.fuente ?? 'sin_email'
       if (email) {
         setEmailDraft(email)
-        await actualizar({ email, email_fuente: fuente, email_verificado: fuente !== 'patron' })
+        await actualizar({ email, email_fuente: fuente, email_verificado: true })
         toast(`Email encontrado: ${email}`, 'success')
       } else {
-        toast('No se encontró email tras la cascada', 'error')
+        toast('No se encontró email real', 'error')
       }
     } catch {
       toast('Error buscando email', 'error')
@@ -203,11 +210,49 @@ export default function LeadDetalle() {
     toast('Listo para enviar', 'success')
   }
 
-  // Abre el redactor de Gmail con el destinatario prerrellenado.
-  // Asunto y cuerpo van vacíos: el comercial pega su plantilla por nicho.
+  // Abre el redactor de Gmail con el destinatario y plantilla prerrellenada.
   const abrirGmail = () => {
     if (!lead?.email) return
-    window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}`, '_blank')
+    
+    // Plantillas por defecto
+    const defaultSubject = 'Idea para {{nombre_negocio}}'
+    const defaultBody = `{{icebreaker}}
+
+Estuvimos analizando vuestra operativa y notamos que se os están escapando clientes (y facturación) fuera de vuestro horario comercial.
+
+{{puntos}}
+
+Hemos ayudado a otros negocios locales en {{ciudad}} a recuperar hasta un 30% de la facturación perdida instalando una recepcionista IA que atiende 24/7 de forma 100% natural.
+
+¿Te interesaría que hablemos 5 minutos esta semana para ver si tiene sentido para vosotros?
+
+Un saludo,
+[Tu Nombre]`
+
+    const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
+    const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
+
+    // Preparar variables
+    const nombreDecisor = lead.decisor_nombre ? lead.decisor_nombre.split(' ')[0] : 'propietario'
+    const icebreaker = lead.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${lead.nombre} y me pareció muy interesante.`
+    const puntosFormat = (lead.analisis_brechas?.puntos_email || []).map(p => `- ${p}`).join('\n')
+
+    // Reemplazar variables
+    let finalSubject = subjectTemplate
+      .replace(/{{nombre_negocio}}/g, lead.nombre)
+      .replace(/{{nombre_decisor}}/g, nombreDecisor)
+      .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
+
+    let finalBody = bodyTemplate
+      .replace(/{{nombre_negocio}}/g, lead.nombre)
+      .replace(/{{nombre_decisor}}/g, nombreDecisor)
+      .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
+      .replace(/{{icebreaker}}/g, icebreaker)
+      .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+
+    // Construir URL de Gmail
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`
+    window.open(gmailUrl, '_blank')
   }
 
   // Marca el email como enviado: fase 'email_enviado' + registra para el contador diario.

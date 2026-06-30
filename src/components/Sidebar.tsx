@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix,
   MapTrifold, Headset, MagnifyingGlassPlus, ChatCircleDots,
+  PencilLine, CalendarBlank, BookOpen,
 } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
@@ -27,6 +28,13 @@ const MI_AGENCIA: NavItem[] = [
   { to: '/simulador', label: 'Simulador', icon: Headset, end: false },
   { to: '/biblioteca', label: 'Negocios analizados', icon: MagnifyingGlassPlus, end: false },
   { to: '/consultor', label: 'Consultor IA', icon: ChatCircleDots, end: false },
+]
+
+// Sección "Contenido": generación y planificación de posts para RRSS.
+const CONTENIDO: NavItem[] = [
+  { to: '/contenido/generador', label: 'Generador', icon: PencilLine, end: false },
+  { to: '/contenido/calendario', label: 'Calendario', icon: CalendarBlank, end: false },
+  { to: '/contenido/biblioteca', label: 'Biblioteca', icon: BookOpen, end: false },
 ]
 
 interface SidebarProps {
@@ -163,6 +171,11 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
 
         <GrupoLabel>Mi agencia</GrupoLabel>
         {MI_AGENCIA.map((item) => (
+          <NavRow key={item.to} item={item} />
+        ))}
+
+        <GrupoLabel>Contenido</GrupoLabel>
+        {CONTENIDO.map((item) => (
           <NavRow key={item.to} item={item} />
         ))}
 
