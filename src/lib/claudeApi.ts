@@ -4,6 +4,7 @@ import { SECTORES, RESISTENCIAS, type Resistencia } from './simuladorData'
 import { WIARE_CONTEXTO } from './wiareContexto'
 import { getNichoBrechas } from './brechasConfig'
 import { callGemini } from './geminiApi'
+import { fetchWithAudit } from './apiAuditor'
 
 const API_URL = 'https://api.anthropic.com/v1/messages'
 const KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -19,8 +20,23 @@ async function callClaudeChat(
   messages: ChatMsg[],
   system?: string
 ): Promise<string> {
-  const res = await fetch(API_URL, {
+  const fallbackGemini = async () => {
+    // Si falla Claude, traducimos el formato a Gemini
+    let geminiPrompt = system ? `${system}\n\n` : ''
+    geminiPrompt += messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')
+    // El LLM de fallback usará geminiApi.ts, el cual también debería estar auditado (luego)
+    const geminiText = await callGemini(geminiPrompt)
+    // Devolvemos una Response ficticia para mantener la firma (aunque fetchWithAudit devuelve Response,
+    // en su código de fallback espera Promise<Response>. Wait, if fallback returns Response...
+    // Actually, fallback in fetchWithAudit returns Response, but we can just throw and handle it differently.
+    return new Response(JSON.stringify({ content: [{ text: geminiText }] }), { status: 200 })
+  }
+
+  const res = await fetchWithAudit(API_URL, {
     method: 'POST',
+    service: 'Claude',
+    retries: 2,
+    fallback: fallbackGemini,
     headers: {
       'x-api-key': KEY,
       'anthropic-version': '2023-06-01',
@@ -34,6 +50,7 @@ async function callClaudeChat(
       messages,
     }),
   })
+  
   if (!res.ok) {
     const err = await res.text()
     throw new Error(`Claude API error ${res.status}: ${err}`)

@@ -9,6 +9,7 @@ import ScoreBadge from '../components/ScoreBadge'
 import LoadingBar from '../components/LoadingBar'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
+import { fetchWithAudit } from '../lib/apiAuditor'
 import PageTransition from '../components/PageTransition'
 import ExportSheet from '../components/ExportSheet'
 import QuickView from '../components/QuickView'
@@ -396,8 +397,10 @@ export default function Leads() {
   const buscarEmailLead = async (lead: Lead) => {
     setBuscandoEmail(lead.id)
     try {
-      const res = await fetch('/api/find-email', {
+      const res = await fetchWithAudit('/api/find-email', {
         method: 'POST',
+        service: 'Hunter',
+        retries: 2,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ web: lead.web, leadId: lead.id, descripcion: lead.descripcion }),
       })

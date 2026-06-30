@@ -8,6 +8,7 @@ import KanbanBoard from '../components/KanbanBoard'
 import QuickView from '../components/QuickView'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
+import AuditorPanel from '../components/AuditorPanel'
 import PageTransition from '../components/PageTransition'
 import Skeleton from '../components/Skeleton'
 import { useToast } from '../components/Toast'
@@ -325,6 +326,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <AuditorPanel />
 
       {/* Pipeline */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 32, marginBottom: 16 }}>

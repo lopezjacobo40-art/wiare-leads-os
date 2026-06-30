@@ -9,6 +9,7 @@ import { analizarBrechas, toAnalisisBrechas, generarGuionAudio } from '../lib/cl
 import ScoreBadge from './ScoreBadge'
 import FaseSelector from './FaseSelector'
 import { useToast } from './Toast'
+import { fetchWithAudit } from '../lib/apiAuditor'
 
 
 
@@ -108,8 +109,10 @@ export default function QuickView({
       // 2. Generar el audio línea por línea
       for (const linea of guion) {
         const voiceId = linea.speaker === 'cliente' ? voiceIdCliente : voiceIdAi
-        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+        const res = await fetchWithAudit(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
           method: 'POST',
+          service: 'ElevenLabs',
+          retries: 3,
           headers: {
             'Content-Type': 'application/json',
             'xi-api-key': apiKey

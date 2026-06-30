@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
+import { fetchWithAudit } from '../lib/apiAuditor'
 import { labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
 import FuenteBadge from '../components/FuenteBadge'
@@ -169,8 +170,10 @@ export default function LeadDetalle() {
     if (!lead) return
     setBuscandoEmail(true)
     try {
-      const res = await fetch('/api/find-email', {
+      const res = await fetchWithAudit('/api/find-email', {
         method: 'POST',
+        service: 'Hunter',
+        retries: 2,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ web: lead.web, descripcion: lead.descripcion }),
       })

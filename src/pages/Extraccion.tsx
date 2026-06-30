@@ -7,6 +7,7 @@ import {
 import { supabase } from '../lib/supabaseClient'
 import { extraerLeadsConApify, extraerLeadsConApifyAsync, type ApifyLead } from '../lib/apifyClient'
 import { processBatch } from '../lib/tokenGuard'
+import { fetchWithAudit } from '../lib/apiAuditor'
 import LoadingBar from '../components/LoadingBar'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
@@ -223,8 +224,10 @@ export default function Extraccion() {
             let fuente = 'sin_email'
             let decisor: any = null
             try {
-              const res = await fetch('/api/find-email', {
+              const res = await fetchWithAudit('/api/find-email', {
                 method: 'POST',
+                service: 'Hunter',
+                retries: 2,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ web: l.web, descripcion: l.descripcion, nombre: l.nombre }),
               })

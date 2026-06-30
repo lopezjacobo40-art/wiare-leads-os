@@ -2,6 +2,8 @@ const APIFY_API_KEY = import.meta.env.VITE_APIFY_API_KEY
 const ACTOR_ID = 'compass~crawler-google-places'
 const APIFY_BASE = 'https://api.apify.com/v2'
 
+import { fetchWithAudit } from './apiAuditor'
+
 export interface ApifyLead {
   title: string
   phone: string | null
@@ -78,8 +80,10 @@ export async function extraerLeadsConApifyAsync(
     ? `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}`
     : `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}&webhooks=${webhooksBase64}`
 
-  const runRes = await fetch(url, {
+  const runRes = await fetchWithAudit(url, {
       method: 'POST',
+      service: 'Apify',
+      retries: 3,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         searchStringsArray: [`${sector} en ${ciudad}`],
@@ -121,29 +125,31 @@ export async function extraerLeadsConApify(
   let runId = existingRunId
   if (!runId) {
     // 1. Lanzar el actor (modo síncrono clásico)
-    const runRes = await fetch(
-    `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        searchStringsArray: [`${sector} en ${ciudad}`],
-        maxCrawledPlacesPerSearch: cantidad,
-        language: 'es',
-        countryCode: 'es',
-        includeWebResults: false,
-        scrapeDirectories: false,
-        deeperCityScrape: false,
-        scrapeTabletsDesktop: false,
-        maxImages: 0,
-        maxReviews: 0,
-        exportPlaceUrls: false,
-        additionalInfo: false,
-        reviewsSort: 'newest',
-        reviewsFilterString: '',
-      }),
-    }
-  )
+    const runRes = await fetchWithAudit(
+      `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}`,
+      {
+        method: 'POST',
+        service: 'Apify',
+        retries: 3,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          searchStringsArray: [`${sector} en ${ciudad}`],
+          maxCrawledPlacesPerSearch: cantidad,
+          language: 'es',
+          countryCode: 'es',
+          includeWebResults: false,
+          scrapeDirectories: false,
+          deeperCityScrape: false,
+          scrapeTabletsDesktop: false,
+          maxImages: 0,
+          maxReviews: 0,
+          exportPlaceUrls: false,
+          additionalInfo: false,
+          reviewsSort: 'newest',
+          reviewsFilterString: '',
+        }),
+      }
+    )
 
   if (!runRes.ok) {
     const err = await runRes.text()
@@ -165,8 +171,9 @@ export async function extraerLeadsConApify(
     await new Promise(r => setTimeout(r, 5000))
     intentos++
 
-    const statusRes = await fetch(
-      `${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_KEY}`
+    const statusRes = await fetchWithAudit(
+      `${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_KEY}`,
+      { service: 'Apify' }
     )
     const statusData = await statusRes.json()
     status = statusData.data.status
@@ -185,8 +192,9 @@ export async function extraerLeadsConApify(
   onProgress?.('Descargando resultados...')
 
   // 3. Descargar resultados
-  const datasetRes = await fetch(
-    `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_KEY}&format=json&limit=${cantidad}`
+  const datasetRes = await fetchWithAudit(
+    `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_KEY}&format=json&limit=${cantidad}`,
+    { service: 'Apify' }
   )
 
   if (!datasetRes.ok) {
@@ -218,8 +226,10 @@ export async function extraerLeadsConApify(
 // Hace polling hasta SUCCEEDED (máx ~90s). No lanza: cualquier fallo → [].
 async function correrActor(actor: string, input: Record<string, unknown>): Promise<Record<string, unknown>[]> {
   try {
-    const runRes = await fetch(`${APIFY_BASE}/acts/${actor}/runs?token=${APIFY_API_KEY}`, {
+    const runRes = await fetchWithAudit(`${APIFY_BASE}/acts/${actor}/runs?token=${APIFY_API_KEY}`, {
       method: 'POST',
+      service: 'Apify',
+      retries: 3,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     })
@@ -232,14 +242,17 @@ async function correrActor(actor: string, input: Record<string, unknown>): Promi
     while ((status === 'RUNNING' || status === 'READY') && intentos < 18) {
       await new Promise((r) => setTimeout(r, 5000))
       intentos++
-      const statusRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_KEY}`)
+      const statusRes = await fetchWithAudit(
+      `${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_KEY}`,
+      { service: 'Apify' }
+    )
       if (!statusRes.ok) break
       const statusData = await statusRes.json()
       status = statusData.data.status
     }
     if (status !== 'SUCCEEDED') return []
 
-    const dataRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_KEY}`)
+    const dataRes = await fetchWithAudit(`${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_KEY}`, { service: 'Apify' })
     if (!dataRes.ok) return []
     return await dataRes.json()
   } catch (e) {
