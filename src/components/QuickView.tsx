@@ -5,7 +5,7 @@ import {
   MagnifyingGlassPlus, PaperPlaneTilt, Copy, PlayCircle,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
+import { analizarBrechas, toAnalisisBrechas, generarGuionAudio } from '../lib/claudeApi'
 import ScoreBadge from './ScoreBadge'
 import FaseSelector from './FaseSelector'
 import { useToast } from './Toast'
@@ -90,46 +90,62 @@ export default function QuickView({
 
   const generarDemoAudio = async () => {
     const apiKey = localStorage.getItem('elevenlabs_api_key')
-    const voiceId = localStorage.getItem('elevenlabs_voice_id')
-    if (!apiKey || !voiceId) {
-      toast('Configura las claves de ElevenLabs en Configuración primero', 'error')
+    const voiceIdAi = localStorage.getItem('elevenlabs_voice_id')
+    const voiceIdCliente = localStorage.getItem('elevenlabs_voice_id_cliente')
+    
+    if (!apiKey || !voiceIdAi || !voiceIdCliente) {
+      toast('Configura las TRES claves de ElevenLabs en Configuración primero (API Key, Voice AI, Voice Cliente)', 'error')
       return
     }
     
     setGenerandoAudio(true)
     try {
-      // 1. Llamar a ElevenLabs
-      const prompt = `Hola, se ha comunicado con la recepcionista virtual de ${l.nombre}. ¿En qué le puedo ayudar hoy?`
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': apiKey
-        },
-        body: JSON.stringify({
-          text: prompt,
-          model_id: "eleven_multilingual_v2",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75
-          }
-        })
-      })
+      // 1. Obtener el guion de 2 voces de Claude
+      const guion = await generarGuionAudio(l)
+      
+      const audioBlobs: Blob[] = []
 
-      if (!res.ok) throw new Error('Error al generar audio en ElevenLabs')
+      // 2. Generar el audio línea por línea
+      for (const linea of guion) {
+        const voiceId = linea.speaker === 'cliente' ? voiceIdCliente : voiceIdAi
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'xi-api-key': apiKey
+          },
+          body: JSON.stringify({
+            text: linea.text,
+            model_id: "eleven_multilingual_v2",
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75
+            }
+          })
+        })
+
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`Error en ElevenLabs (${linea.speaker}): ${errText}`)
+        }
+        
+        const blob = await res.blob()
+        audioBlobs.push(blob)
+      }
+
+      // 3. Concatenar los Blobs MP3
+      const audioFinalBlob = new Blob(audioBlobs, { type: 'audio/mpeg' })
       
-      const audioBlob = await res.blob()
-      
-      // 2. Subir a Supabase Storage
+      // 4. Subir a Supabase Storage
       const fileName = `demo_${l.id}_${Date.now()}.mp3`
-      const { error } = await supabase.storage.from('demos_audio').upload(fileName, audioBlob, {
+      const { error } = await supabase.storage.from('demos_audio').upload(fileName, audioFinalBlob, {
         contentType: 'audio/mpeg',
         upsert: false
       })
 
       if (error) throw error
 
-      // 3. Obtener URL pública
+      // 5. Obtener URL pública
       const { data: { publicUrl } } = supabase.storage.from('demos_audio').getPublicUrl(fileName)
 
       // 4. Actualizar el lead en la BD

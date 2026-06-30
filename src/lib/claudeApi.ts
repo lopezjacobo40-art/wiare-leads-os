@@ -65,6 +65,45 @@ export interface ResultadoBrechas {
   email_cuerpo?: string
 }
 
+export interface DialogoAudio {
+  speaker: 'cliente' | 'ai'
+  text: string
+}
+
+export async function generarGuionAudio(lead: Lead): Promise<DialogoAudio[]> {
+  const prompt = `Actúas como un guionista de demostraciones de voz AI. Tu objetivo es escribir un diálogo ultra-realista de 3 o 4 frases como máximo entre un "cliente" (el prospecto llamando por teléfono) y la "ai" (la recepcionista virtual de WIARE trabajando para este negocio en específico).
+
+Datos del negocio:
+Nombre: ${lead.nombre}
+Sector: ${lead.sector}
+Descripción: ${lead.descripcion ?? 'Negocio local'}
+
+REGLAS:
+- No escribas nada más, devuelve SOLO un array JSON válido sin formato markdown ni comillas raras.
+- El JSON debe ser exactamente: [{"speaker": "cliente", "text": "..."}, {"speaker": "ai", "text": "..."}]
+- La IA debe sonar extremadamente profesional, rápida y demostrar que conoce el sector (ofrecer mesa, cita médica, consulta legal, etc.).
+- Hazlo corto (máximo 4 intercambios) para que dure 30 segundos.
+- Empieza siempre el cliente diciendo algo como "Hola, quería..." o "Llamaba para...".`
+
+  const messages: ChatMsg[] = [{ role: 'user', content: prompt }]
+  
+  return await guardedCall('generarGuionAudio', async () => {
+    // Usamos el modelo rápido (Haiku) para la demo instantánea.
+    const raw = await callClaudeChat('claude-3-5-haiku-20241022', 400, messages)
+    try {
+      // Extraemos el JSON por si Claude mete algo de texto
+      const jsonStr = raw.match(/\[.*\]/s)?.[0] ?? raw
+      return JSON.parse(jsonStr) as DialogoAudio[]
+    } catch {
+      // Fallback genérico si falla el parseo
+      return [
+        { speaker: 'cliente', text: `Hola, llamaba a ${lead.nombre} para hacer una consulta.` },
+        { speaker: 'ai', text: 'Hola, soy la recepcionista virtual inteligente de este negocio. Puedo ayudarle a reservar su cita o gestionar su consulta 24 horas al día. ¿En qué le ayudo?' }
+      ]
+    }
+  })
+}
+
 export async function analizarBrechas(lead: Lead): Promise<ResultadoBrechas> {
   const nicho = getNichoBrechas(lead.sector)
   const horario = Array.isArray(lead.horario)

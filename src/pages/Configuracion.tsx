@@ -963,16 +963,19 @@ const codeStyle: React.CSSProperties = {
 function SeccionElevenLabs() {
   const [apiKey, setApiKey] = useState('')
   const [voiceId, setVoiceId] = useState('')
+  const [voiceIdCliente, setVoiceIdCliente] = useState('')
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setApiKey(localStorage.getItem('elevenlabs_api_key') || '')
     setVoiceId(localStorage.getItem('elevenlabs_voice_id') || '')
+    setVoiceIdCliente(localStorage.getItem('elevenlabs_voice_id_cliente') || '')
   }, [])
 
   const guardar = () => {
     localStorage.setItem('elevenlabs_api_key', apiKey)
     localStorage.setItem('elevenlabs_voice_id', voiceId)
+    localStorage.setItem('elevenlabs_voice_id_cliente', voiceIdCliente)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -999,12 +1002,23 @@ function SeccionElevenLabs() {
         </div>
         <div>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-            Voice ID (El clon de la recepcionista)
+            Voice ID (El clon de la recepcionista - IA)
           </label>
           <input
             value={voiceId}
             onChange={(e) => setVoiceId(e.target.value)}
             placeholder="ej: Xb7hH8..."
+            style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+            Voice ID (Voz del Cliente)
+          </label>
+          <input
+            value={voiceIdCliente}
+            onChange={(e) => setVoiceIdCliente(e.target.value)}
+            placeholder="ej: pNInz6obpgDQGcFmaJcg (Voz masculina genérica)"
             style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
           />
         </div>
