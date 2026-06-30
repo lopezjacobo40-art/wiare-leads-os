@@ -160,7 +160,7 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
       </div>
 
       {/* Navegación */}
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         <GrupoLabel>Menú</GrupoLabel>
         {NAV.map((item) => {
           const badge = item.to === '/leads' && totalLeads != null ? totalLeads : undefined
