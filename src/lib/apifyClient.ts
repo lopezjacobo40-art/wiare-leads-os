@@ -62,11 +62,10 @@ export async function extraerLeadsConApifyAsync(
   ciudad: string,
   cantidad: number
 ): Promise<{ runId: string, modo: 'async' | 'sync' }> {
-  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  // Ahora forzamos siempre 'sync' para que el usuario vea el progreso en vivo (polling en el frontend)
+  const isLocalhost = true 
   
-  // En localhost no podemos recibir webhooks de Apify, forzamos sync o ignoramos webhook
-  // Usamos el origin real para el webhook, pero en dev no llegará
-  const webhookUrl = `${window.location.origin}/api/webhooks/apify-maps`
+  const webhookUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/apify-maps`
   
   const webhooks = [
     {
@@ -74,7 +73,7 @@ export async function extraerLeadsConApifyAsync(
       requestUrl: webhookUrl
     }
   ]
-  const webhooksBase64 = btoa(JSON.stringify(webhooks))
+  const webhooksBase64 = typeof btoa !== 'undefined' ? btoa(JSON.stringify(webhooks)) : ''
   const url = isLocalhost 
     ? `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}`
     : `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_API_KEY}&webhooks=${webhooksBase64}`
@@ -107,7 +106,7 @@ export async function extraerLeadsConApifyAsync(
   }
 
   const runData = await runRes.json()
-  return { runId: runData.data.id, modo: isLocalhost ? 'sync' : 'async' }
+  return { runId: runData.data.id, modo: 'sync' }
 }
 
 export async function extraerLeadsConApify(
