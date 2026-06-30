@@ -448,7 +448,19 @@ Responde SOLO en JSON con esta estructura:
 
   let parsed: Partial<DatosDecisor>
   try {
-    const json = text.replace(/```json\n?|```/g, '').trim()
+    let json = text
+    // Intentar extraer de bloque de código si existe
+    const match = text.match(/```json\s*([\s\S]*?)\s*```/)
+    if (match && match[1]) {
+      json = match[1]
+    } else {
+      // Si no hay bloque, intentar extraer desde la primera { hasta la última }
+      const start = text.indexOf('{')
+      const end = text.lastIndexOf('}')
+      if (start !== -1 && end !== -1) {
+        json = text.slice(start, end + 1)
+      }
+    }
     parsed = JSON.parse(json)
   } catch (parseErr) {
     console.error('extraerDatosDecisor parse error. Raw text:', text, parseErr)

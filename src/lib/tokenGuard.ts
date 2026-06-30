@@ -18,7 +18,14 @@ const COSTE_POR_ACCION: Record<Accion, number> = {
 }
 
 function usuarioActual(): string {
-  return sessionStorage.getItem('wiare_user') ?? 'desconocido'
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem('wiare_user') ?? 'desconocido'
+    }
+  } catch (e) {
+    // ignorar
+  }
+  return 'desconocido'
 }
 
 function hoy(): string {
