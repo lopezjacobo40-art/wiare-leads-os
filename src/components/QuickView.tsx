@@ -6,7 +6,7 @@ import {
   ArrowCounterClockwise,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { analizarBrechas, toAnalisisBrechas, generarGuionAudio } from '../lib/claudeApi'
+import { analizarBrechas, toAnalisisBrechas, generarGuionAudio, type DialogoAudio } from '../lib/claudeApi'
 import ScoreBadge from './ScoreBadge'
 import FaseSelector from './FaseSelector'
 import { useToast } from './Toast'
@@ -35,11 +35,32 @@ export default function QuickView({
   const [analizando, setAnalizando] = useState(false)
   const [generandoAudio, setGenerandoAudio] = useState(false)
   const [localLead, setLocalLead] = useState<Lead | null>(lead)
+  const [demosHistorial, setDemosHistorial] = useState<any[]>([])
+  const [scriptEdicion, setScriptEdicion] = useState<DialogoAudio[] | null>(null)
+  const [generandoScript, setGenerandoScript] = useState(false)
+
+  const cargarHistorialDemos = async () => {
+    if (!lead?.id) return
+    try {
+      const { data, error } = await supabase
+        .from('lead_audio_demos')
+        .select('*')
+        .eq('lead_id', lead.id)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setDemosHistorial(data || [])
+    } catch (err) {
+      console.error('Error al cargar historial de demos:', err)
+    }
+  }
 
   // Sincroniza el estado local cuando cambia el lead recibido.
   useEffect(() => {
     setLocalLead(lead)
-    if (lead) setNotas(lead.notas ?? '')
+    if (lead) {
+      setNotas(lead.notas ?? '')
+      cargarHistorialDemos()
+    }
   }, [lead])
 
   // Cerrar con Escape (escape-route, regla §1).
@@ -90,7 +111,60 @@ export default function QuickView({
     }
   }
 
-  const generarDemoAudio = async () => {
+  const eliminarDemoHistorial = async (id: string, url: string) => {
+    if (!window.confirm('¿Seguro que quieres eliminar este audio del historial?')) return
+    try {
+      const { error } = await supabase
+        .from('lead_audio_demos')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+
+      const path = url.split('/').pop()
+      if (path) {
+        await supabase.storage.from('demos_audio').remove([path])
+      }
+
+      if (l.demo_audio_url === url) {
+        const { error: leadErr } = await supabase
+          .from('leads_os')
+          .update({ demo_audio_url: null })
+          .eq('id', l.id)
+        if (leadErr) throw leadErr
+        setLocalLead({ ...l, demo_audio_url: null })
+        onUpdated?.()
+      }
+
+      toast('Audio eliminado del historial', 'success')
+      cargarHistorialDemos()
+    } catch (err: any) {
+      toast(`Error al eliminar: ${err.message}`, 'error')
+    }
+  }
+
+  const generarGuion = async () => {
+    setGenerandoScript(true)
+    try {
+      const guion = await generarGuionAudio(l)
+      setScriptEdicion(guion)
+      toast('Guion generado por Claude. Modifica los textos a tu gusto.', 'success')
+    } catch (err: any) {
+      toast(err.message || 'Error al generar guion', 'error')
+    } finally {
+      setGenerandoScript(false)
+    }
+  }
+
+  const iniciarRegeneracion = async () => {
+    if (demosHistorial.length > 0 && demosHistorial[0].script) {
+      setScriptEdicion(demosHistorial[0].script as DialogoAudio[])
+      toast('Cargado el guion del último audio para editar.', 'info')
+    } else {
+      generarGuion()
+    }
+  }
+
+  const sintetizarAudioFinal = async (script: DialogoAudio[]) => {
     const provider = localStorage.getItem('tts_provider') || import.meta.env.VITE_TTS_PROVIDER || 'elevenlabs'
     
     let apiKey = ''
@@ -121,9 +195,6 @@ export default function QuickView({
     
     setGenerandoAudio(true)
     try {
-      // 1. Obtener el guion de 2 voces de Claude
-      const guion = await generarGuionAudio(l)
-      
       const audioBlobs: Blob[] = []
 
       // Helper para escapar XML
@@ -140,8 +211,8 @@ export default function QuickView({
         });
       }
 
-      // 2. Generar el audio línea por línea
-      for (const linea of guion) {
+      // Generar el audio línea por línea
+      for (const linea of script) {
         const voiceId = linea.speaker === 'cliente' ? voiceIdCliente : voiceIdAi
         
         let res: Response
@@ -155,6 +226,7 @@ export default function QuickView({
             .replace(/!\s/g, '! <break time="300ms"/> ');
 
           const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='es-ES'><voice xml:lang='es-ES' name='${voiceId}'><prosody rate='94%'>${textWithPauses}</prosody></voice></speak>`
+          
           res = await fetchWithAudit(`https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`, {
             method: 'POST',
             service: 'Generic',
@@ -196,10 +268,7 @@ export default function QuickView({
         audioBlobs.push(blob)
       }
 
-      // 3. Concatenar los Blobs MP3
       const audioFinalBlob = new Blob(audioBlobs, { type: 'audio/mpeg' })
-      
-      // 4. Subir a Supabase Storage
       const fileName = `demo_${l.id}_${Date.now()}.mp3`
       const { error } = await supabase.storage.from('demos_audio').upload(fileName, audioFinalBlob, {
         contentType: 'audio/mpeg',
@@ -208,10 +277,17 @@ export default function QuickView({
 
       if (error) throw error
 
-      // 5. Obtener URL pública
       const { data: { publicUrl } } = supabase.storage.from('demos_audio').getPublicUrl(fileName)
 
-      // 4. Actualizar el lead en la BD
+      const { error: histErr } = await supabase
+        .from('lead_audio_demos')
+        .insert({
+          lead_id: l.id,
+          audio_url: publicUrl,
+          script: script
+        })
+      if (histErr) throw histErr
+
       const { error: dbError } = await supabase
         .from('leads_os')
         .update({ demo_audio_url: publicUrl })
@@ -220,7 +296,9 @@ export default function QuickView({
       if (dbError) throw dbError
 
       setLocalLead({ ...l, demo_audio_url: publicUrl })
+      setScriptEdicion(null)
       onUpdated?.()
+      cargarHistorialDemos()
       toast('Demo de voz generada con éxito', 'success')
       
     } catch (err: any) {
@@ -495,43 +573,161 @@ Jacobo.`
 
               {/* ── SECCIÓN DE DEMO DE VOZ ── */}
               <div style={{ marginTop: 20, padding: 16, background: 'var(--color-surface-2)', borderRadius: 12, border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-primary)', margin: 0 }}>Demo Robada (Audio)</h3>
-                  <button
-                    onClick={generarDemoAudio}
-                    className={l.demo_audio_url ? "btn-secondary" : "btn-primary"}
-                    disabled={generandoAudio}
-                    style={{ padding: '6px 12px', fontSize: 12, minHeight: 'auto', gap: 6, display: 'inline-flex', alignItems: 'center' }}
-                  >
-                    {generandoAudio ? (
-                      <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-                    ) : l.demo_audio_url ? (
-                      <ArrowCounterClockwise size={14} />
-                    ) : (
-                      <PlayCircle size={14} />
-                    )}
-                    {generandoAudio ? 'Generando...' : l.demo_audio_url ? 'Regenerar' : 'Generar 30s'}
-                  </button>
-                </div>
-                
-                {l.demo_audio_url ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <audio src={l.demo_audio_url} controls style={{ width: '100%', height: 36 }} />
-                    <button
-                      onClick={() => {
-                        const url = `${window.location.origin}/d/${l.id}`
-                        navigator.clipboard.writeText(url)
-                        toast('Enlace copiado (wiare-leads.com/d/...)', 'info')
-                      }}
-                      className="btn-ghost"
-                      style={{ fontSize: 12, padding: '4px 8px', alignSelf: 'flex-start', color: 'var(--color-text-secondary)', display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      <Copy size={12} style={{ marginRight: 4 }} /> Copiar enlace para prospecto
-                    </button>
+                {scriptEdicion ? (
+                  <div style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Edita el Guión de la Demo:</div>
+                    {scriptEdicion.map((linea, index) => (
+                      <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: linea.speaker === 'cliente' ? '#3b82f6' : '#10b981', textTransform: 'uppercase' }}>
+                          {linea.speaker === 'cliente' ? 'Cliente' : 'Recepcionista (IA)'}
+                        </span>
+                        <textarea
+                          value={linea.text}
+                          onChange={(e) => {
+                            const newScript = [...scriptEdicion]
+                            newScript[index] = { ...linea, text: e.target.value }
+                            setScriptEdicion(newScript)
+                          }}
+                          rows={2}
+                          style={{ width: '100%', fontSize: 12, padding: '8px', borderRadius: 6, border: '1px solid var(--color-border)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+                        />
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button
+                        onClick={() => sintetizarAudioFinal(scriptEdicion)}
+                        disabled={generandoAudio}
+                        className="btn-primary"
+                        style={{ flex: 1, fontSize: 11, padding: '8px 10px', minHeight: 36, display: 'inline-flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}
+                      >
+                        {generandoAudio ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <PlayCircle size={14} />}
+                        Paso 2: Generar Audio
+                      </button>
+                      <button
+                        onClick={generarGuion}
+                        disabled={generandoScript}
+                        className="btn-secondary"
+                        style={{ flex: 1, fontSize: 11, padding: '8px 10px', minHeight: 36 }}
+                      >
+                        {generandoScript ? 'Generando...' : 'Reescritura IA'}
+                      </button>
+                      <button
+                        onClick={() => setScriptEdicion(null)}
+                        className="btn-ghost"
+                        style={{ fontSize: 11, padding: '8px 10px', minHeight: 36 }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
-                    No hay demo de voz generada todavía.
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-primary)', margin: 0 }}>Demo Robada (Audio)</h3>
+                      {l.demo_audio_url ? (
+                        <button
+                          onClick={iniciarRegeneracion}
+                          className="btn-secondary"
+                          disabled={generandoAudio || generandoScript}
+                          style={{ padding: '6px 12px', fontSize: 12, minHeight: 'auto', gap: 6, display: 'inline-flex', alignItems: 'center' }}
+                        >
+                          {generandoScript ? (
+                            <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                          ) : (
+                            <ArrowCounterClockwise size={14} />
+                          )}
+                          {generandoScript ? 'Preparando...' : 'Regenerar'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={generarGuion}
+                          className="btn-primary"
+                          disabled={generandoScript}
+                          style={{ padding: '6px 12px', fontSize: 12, minHeight: 'auto', gap: 6, display: 'inline-flex', alignItems: 'center' }}
+                        >
+                          {generandoScript ? (
+                            <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                          ) : (
+                            <PlayCircle size={14} />
+                          )}
+                          Paso 1: Generar Guión
+                        </button>
+                      )}
+                    </div>
+                    
+                    {l.demo_audio_url ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <audio src={l.demo_audio_url} controls style={{ width: '100%', height: 36 }} />
+                        <button
+                          onClick={() => {
+                            const url = `${window.location.origin}/d/${l.id}`
+                            navigator.clipboard.writeText(url)
+                            toast('Enlace copiado (wiare-leads.com/d/...)', 'info')
+                          }}
+                          className="btn-ghost"
+                          style={{ fontSize: 12, padding: '4px 8px', alignSelf: 'flex-start', color: 'var(--color-text-secondary)', display: 'inline-flex', alignItems: 'center' }}
+                        >
+                          <Copy size={12} style={{ marginRight: 4 }} /> Copiar enlace para prospecto
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+                        No hay demo de voz generada todavía. Haz clic en "Paso 1: Generar Guión" para empezar.
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ── HISTORIAL DE DEMOS ── */}
+                {!scriptEdicion && demosHistorial.length > 0 && (
+                  <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Historial de Demos ({demosHistorial.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto', paddingRight: 4 }}>
+                      {demosHistorial.map((dh) => (
+                        <div key={dh.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--color-surface-1)', padding: 8, borderRadius: 8, border: '1px solid var(--color-border)', gap: 8 }}>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+                              {new Date(dh.created_at).toLocaleString()}
+                            </span>
+                            <audio src={dh.audio_url} controls style={{ width: '100%', height: 28 }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(dh.audio_url)
+                                toast('Enlace de audio copiado', 'info')
+                              }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--color-text-secondary)' }}
+                              title="Copiar enlace del archivo de audio"
+                            >
+                              <Copy size={14} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                supabase.from('leads_os').update({ demo_audio_url: dh.audio_url }).eq('id', l.id).then(() => {
+                                  setLocalLead({ ...l, demo_audio_url: dh.audio_url })
+                                  onUpdated?.()
+                                  toast('Audio fijado como activo', 'success')
+                                })
+                              }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: l.demo_audio_url === dh.audio_url ? 'var(--color-primary)' : 'var(--color-text-tertiary)' }}
+                              title={l.demo_audio_url === dh.audio_url ? "Activo actualmente" : "Fijar como activo"}
+                            >
+                              <PlayCircle size={14} style={{ opacity: l.demo_audio_url === dh.audio_url ? 1 : 0.6 }} />
+                            </button>
+                            <button
+                              onClick={() => eliminarDemoHistorial(dh.id, dh.audio_url)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#ef4444' }}
+                              title="Eliminar del historial"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

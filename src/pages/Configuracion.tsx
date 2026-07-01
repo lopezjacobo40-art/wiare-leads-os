@@ -12,9 +12,12 @@ import {
   MapPin,
   Table,
   FloppyDisk,
+  PlayCircle,
 } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
 import Skeleton from '../components/Skeleton'
+import { fetchWithAudit } from '../lib/apiAuditor'
+import { useToast } from '../components/Toast'
 
 /* ─────────────────────────────────────────────
    Precios y supuestos de estimación de coste
@@ -975,6 +978,9 @@ function SeccionElevenLabs() {
   const [azVoiceCliente, setAzVoiceCliente] = useState('')
 
   const [saved, setSaved] = useState(false)
+  const toast = useToast()
+  const [probandoAi, setProbandoAi] = useState(false)
+  const [probandoCliente, setProbandoCliente] = useState(false)
 
   useEffect(() => {
     setProvider((localStorage.getItem('tts_provider') as 'elevenlabs' | 'azure') || (import.meta.env.VITE_TTS_PROVIDER as 'elevenlabs' | 'azure') || 'elevenlabs')
@@ -1007,6 +1013,88 @@ function SeccionElevenLabs() {
 
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const probarVoz = async (tipo: 'recepcionista' | 'cliente') => {
+    const isAi = tipo === 'recepcionista'
+    const setLoader = isAi ? setProbandoAi : setProbandoCliente
+    const voiceId = provider === 'azure' 
+      ? (isAi ? azVoiceAi : azVoiceCliente)
+      : (isAi ? elVoiceAi : elVoiceCliente)
+    const key = provider === 'azure' ? azKey : elKey
+
+    if (!key) {
+      toast('Ingresa la clave de API primero para realizar la prueba', 'error')
+      return
+    }
+    if (!voiceId) {
+      toast('Ingresa el ID de la voz primero', 'error')
+      return
+    }
+
+    setLoader(true)
+    try {
+      const textToSpeak = isAi
+        ? 'Hola, bienvenido a la recepción virtual de WIARE. ¿En qué le puedo ayudar?'
+        : 'Hola, buenas tardes, llamaba para solicitar información sobre vuestros servicios.'
+
+      let res: Response
+      if (provider === 'azure') {
+        // En Azure usamos SSML con prosodia a 94% y breaks de puntuación
+        const textWithPauses = textToSpeak
+          .replace(/,/g, ', <break time="150ms"/>')
+          .replace(/\./g, '. <break time="300ms"/>')
+          .replace(/\?/g, '? <break time="350ms"/>');
+
+        const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='es-ES'><voice xml:lang='es-ES' name='${voiceId}'><prosody rate='94%'>${textWithPauses}</prosody></voice></speak>`
+        
+        res = await fetchWithAudit(`https://${azRegion || 'westeurope'}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+          method: 'POST',
+          service: 'Generic',
+          retries: 2,
+          headers: {
+            'Ocp-Apim-Subscription-Key': key,
+            'Content-Type': 'application/ssml+xml',
+            'X-Microsoft-OutputFormat': 'audio-24khz-96kbitrate-mono-mp3',
+            'User-Agent': 'wiare-leads-os'
+          },
+          body: ssml
+        })
+      } else {
+        res = await fetchWithAudit(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+          method: 'POST',
+          service: 'ElevenLabs',
+          retries: 2,
+          headers: {
+            'Content-Type': 'application/json',
+            'xi-api-key': key
+          },
+          body: JSON.stringify({
+            text: textToSpeak,
+            model_id: "eleven_multilingual_v2",
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75
+            }
+          })
+        })
+      }
+
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(errText)
+      }
+
+      const blob = await res.blob()
+      const audioUrl = URL.createObjectURL(blob)
+      const audio = new Audio(audioUrl)
+      await audio.play()
+      toast('Reproduciendo muestra de voz...', 'success')
+    } catch (err: any) {
+      toast(`Error al probar voz: ${err.message}`, 'error')
+    } finally {
+      setLoader(false)
+    }
   }
 
   return (
@@ -1053,23 +1141,47 @@ function SeccionElevenLabs() {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
                 Voice ID Recepcionista (IA) - Rachel
               </label>
-              <input
-                value={elVoiceAi}
-                onChange={(e) => setElVoiceAi(e.target.value)}
-                placeholder="ej: Xb7hH8..."
-                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={elVoiceAi}
+                  onChange={(e) => setElVoiceAi(e.target.value)}
+                  placeholder="ej: Xb7hH8..."
+                  style={{ flex: 1, fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => probarVoz('recepcionista')}
+                  disabled={probandoAi}
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 40, whiteSpace: 'nowrap', padding: '0 16px' }}
+                >
+                  {probandoAi ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <PlayCircle size={16} />}
+                  Probar Voz
+                </button>
+              </div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
                 Voice ID Voz del Cliente - Antoni
               </label>
-              <input
-                value={elVoiceCliente}
-                onChange={(e) => setElVoiceCliente(e.target.value)}
-                placeholder="ej: pNInz6obpgDQGcFmaJgB"
-                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={elVoiceCliente}
+                  onChange={(e) => setElVoiceCliente(e.target.value)}
+                  placeholder="ej: pNInz6obpgDQGcFmaJgB"
+                  style={{ flex: 1, fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => probarVoz('cliente')}
+                  disabled={probandoCliente}
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 40, whiteSpace: 'nowrap', padding: '0 16px' }}
+                >
+                  {probandoCliente ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <PlayCircle size={16} />}
+                  Probar Voz
+                </button>
+              </div>
             </div>
           </>
         ) : (
@@ -1101,23 +1213,47 @@ function SeccionElevenLabs() {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
                 Nombre de Voz Recepcionista (IA) - España (ej: es-ES-ElviraNeural)
               </label>
-              <input
-                value={azVoiceAi}
-                onChange={(e) => setAzVoiceAi(e.target.value)}
-                placeholder="ej: es-ES-ElviraNeural, es-ES-AbrilNeural"
-                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={azVoiceAi}
+                  onChange={(e) => setAzVoiceAi(e.target.value)}
+                  placeholder="ej: es-ES-ElviraNeural, es-ES-AbrilNeural"
+                  style={{ flex: 1, fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => probarVoz('recepcionista')}
+                  disabled={probandoAi}
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 40, whiteSpace: 'nowrap', padding: '0 16px' }}
+                >
+                  {probandoAi ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <PlayCircle size={16} />}
+                  Probar Voz
+                </button>
+              </div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
                 Nombre de Voz del Cliente - España (ej: es-ES-AlvaroNeural)
               </label>
-              <input
-                value={azVoiceCliente}
-                onChange={(e) => setAzVoiceCliente(e.target.value)}
-                placeholder="ej: es-ES-AlvaroNeural, es-ES-ArnauNeural"
-                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
-              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={azVoiceCliente}
+                  onChange={(e) => setAzVoiceCliente(e.target.value)}
+                  placeholder="ej: es-ES-AlvaroNeural, es-ES-ArnauNeural"
+                  style={{ flex: 1, fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => probarVoz('cliente')}
+                  disabled={probandoCliente}
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 40, whiteSpace: 'nowrap', padding: '0 16px' }}
+                >
+                  {probandoCliente ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <PlayCircle size={16} />}
+                  Probar Voz
+                </button>
+              </div>
             </div>
           </>
         )}
