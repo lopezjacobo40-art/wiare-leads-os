@@ -162,27 +162,31 @@ CUÁNDO PUNTUAR ALTO (7-10) y CONTACTAR:
 
 LENGUAJE: NUNCA "IA", "bot", "algoritmo". SÍ "atención", "recepción", "clientes perdidos".
 
-PUNTOS_EMAIL e ICEBREAKER (Retrocompatibilidad):
-- Genera en puntos_email 3 frases con el dolor, solución y beneficio para otros usos (en formato array).
-- Genera en icebreaker la primera línea por separado.
-
-EMAIL DE OUTREACH PERSONALIZADO (ALEX HORMOZI - 100% HUMANO):
+EMAIL DE OUTREACH PERSONALIZADO (ESTILO ALEX HORMOZI - 100% HUMANO Y CASUAL):
 Debes redactar un correo de venta en frío hiper-personalizado y su respectivo asunto en base a los datos de este negocio. Debe sonar 100% escrito a mano, sincero, casual y directo.
 
 REGLAS DE REDACCIÓN:
 1. LIMPIEZA DE NOMBRE: Limpia el nombre del negocio. Si el nombre en Google Maps incluye slogans o frases SEO (ej: "Clínica Moratín Podología || podólogo centro de Madrid"), acórtalo a lo que diría un humano (ej: "Clínica Moratín" o "Clínica Moratín Podología").
-2. ASUNTO (email_asunto): Un asunto muy corto, en minúsculas y casual que genere curiosidad (ej: "pregunta rápida", "duda sobre vuestras llamadas", "duda sobre {{nombre_limpio}}").
+2. ASUNTO (email_asunto): Un asunto muy corto, de 2 a 4 palabras, en minúsculas y casual que genere curiosidad (ej: "pregunta rápida", "duda sobre vuestras llamadas", "duda sobre {{nombre_limpio}}").
 3. CUERPO (email_cuerpo):
    - Saludo directo al decisor si se conoce su nombre (ej: "Hola Carlos,") o general si no (ej: "Hola,").
    - Icebreaker: Una primera línea rápida basada en un detalle real de su negocio (sus reseñas, su web, años abierta).
    - Dolor/Coste: Traduce la pérdida de llamadas a dinero/pacientes perdidos al mes basándote en su sector y volumen de reseñas (ej: "Haciendo números, una clínica dental de vuestro tamaño en Madrid suele perder 6-8 llamadas a la semana fuera de horario. Con vuestro ticket medio, eso son fácilmente 2.500€/mes que se van directos a la competencia.").
    - Solución/Grand Slam Offer: Presenta de forma simple el sistema (una recepcionista digital que atiende 24h con vuestro nombre y agenda las citas directamente, sonando idéntica a un humano).
    - CTA ÚNICO DE FRICCIÓN CERO: Pide permiso para enviarle un audio personalizado de WhatsApp de 30 segundos (ej: "Si te cuadra, ¿te puedo pasar un audio de 30 segundos por WhatsApp para que escuches cómo sonaría contestando con el nombre de Clínica Moratín?").
-   - Firma casual (ej: "Un saludo, Jacobo - WIARE").
+   - Firma casual (ej: "Un saludo, Jacobo").
    - IMPORTANTE: No metas listas de viñetas, guiones ni estructures el email como un folleto de ventas. Debe fluir como un correo de texto plano rápido enviado desde el móvil.
    - NUNCA incluyas múltiples CTAs. El único CTA debe ser el de WhatsApp.
 
-Genera el análisis estructurado del negocio.`
+PROHIBICIONES ABSOLUTAS (Incumplirlas arruinará la venta):
+1. PROHIBIDO saludar con "Estimado/a", "Espero que este email le encuentre bien", "Mi nombre es Jacobo de WIARE", "Es un placer", "Le escribo porque".
+2. PROHIBIDO usar palabras de marketing trilladas como "optimizar", "revolucionar", "solución integral", "plataforma innovadora", "agilizar procesos", "potenciar", "incrementar".
+3. PROHIBIDO incluir guiones, viñetas, o listas numeradas en el email.
+4. PROHIBIDO despedirse con "Atentamente", "Cordialmente", "Quedo a la espera de sus comentarios". Usa "Un saludo, Jacobo" o "Hablamos,".
+5. El email entero no debe superar las 90-110 palabras y debe tener estructura de texto plano (párrafos de 1 o 2 líneas como mucho). Debe parecer escrito a toda prisa desde un teléfono móvil.
+
+Genera el análisis estructurado del negocio.
+`
 
   const schema = {
     responseMimeType: 'application/json',

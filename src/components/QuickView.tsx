@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   X, ArrowRight, Phone, Globe, MapPin, Star, Clock,
   MagnifyingGlassPlus, PaperPlaneTilt, Copy, PlayCircle,
+  ArrowCounterClockwise,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas, generarGuionAudio } from '../lib/claudeApi'
@@ -145,7 +146,15 @@ export default function QuickView({
         
         let res: Response
         if (provider === 'azure') {
-          const ssml = `<speak version='1.0' xml:lang='es-ES'><voice xml:lang='es-ES' name='${voiceId}'>${escapeXml(linea.text)}</voice></speak>`
+          // Mejorar la naturalidad agregando pausas y bajando la velocidad al 94%
+          let textWithPauses = escapeXml(linea.text);
+          textWithPauses = textWithPauses
+            .replace(/,\s/g, ', <break time="150ms"/> ')
+            .replace(/\.\s/g, '. <break time="300ms"/> ')
+            .replace(/\?\s/g, '? <break time="350ms"/> ')
+            .replace(/!\s/g, '! <break time="300ms"/> ');
+
+          const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='es-ES'><voice xml:lang='es-ES' name='${voiceId}'><prosody rate='94%'>${textWithPauses}</prosody></voice></speak>`
           res = await fetchWithAudit(`https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`, {
             method: 'POST',
             service: 'Generic',
@@ -488,17 +497,21 @@ Jacobo.`
               <div style={{ marginTop: 20, padding: 16, background: 'var(--color-surface-2)', borderRadius: 12, border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-primary)', margin: 0 }}>Demo Robada (Audio)</h3>
-                  {!l.demo_audio_url && (
-                    <button
-                      onClick={generarDemoAudio}
-                      className="btn-primary"
-                      disabled={generandoAudio}
-                      style={{ padding: '6px 12px', fontSize: 12, minHeight: 'auto', gap: 6, display: 'inline-flex', alignItems: 'center' }}
-                    >
-                      {generandoAudio ? <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <PlayCircle size={14} />}
-                      Generar 30s
-                    </button>
-                  )}
+                  <button
+                    onClick={generarDemoAudio}
+                    className={l.demo_audio_url ? "btn-secondary" : "btn-primary"}
+                    disabled={generandoAudio}
+                    style={{ padding: '6px 12px', fontSize: 12, minHeight: 'auto', gap: 6, display: 'inline-flex', alignItems: 'center' }}
+                  >
+                    {generandoAudio ? (
+                      <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                    ) : l.demo_audio_url ? (
+                      <ArrowCounterClockwise size={14} />
+                    ) : (
+                      <PlayCircle size={14} />
+                    )}
+                    {generandoAudio ? 'Generando...' : l.demo_audio_url ? 'Regenerar' : 'Generar 30s'}
+                  </button>
                 </div>
                 
                 {l.demo_audio_url ? (
