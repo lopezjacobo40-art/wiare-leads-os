@@ -106,7 +106,7 @@ REGLAS:
   
   return await guardedCall('score', async () => {
     // Usamos el modelo rápido (Haiku) para la demo instantánea.
-    const raw = await callClaudeChat('claude-3-5-haiku-20241022', 400, messages)
+    const raw = await callClaudeChat('claude-haiku-4-5', 400, messages)
     try {
       // Extraemos el JSON por si Claude mete algo de texto
       const jsonStr = raw.match(/\[.*\]/s)?.[0] ?? raw
