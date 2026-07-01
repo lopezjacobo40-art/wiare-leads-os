@@ -38,8 +38,8 @@ function limiteDe(accion: Accion): number {
       ? import.meta.env.VITE_DAILY_SCORE_LIMIT
       : import.meta.env.VITE_DAILY_CONTENT_LIMIT
   const n = Number(raw)
-  // Por defecto: 100 scores / 20 contenidos al día
-  return Number.isFinite(n) && n > 0 ? n : accion === 'score' ? 100 : 20
+  // Por defecto: 200 scores / 100 contenidos al día
+  return Number.isFinite(n) && n > 0 ? n : accion === 'score' ? 200 : 100
 }
 
 /* ─────────────────────────────────────────────

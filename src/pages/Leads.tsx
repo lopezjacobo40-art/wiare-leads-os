@@ -66,6 +66,7 @@ export default function Leads() {
   const [buscandoDecisor, setBuscandoDecisor] = useState<string | null>(null)
   const [confirmRescorar, setConfirmRescorar] = useState(false)
   const [rescorando, setRescorando] = useState(false)
+  const [buscandoDecisorLote, setBuscandoDecisorLote] = useState(false)
 
   // ── Lee los query params al montar y preconfigura los filtros (deep-link). ──
   useEffect(() => {
@@ -402,18 +403,42 @@ export default function Leads() {
         service: 'Hunter',
         retries: 2,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ web: lead.web, leadId: lead.id, descripcion: lead.descripcion }),
+        body: JSON.stringify({ web: lead.web, leadId: lead.id, descripcion: lead.descripcion, nombre: lead.nombre }),
       })
       const data = await res.json()
-      if (data.email) {
+      const email = data.email ?? null
+      const fuente = data.fuente ?? 'sin_email'
+      const decisor = data.decisor ?? null
+
+      if (email || decisor) {
+        const updates: Partial<Lead> = {}
+        if (email) {
+          updates.email = email
+          updates.email_fuente = fuente
+          updates.email_verificado = true
+        }
+        if (decisor) {
+          updates.decisor_nombre = decisor.nombre
+          updates.decisor_cargo = decisor.cargo
+          updates.decisor_linkedin = decisor.linkedin
+        }
+
         await supabase
           .from('leads_os')
-          .update({ email: data.email, email_fuente: 'web_scraping', email_verificado: false })
+          .update(updates)
           .eq('id', lead.id)
-        setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, email: data.email } : l)))
-        toast(`Email encontrado: ${data.email}`, 'success')
+
+        setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, ...updates } : l)))
+        
+        if (email && decisor) {
+          toast(`Email encontrado: ${email} (CEO: ${decisor.nombre})`, 'success')
+        } else if (email) {
+          toast(`Email encontrado: ${email}`, 'success')
+        } else if (decisor) {
+          toast(`CEO encontrado: ${decisor.nombre}`, 'success')
+        }
       } else {
-        toast('No se encontró email en su web', 'info')
+        toast('No se encontró información en su web', 'info')
       }
     } catch {
       toast('Error buscando email', 'error')
@@ -479,6 +504,62 @@ export default function Leads() {
       console.error(err)
     } finally {
       setBuscandoDecisor(null)
+    }
+  }
+
+  const buscarDecisoresSeleccionados = async () => {
+    const objetivo = seleccionados.filter((l) => !l.decisor_nombre)
+    if (objetivo.length === 0) {
+      toast('Los negocios seleccionados ya tienen decisor asignado', 'info')
+      return
+    }
+    setBuscandoDecisorLote(true)
+    setBatch({ actual: 0, total: objetivo.length })
+    setError('')
+    try {
+      await processBatch(
+        objetivo,
+        async (lead) => {
+          try {
+            const result = await buscarDecisorLinkedIn(lead.nombre, lead.ciudad || 'España')
+            if (result) {
+              const datos = await extraerDatosDecisor(result.textSnippet, lead.nombre)
+              if (datos) {
+                let dominio = lead.web
+                if (!dominio && lead.email) {
+                  dominio = lead.email.split('@')[1]
+                }
+                let emailDeducido = lead.email
+                let fuenteEmail = lead.email_fuente
+                if (dominio && !emailDeducido) {
+                  const permutaciones = generarPermutacionesEmail(datos.nombre, dominio)
+                  if (permutaciones.length > 0) {
+                    emailDeducido = permutaciones[0]
+                    fuenteEmail = 'permutacion_linkedin'
+                  }
+                }
+                await supabase.from('leads_os').update({
+                  decisor_nombre: datos.nombre,
+                  decisor_cargo: datos.cargo,
+                  decisor_linkedin: result.url,
+                  email: emailDeducido,
+                  email_fuente: fuenteEmail
+                }).eq('id', lead.id)
+              }
+            }
+          } catch {
+            // continuar
+          }
+        },
+        (done) => setBatch({ actual: done, total: objetivo.length })
+      )
+      await cargar()
+      toast('Búsqueda de decisores en lote completada', 'success')
+    } catch (err: any) {
+      toast(`Error en lote de decisores: ${err.message}`, 'error')
+    } finally {
+      setBatch(null)
+      setBuscandoDecisorLote(false)
     }
   }
 
@@ -1254,6 +1335,10 @@ Jacobo.`
 
           <button className="lote-bar-btn" onClick={analizarSeleccionados} disabled={!!batch} style={loteBtnStyle}>
             <Sparkle size={16} weight="fill" /> Analizar brechas
+          </button>
+
+          <button className="lote-bar-btn" onClick={buscarDecisoresSeleccionados} disabled={!!batch || buscandoDecisorLote} style={loteBtnStyle}>
+            <Users size={16} weight="fill" /> Buscar decisores
           </button>
 
           <ExportSheet leads={seleccionados} variant="dark" />

@@ -175,17 +175,38 @@ export default function LeadDetalle() {
         service: 'Hunter',
         retries: 2,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ web: lead.web, descripcion: lead.descripcion }),
+        body: JSON.stringify({ web: lead.web, descripcion: lead.descripcion, nombre: lead.nombre }),
       })
       const data = res.ok ? await res.json() : { email: null }
-      const email: string | null = data.email ?? null
-      const fuente: string = data.fuente ?? 'sin_email'
-      if (email) {
-        setEmailDraft(email)
-        await actualizar({ email, email_fuente: fuente, email_verificado: true })
-        toast(`Email encontrado: ${email}`, 'success')
+      const email = data.email ?? null
+      const fuente = data.fuente ?? 'sin_email'
+      const decisor = data.decisor ?? null
+
+      if (email || decisor) {
+        const updates: Partial<Lead> = {}
+        if (email) {
+          updates.email = email
+          updates.email_fuente = fuente
+          updates.email_verificado = true
+          setEmailDraft(email)
+        }
+        if (decisor) {
+          updates.decisor_nombre = decisor.nombre
+          updates.decisor_cargo = decisor.cargo
+          updates.decisor_linkedin = decisor.linkedin
+        }
+
+        await actualizar(updates)
+
+        if (email && decisor) {
+          toast(`Email encontrado: ${email} (CEO: ${decisor.nombre})`, 'success')
+        } else if (email) {
+          toast(`Email encontrado: ${email}`, 'success')
+        } else if (decisor) {
+          toast(`CEO encontrado: ${decisor.nombre}`, 'success')
+        }
       } else {
-        toast('No se encontró email real', 'error')
+        toast('No se encontró información en su web', 'info')
       }
     } catch {
       toast('Error buscando email', 'error')
