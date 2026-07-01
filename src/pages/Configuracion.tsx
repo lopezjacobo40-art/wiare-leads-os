@@ -961,71 +961,170 @@ const codeStyle: React.CSSProperties = {
    SECCIÓN 5 — Voz de IA (ElevenLabs)
    ───────────────────────────────────────────── */
 function SeccionElevenLabs() {
-  const [apiKey, setApiKey] = useState('')
-  const [voiceId, setVoiceId] = useState('')
-  const [voiceIdCliente, setVoiceIdCliente] = useState('')
+  const [provider, setProvider] = useState<'elevenlabs' | 'azure'>('elevenlabs')
+  
+  // ElevenLabs State
+  const [elKey, setElKey] = useState('')
+  const [elVoiceAi, setElVoiceAi] = useState('')
+  const [elVoiceCliente, setElVoiceCliente] = useState('')
+
+  // Azure State
+  const [azKey, setAzKey] = useState('')
+  const [azRegion, setAzRegion] = useState('')
+  const [azVoiceAi, setAzVoiceAi] = useState('')
+  const [azVoiceCliente, setAzVoiceCliente] = useState('')
+
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    setApiKey(localStorage.getItem('elevenlabs_api_key') || import.meta.env.VITE_ELEVENLABS_API_KEY || '')
-    setVoiceId(localStorage.getItem('elevenlabs_voice_id') || import.meta.env.VITE_ELEVENLABS_VOICE_ID || '')
-    setVoiceIdCliente(localStorage.getItem('elevenlabs_voice_id_cliente') || import.meta.env.VITE_ELEVENLABS_VOICE_ID_CLIENTE || '')
+    setProvider((localStorage.getItem('tts_provider') as 'elevenlabs' | 'azure') || (import.meta.env.VITE_TTS_PROVIDER as 'elevenlabs' | 'azure') || 'elevenlabs')
+    
+    // ElevenLabs
+    setElKey(localStorage.getItem('elevenlabs_api_key') || import.meta.env.VITE_ELEVENLABS_API_KEY || '')
+    setElVoiceAi(localStorage.getItem('elevenlabs_voice_id') || import.meta.env.VITE_ELEVENLABS_VOICE_ID || 'Xb7hH8MSUJpSbSDYk0k2')
+    setElVoiceCliente(localStorage.getItem('elevenlabs_voice_id_cliente') || import.meta.env.VITE_ELEVENLABS_VOICE_ID_CLIENTE || 'IKne3meq5aSn9XLyUdCD')
+
+    // Azure
+    setAzKey(localStorage.getItem('azure_api_key') || import.meta.env.VITE_AZURE_API_KEY || '')
+    setAzRegion(localStorage.getItem('azure_region') || import.meta.env.VITE_AZURE_REGION || 'westeurope')
+    setAzVoiceAi(localStorage.getItem('azure_voice_id') || import.meta.env.VITE_AZURE_VOICE_ID || 'es-ES-ElviraNeural')
+    setAzVoiceCliente(localStorage.getItem('azure_voice_id_cliente') || import.meta.env.VITE_AZURE_VOICE_ID_CLIENTE || 'es-ES-AlvaroNeural')
   }, [])
 
   const guardar = () => {
-    localStorage.setItem('elevenlabs_api_key', apiKey)
-    localStorage.setItem('elevenlabs_voice_id', voiceId)
-    localStorage.setItem('elevenlabs_voice_id_cliente', voiceIdCliente)
+    localStorage.setItem('tts_provider', provider)
+    
+    // ElevenLabs
+    localStorage.setItem('elevenlabs_api_key', elKey)
+    localStorage.setItem('elevenlabs_voice_id', elVoiceAi)
+    localStorage.setItem('elevenlabs_voice_id_cliente', elVoiceCliente)
+
+    // Azure
+    localStorage.setItem('azure_api_key', azKey)
+    localStorage.setItem('azure_region', azRegion)
+    localStorage.setItem('azure_voice_id', azVoiceAi)
+    localStorage.setItem('azure_voice_id_cliente', azVoiceCliente)
+
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
   return (
     <section style={seccionStyle}>
-      <TituloSeccion titulo="Voz de IA (ElevenLabs)" />
+      <TituloSeccion titulo="Voz de IA (Configuración de Audio)" />
       <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: -8, marginBottom: 20, lineHeight: 1.5 }}>
-        Configura tus claves para generar la "Demo Robada" de 30 segundos automáticamente desde QuickView. Las claves se guardan localmente en tu navegador de forma segura.
+        Configura el proveedor de síntesis de voz para las demos de audio. Las claves se guardan localmente en tu navegador de forma segura.
       </p>
 
+      {/* Selector de Proveedor */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+        <button
+          className={provider === 'elevenlabs' ? 'btn-primary' : 'btn-secondary'}
+          onClick={() => setProvider('elevenlabs')}
+          style={{ flex: 1, padding: '10px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, minHeight: 44 }}
+        >
+          ElevenLabs (Clonación)
+        </button>
+        <button
+          className={provider === 'azure' ? 'btn-primary' : 'btn-secondary'}
+          onClick={() => setProvider('azure')}
+          style={{ flex: 1, padding: '10px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, minHeight: 44 }}
+        >
+          Microsoft Azure (100% Gratis)
+        </button>
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-            ElevenLabs API Key
-          </label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-..."
-            style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-            Voice ID (El clon de la recepcionista - IA)
-          </label>
-          <input
-            value={voiceId}
-            onChange={(e) => setVoiceId(e.target.value)}
-            placeholder="ej: Xb7hH8..."
-            style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-            Voice ID (Voz del Cliente)
-          </label>
-          <input
-            value={voiceIdCliente}
-            onChange={(e) => setVoiceIdCliente(e.target.value)}
-            placeholder="ej: pNInz6obpgDQGcFmaJcg (Voz masculina genérica)"
-            style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
-          />
-        </div>
-        
+        {provider === 'elevenlabs' ? (
+          <>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                ElevenLabs API Key
+              </label>
+              <input
+                type="password"
+                value={elKey}
+                onChange={(e) => setElKey(e.target.value)}
+                placeholder="sk-..."
+                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                Voice ID Recepcionista (IA) - Rachel
+              </label>
+              <input
+                value={elVoiceAi}
+                onChange={(e) => setElVoiceAi(e.target.value)}
+                placeholder="ej: Xb7hH8..."
+                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                Voice ID Voz del Cliente - Antoni
+              </label>
+              <input
+                value={elVoiceCliente}
+                onChange={(e) => setElVoiceCliente(e.target.value)}
+                placeholder="ej: pNInz6obpgDQGcFmaJgB"
+                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                Azure Speech Subscription Key (API Key)
+              </label>
+              <input
+                type="password"
+                value={azKey}
+                onChange={(e) => setAzKey(e.target.value)}
+                placeholder="Clave de 32 caracteres"
+                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                Región de Azure (Location)
+              </label>
+              <input
+                value={azRegion}
+                onChange={(e) => setAzRegion(e.target.value)}
+                placeholder="ej: westeurope, eastus"
+                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                Nombre de Voz Recepcionista (IA) - España (ej: es-ES-ElviraNeural)
+              </label>
+              <input
+                value={azVoiceAi}
+                onChange={(e) => setAzVoiceAi(e.target.value)}
+                placeholder="ej: es-ES-ElviraNeural, es-ES-AbrilNeural"
+                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                Nombre de Voz del Cliente - España (ej: es-ES-AlvaroNeural)
+              </label>
+              <input
+                value={azVoiceCliente}
+                onChange={(e) => setAzVoiceCliente(e.target.value)}
+                placeholder="ej: es-ES-AlvaroNeural, es-ES-ArnauNeural"
+                style={{ width: '100%', fontSize: 13, padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', outline: 'none' }}
+              />
+            </div>
+          </>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 12 }}>
-          <button className="btn-primary" onClick={guardar} style={{ padding: '8px 24px' }}>
-            <FloppyDisk size={16} /> {saved ? 'Guardadas localmente' : 'Guardar Claves'}
+          <button className="btn-primary" onClick={guardar} style={{ padding: '8px 24px', minHeight: 44 }}>
+            <FloppyDisk size={16} /> {saved ? 'Guardado en el navegador' : 'Guardar Claves'}
           </button>
         </div>
       </div>

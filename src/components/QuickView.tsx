@@ -90,13 +90,32 @@ export default function QuickView({
   }
 
   const generarDemoAudio = async () => {
-    const apiKey = localStorage.getItem('elevenlabs_api_key') || import.meta.env.VITE_ELEVENLABS_API_KEY
-    const voiceIdAi = localStorage.getItem('elevenlabs_voice_id') || import.meta.env.VITE_ELEVENLABS_VOICE_ID
-    const voiceIdCliente = localStorage.getItem('elevenlabs_voice_id_cliente') || import.meta.env.VITE_ELEVENLABS_VOICE_ID_CLIENTE
+    const provider = localStorage.getItem('tts_provider') || import.meta.env.VITE_TTS_PROVIDER || 'elevenlabs'
     
-    if (!apiKey || !voiceIdAi || !voiceIdCliente) {
-      toast('Configura las TRES claves de ElevenLabs en Configuración o en el archivo .env primero (API Key, Voice AI, Voice Cliente)', 'error')
-      return
+    let apiKey = ''
+    let voiceIdAi = ''
+    let voiceIdCliente = ''
+    let azureRegion = ''
+    
+    if (provider === 'azure') {
+      apiKey = localStorage.getItem('azure_api_key') || import.meta.env.VITE_AZURE_API_KEY || ''
+      azureRegion = localStorage.getItem('azure_region') || import.meta.env.VITE_AZURE_REGION || 'westeurope'
+      voiceIdAi = localStorage.getItem('azure_voice_id') || import.meta.env.VITE_AZURE_VOICE_ID || 'es-ES-ElviraNeural'
+      voiceIdCliente = localStorage.getItem('azure_voice_id_cliente') || import.meta.env.VITE_AZURE_VOICE_ID_CLIENTE || 'es-ES-AlvaroNeural'
+      
+      if (!apiKey) {
+        toast('Configura tu clave de suscripción de Azure Speech en Configuración primero', 'error')
+        return
+      }
+    } else {
+      apiKey = localStorage.getItem('elevenlabs_api_key') || import.meta.env.VITE_ELEVENLABS_API_KEY || ''
+      voiceIdAi = localStorage.getItem('elevenlabs_voice_id') || import.meta.env.VITE_ELEVENLABS_VOICE_ID || ''
+      voiceIdCliente = localStorage.getItem('elevenlabs_voice_id_cliente') || import.meta.env.VITE_ELEVENLABS_VOICE_ID_CLIENTE || ''
+      
+      if (!apiKey || !voiceIdAi || !voiceIdCliente) {
+        toast('Configura las TRES claves de ElevenLabs en Configuración o en el archivo .env primero (API Key, Voice AI, Voice Cliente)', 'error')
+        return
+      }
     }
     
     setGenerandoAudio(true)
@@ -106,30 +125,62 @@ export default function QuickView({
       
       const audioBlobs: Blob[] = []
 
+      // Helper para escapar XML
+      const escapeXml = (unsafe: string) => {
+        return unsafe.replace(/[<>&'"]/g, (c) => {
+          switch (c) {
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '&': return '&amp;';
+            case '\'': return '&apos;';
+            case '"': return '&quot;';
+            default: return c;
+          }
+        });
+      }
+
       // 2. Generar el audio línea por línea
       for (const linea of guion) {
         const voiceId = linea.speaker === 'cliente' ? voiceIdCliente : voiceIdAi
-        const res = await fetchWithAudit(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
-          method: 'POST',
-          service: 'ElevenLabs',
-          retries: 3,
-          headers: {
-            'Content-Type': 'application/json',
-            'xi-api-key': apiKey
-          },
-          body: JSON.stringify({
-            text: linea.text,
-            model_id: "eleven_multilingual_v2",
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75
-            }
+        
+        let res: Response
+        if (provider === 'azure') {
+          const ssml = `<speak version='1.0' xml:lang='es-ES'><voice xml:lang='es-ES' name='${voiceId}'>${escapeXml(linea.text)}</voice></speak>`
+          res = await fetchWithAudit(`https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+            method: 'POST',
+            service: 'Generic',
+            retries: 3,
+            headers: {
+              'Ocp-Apim-Subscription-Key': apiKey,
+              'Content-Type': 'application/ssml+xml',
+              'X-Microsoft-OutputFormat': 'audio-24khz-96kbitrate-mono-mp3',
+              'User-Agent': 'wiare-leads-os'
+            },
+            body: ssml
           })
-        })
+        } else {
+          res = await fetchWithAudit(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
+            method: 'POST',
+            service: 'ElevenLabs',
+            retries: 3,
+            headers: {
+              'Content-Type': 'application/json',
+              'xi-api-key': apiKey
+            },
+            body: JSON.stringify({
+              text: linea.text,
+              model_id: "eleven_multilingual_v2",
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.75
+              }
+            })
+          })
+        }
 
         if (!res.ok) {
           const errText = await res.text()
-          throw new Error(`Error en ElevenLabs (${linea.speaker}): ${errText}`)
+          throw new Error(`Error en el sintetizador (${provider} - ${linea.speaker}): ${errText}`)
         }
         
         const blob = await res.blob()
