@@ -35,7 +35,7 @@ export default function AuditorPanel() {
       const { error } = await supabase
         .from('api_audit_logs')
         .delete()
-        .neq('id', '0') // Deletes all rows
+        .gt('creado_en', '1970-01-01')
         
       if (error) throw error
       
