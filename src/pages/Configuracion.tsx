@@ -967,9 +967,9 @@ function SeccionElevenLabs() {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    setApiKey(localStorage.getItem('elevenlabs_api_key') || '')
-    setVoiceId(localStorage.getItem('elevenlabs_voice_id') || '')
-    setVoiceIdCliente(localStorage.getItem('elevenlabs_voice_id_cliente') || '')
+    setApiKey(localStorage.getItem('elevenlabs_api_key') || import.meta.env.VITE_ELEVENLABS_API_KEY || '')
+    setVoiceId(localStorage.getItem('elevenlabs_voice_id') || import.meta.env.VITE_ELEVENLABS_VOICE_ID || '')
+    setVoiceIdCliente(localStorage.getItem('elevenlabs_voice_id_cliente') || import.meta.env.VITE_ELEVENLABS_VOICE_ID_CLIENTE || '')
   }, [])
 
   const guardar = () => {

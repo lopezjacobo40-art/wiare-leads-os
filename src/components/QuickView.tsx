@@ -90,12 +90,12 @@ export default function QuickView({
   }
 
   const generarDemoAudio = async () => {
-    const apiKey = localStorage.getItem('elevenlabs_api_key')
-    const voiceIdAi = localStorage.getItem('elevenlabs_voice_id')
-    const voiceIdCliente = localStorage.getItem('elevenlabs_voice_id_cliente')
+    const apiKey = localStorage.getItem('elevenlabs_api_key') || import.meta.env.VITE_ELEVENLABS_API_KEY
+    const voiceIdAi = localStorage.getItem('elevenlabs_voice_id') || import.meta.env.VITE_ELEVENLABS_VOICE_ID
+    const voiceIdCliente = localStorage.getItem('elevenlabs_voice_id_cliente') || import.meta.env.VITE_ELEVENLABS_VOICE_ID_CLIENTE
     
     if (!apiKey || !voiceIdAi || !voiceIdCliente) {
-      toast('Configura las TRES claves de ElevenLabs en Configuración primero (API Key, Voice AI, Voice Cliente)', 'error')
+      toast('Configura las TRES claves de ElevenLabs en Configuración o en el archivo .env primero (API Key, Voice AI, Voice Cliente)', 'error')
       return
     }
     
