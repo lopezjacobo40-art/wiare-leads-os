@@ -5,9 +5,10 @@ import {
   Phone, Globe, MapPin, Star, Clock,
   ArrowClockwise, CheckCircle, ArrowRight, MagnifyingGlassPlus,
   EnvelopeSimple, MagnifyingGlass, Warning, X, Copy, Lightbulb,
+  ListChecks, IdentificationCard,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { analizarBrechas, toAnalisisBrechas } from '../lib/claudeApi'
+import { analizarBrechas, toAnalisisBrechas, generarPropuestaComercial, generarSystemPromptSofia } from '../lib/claudeApi'
 import { fetchWithAudit } from '../lib/apiAuditor'
 import { labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
@@ -61,10 +62,13 @@ function DatoFila({
   )
 }
 
-type Tab = 'informe' | 'costes' | 'notas'
+type Tab = 'informe' | 'propuesta' | 'sofia' | 'implementacion' | 'costes' | 'notas'
 
-const TABS: { id: Tab; label: string; icon: typeof FileText }[] = [
+const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'informe', label: 'Informe de brechas', icon: FileText },
+  { id: 'propuesta', label: 'Propuesta', icon: FileText },
+  { id: 'sofia', label: 'Agente Sofía', icon: IdentificationCard },
+  { id: 'implementacion', label: 'Checklist', icon: ListChecks },
   { id: 'costes', label: 'Costes', icon: CurrencyEur },
   { id: 'notas', label: 'Notas', icon: Note },
 ]
@@ -109,6 +113,22 @@ export default function LeadDetalle() {
   const [notas, setNotas] = useState('')
   const [notasGuardadas, setNotasGuardadas] = useState<string | null>(null)
 
+  // propuesta
+  const [generatingProposal, setGeneratingProposal] = useState(false)
+  const [propuestaDraft, setPropuestaDraft] = useState('')
+  const [savingProposal, setSavingProposal] = useState(false)
+
+  // Sofía
+  const [agentIdRetell, setAgentIdRetell] = useState('')
+  const [systemPromptSofia, setSystemPromptSofia] = useState('')
+  const [generatingSofiaPrompt, setGeneratingSofiaPrompt] = useState(false)
+  const [savingSofia, setSavingSofia] = useState(false)
+
+  // Checklist
+  const [tasks, setTasks] = useState<{ id: string, titulo: string, completada: boolean }[]>([])
+  const [loadingTasks, setLoadingTasks] = useState(false)
+  const [nuevaTarea, setNuevaTarea] = useState('')
+
   useEffect(() => {
     setLoading(true)
     setLead(null)
@@ -128,8 +148,43 @@ export default function LeadDetalle() {
           setLead(l)
           setNotas(l.notas ?? '')
           setEmailDraft(l.email ?? '')
+          setPropuestaDraft(l.propuesta_md ?? '')
+          setAgentIdRetell(l.agent_id_retell ?? '')
+          setSystemPromptSofia(l.system_prompt_sofia ?? '')
         }
         setLoading(false)
+      })
+
+    // Cargar y sembrar tareas si están vacías
+    setLoadingTasks(true)
+    supabase
+      .from('lead_tasks_os')
+      .select('*')
+      .eq('lead_id', id)
+      .then(async ({ data, error: err }) => {
+        if (!err && data) {
+          if (data.length === 0) {
+            const defaultTasks = [
+              'Configurar número de teléfono en Twilio y redirección',
+              'Diseñar System Prompt base del Agente (Sofía) en Retell AI',
+              'Realizar pruebas de llamada (QA interna)',
+              'Validar pago de Setup (790€)',
+              'Sesión de formación de 2 horas con el cliente',
+              'Pasar a producción (Agente Activo)',
+            ]
+            const toInsert = defaultTasks.map((t) => ({ lead_id: id, titulo: t, completada: false }))
+            const { data: inserted, error: insertErr } = await supabase
+              .from('lead_tasks_os')
+              .insert(toInsert)
+              .select('*')
+            if (!insertErr && inserted) {
+              setTasks(inserted)
+            }
+          } else {
+            setTasks(data)
+          }
+        }
+        setLoadingTasks(false)
       })
   }, [id])
 
@@ -304,6 +359,112 @@ Un saludo, Jacobo.`
   const guardarNotas = async () => {
     await actualizar({ notas })
     setNotasGuardadas(new Date().toLocaleTimeString('es-ES'))
+  }
+
+  // propuesta
+  const generarYGuardarPropuesta = async () => {
+    if (!lead) return
+    setGeneratingProposal(true)
+    try {
+      const prop = await generarPropuestaComercial(lead)
+      setPropuestaDraft(prop)
+      await actualizar({ propuesta_md: prop })
+      toast('Propuesta comercial generada', 'success')
+    } catch (err: any) {
+      toast(`Error generando propuesta: ${err.message}`, 'error')
+    } finally {
+      setGeneratingProposal(false)
+    }
+  }
+
+  const guardarPropuesta = async () => {
+    if (!lead) return
+    setSavingProposal(true)
+    try {
+      await actualizar({ propuesta_md: propuestaDraft })
+      toast('Propuesta guardada correctamente', 'success')
+    } catch (err: any) {
+      toast(`Error guardando propuesta: ${err.message}`, 'error')
+    } finally {
+      setSavingProposal(false)
+    }
+  }
+
+  // Sofía
+  const generarPromptSofiaIA = async () => {
+    if (!lead) return
+    setGeneratingSofiaPrompt(true)
+    try {
+      const promptText = await generarSystemPromptSofia(lead)
+      setSystemPromptSofia(promptText)
+      await actualizar({ system_prompt_sofia: promptText })
+      toast('System Prompt para Sofía generado con éxito', 'success')
+    } catch (err: any) {
+      toast(`Error generando prompt: ${err.message}`, 'error')
+    } finally {
+      setGeneratingSofiaPrompt(false)
+    }
+  }
+
+  const guardarSofiaConfig = async () => {
+    if (!lead) return
+    setSavingSofia(true)
+    try {
+      await actualizar({
+        agent_id_retell: agentIdRetell,
+        system_prompt_sofia: systemPromptSofia
+      })
+      toast('Configuración del agente guardada', 'success')
+    } catch (err: any) {
+      toast(`Error guardando agente: ${err.message}`, 'error')
+    } finally {
+      setSavingSofia(false)
+    }
+  }
+
+  // Checklist
+  const toggleTask = async (taskId: string, current: boolean) => {
+    try {
+      const { error: err } = await supabase
+        .from('lead_tasks_os')
+        .update({ completada: !current })
+        .eq('id', taskId)
+      if (err) throw err
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, completada: !current } : t)))
+      toast('Tarea actualizada', 'success')
+    } catch (err: any) {
+      toast(`Error actualizando tarea: ${err.message}`, 'error')
+    }
+  }
+
+  const agregarTarea = async () => {
+    if (!nuevaTarea.trim() || !lead) return
+    try {
+      const { data, error: err } = await supabase
+        .from('lead_tasks_os')
+        .insert({ lead_id: lead.id, titulo: nuevaTarea.trim(), completada: false })
+        .select('*')
+        .single()
+      if (err) throw err
+      if (data) {
+        setTasks((prev) => [...prev, data])
+        setNuevaTarea('')
+        toast('Tarea agregada', 'success')
+      }
+    } catch (err: any) {
+      toast(`Error agregando tarea: ${err.message}`, 'error')
+    }
+  }
+
+  const eliminarTarea = async (taskId: string) => {
+    try {
+      const { error: err } = await supabase.from('lead_tasks_os').delete().eq('id', taskId)
+      if (err) throw err
+      setTasks((prev) => prev.filter((t) => t.id !== taskId))
+      toast('Tarea eliminada', 'success')
+    } catch (err: any) {
+      toast(`Error eliminando tarea: ${err.message}`, 'error')
+    }
   }
 
   if (loading) {
@@ -736,6 +897,268 @@ Un saludo, Jacobo.`
                       </button>
                     </div>
                   </>
+                )}
+              </div>
+            )}
+
+            {/* ── TAB PROPUESTA ── */}
+            {tab === 'propuesta' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div>
+                    <h2 style={{ fontSize: 17, marginBottom: 4 }}>Propuesta Comercial</h2>
+                    <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                      Redacta y edita una propuesta comercial premium personalizada basada en las brechas y el MRR.
+                    </p>
+                  </div>
+                  <button
+                    className="btn-primary"
+                    onClick={generarYGuardarPropuesta}
+                    disabled={generatingProposal}
+                    style={{ fontSize: 13, padding: '8px 16px', minHeight: 36 }}
+                  >
+                    <Lightbulb size={16} /> {generatingProposal ? 'Generando propuesta IA…' : 'Generar propuesta con IA'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, minHeight: 450 }}>
+                  {/* Editor */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
+                      Editor (Markdown)
+                    </div>
+                    <textarea
+                      value={propuestaDraft}
+                      onChange={(e) => setPropuestaDraft(e.target.value)}
+                      placeholder="Escribe la propuesta aquí o genérala..."
+                      style={{
+                        flex: 1,
+                        width: '100%',
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                        padding: 16,
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)',
+                        background: '#0f1117',
+                        color: '#faf8f5',
+                        resize: 'none',
+                        minHeight: 350,
+                      }}
+                    />
+                    <button
+                      className="btn-secondary"
+                      onClick={guardarPropuesta}
+                      disabled={savingProposal}
+                      style={{ alignSelf: 'flex-end', fontSize: 13 }}
+                    >
+                      {savingProposal ? 'Guardando…' : 'Guardar Propuesta'}
+                    </button>
+                  </div>
+
+                  {/* Vista Previa */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
+                      Vista Previa Presentación
+                    </div>
+                    <div
+                      style={{
+                        flex: 1,
+                        padding: 24,
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)',
+                        background: '#13151a',
+                        overflowY: 'auto',
+                        color: '#f0eff4',
+                        maxHeight: 500,
+                      }}
+                    >
+                      {propuestaDraft ? (
+                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 14 }}>
+                          {propuestaDraft}
+                        </div>
+                      ) : (
+                        <div style={{ color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 100, fontSize: 14 }}>
+                          No hay propuesta comercial generada para este negocio. Haz clic en "Generar propuesta con IA" para empezar.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── TAB SOFÍA ── */}
+            {tab === 'sofia' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div>
+                    <h2 style={{ fontSize: 17, marginBottom: 4 }}>Configuración del Agente de Voz (Sofía)</h2>
+                    <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                      Define los parámetros técnicos y el prompt de comportamiento del agente de voz.
+                    </p>
+                  </div>
+                  <button
+                    className="btn-primary"
+                    onClick={generarPromptSofiaIA}
+                    disabled={generatingSofiaPrompt}
+                    style={{ fontSize: 13, padding: '8px 16px', minHeight: 36 }}
+                  >
+                    <Lightbulb size={16} /> {generatingSofiaPrompt ? 'Diseñando prompt IA…' : 'Crear prompt con IA'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
+                      Retell Agent ID (Vínculo de Llamadas)
+                    </label>
+                    <input
+                      type="text"
+                      value={agentIdRetell}
+                      onChange={(e) => setAgentIdRetell(e.target.value)}
+                      placeholder="ej: agent_3a2b1c..."
+                      style={{
+                        padding: '10px 14px',
+                        fontSize: 14,
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)',
+                        background: '#0f1117',
+                        color: '#fff',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
+                      System Prompt de Comportamiento (Sofía)
+                    </label>
+                    <textarea
+                      value={systemPromptSofia}
+                      onChange={(e) => setSystemPromptSofia(e.target.value)}
+                      placeholder="Instrucciones del bot..."
+                      style={{
+                        width: '100%',
+                        minHeight: 300,
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                        padding: 16,
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)',
+                        background: '#0f1117',
+                        color: '#faf8f5',
+                        resize: 'vertical',
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    className="btn-secondary"
+                    onClick={guardarSofiaConfig}
+                    disabled={savingSofia}
+                    style={{ alignSelf: 'flex-start', fontSize: 13 }}
+                  >
+                    {savingSofia ? 'Guardando configuración…' : 'Guardar Configuración'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── TAB IMPLEMENTACIÓN ── */}
+            {tab === 'implementacion' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div>
+                  <h2 style={{ fontSize: 17, marginBottom: 4 }}>Checklist de Implementación</h2>
+                  <p style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                    Pasos necesarios para completar la integración técnica de Sofía y la entrega de WIARE.
+                  </p>
+                </div>
+
+                {loadingTasks ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '60%' }} />
+                    <div style={{ height: 16, background: 'var(--color-border)', borderRadius: 4, width: '40%' }} />
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {tasks.map((t) => (
+                      <div
+                        key={t.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          background: t.completada ? 'rgba(34,197,94,0.05)' : 'var(--color-surface-2)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: '12px 18px',
+                          transition: 'all 200ms ease',
+                        }}
+                      >
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flex: 1 }}>
+                          <input
+                            type="checkbox"
+                            checked={t.completada}
+                            onChange={() => toggleTask(t.id, t.completada)}
+                            style={{
+                              width: 18,
+                              height: 18,
+                              accentColor: 'var(--color-success)',
+                              cursor: 'pointer',
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 14,
+                              color: t.completada ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
+                              textDecoration: t.completada ? 'line-through' : 'none',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {t.titulo}
+                          </span>
+                        </label>
+                        <button
+                          onClick={() => eliminarTarea(t.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--color-error)',
+                            opacity: 0.6,
+                            padding: 4,
+                          }}
+                          title="Eliminar tarea"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Agregar nueva tarea */}
+                    <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                      <input
+                        type="text"
+                        value={nuevaTarea}
+                        onChange={(e) => setNuevaTarea(e.target.value)}
+                        placeholder="ej: Firmar contrato RGPD de WIARE..."
+                        style={{
+                          flex: 1,
+                          padding: '10px 14px',
+                          fontSize: 14,
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--color-border)',
+                          background: '#0f1117',
+                          color: '#fff',
+                        }}
+                      />
+                      <button className="btn-primary" onClick={agregarTarea} style={{ fontSize: 13 }}>
+                        Agregar tarea
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

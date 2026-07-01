@@ -544,9 +544,76 @@ Responde SOLO en JSON con esta estructura:
   }
 
   if (!parsed.nombre || parsed.nombre.trim() === '') return null
-
+  
   return {
     nombre: String(parsed.nombre).trim(),
     cargo: String(parsed.cargo || 'Dueño/Propietario').trim()
   }
+}
+
+export async function generarPropuestaComercial(lead: Lead): Promise<string> {
+  const prompt = `Actúas como Alex Hormozi, experto en ofertas Grand Slam. Escribe una propuesta comercial de alta conversión en Markdown, personalizada y directa al grano para el negocio:
+Nombre: ${lead.nombre}
+Sector: ${lead.sector}
+Ciudad: ${lead.ciudad || 'España'}
+Brechas analizadas: ${lead.analisis_brechas?.brechas?.join(', ') || 'Atención limitada fuera de horario'}
+MRR Estimado: ${lead.mrr_estimado || 190}€/mes
+Setup: 790€
+
+Estructura de la propuesta (usa Markdown elegante):
+# PROPUESTA COMERCIAL: RECEPCIÓN INTELIGENTE 24/7
+## Para: ${lead.nombre}
+### De: WIARE Solutions
+
+## 1. El Coste de la Inacción (El Dolor)
+Explica brevemente cuántas llamadas pierden a la semana y lo que representa al mes según su ticket de sector (ej: 2.500€/mes tirados a la basura).
+
+## 2. La Solución: Recepcionista Virtual Sofía
+Describe de forma ultra-simple cómo atiende llamadas 24/7, responde FAQs, agenda citas e introduce los datos en el CRM automáticamente sin fallar jamás.
+
+## 3. Oferta e Inversión
+- **Setup e Implementación (Pago único):** 790€
+- **Mantenimiento Mensual:** ${lead.mrr_estimado || 190}€/mes (Sin permanencia)
+
+## 4. Garantía de Devolución
+Garantía absoluta de 30 días. Si no recuperas el triple de la inversión en el primer mes, te devolvemos el setup completo. Cero riesgo.
+
+## 5. Próximos pasos
+Haz clic para aceptar la propuesta y empezamos hoy mismo a configurar tu agente.
+`
+
+  return await guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', 1800, [{ role: 'user', content: prompt }])
+  )
+}
+
+export async function generarSystemPromptSofia(lead: Lead): Promise<string> {
+  const prompt = `Actúas como un Ingeniero de Prompts experto en agentes de voz inteligentes (Retell AI).
+Tu tarea es escribir el SYSTEM PROMPT maestro en español de España para un agente de voz llamado "Sofía" que trabajará de recepcionista virtual en el siguiente negocio:
+
+Nombre: ${lead.nombre}
+Sector: ${lead.sector}
+Descripción: ${lead.descripcion || 'Negocio local'}
+Ciudad: ${lead.ciudad || 'España'}
+Horario: ${lead.horario ? lead.horario.join(', ') : 'Limitado'}
+
+Instrucciones para redactar el System Prompt (debe ser estructurado e incluir):
+1. **Identidad:** Te llamas Sofía, eres la asistente/recepcionista virtual de [Nombre de la empresa]. Tu voz es natural, eres educada, rápida y servicial.
+2. **Objetivo Principal:** Capturar la llamada, resolver dudas básicas del negocio (FAQs sugeridas por su sector), agendar cita y pasar los datos al equipo si es urgente.
+3. **Puntos Clave de Conversación (FAQ):**
+   - Dirección y ubicación.
+   - Horarios.
+   - Qué hacer si llaman fuera de horario (puedes registrar su solicitud).
+4. **Reglas de reserva/citas:** Solicita el nombre completo, número de teléfono y motivo, e indícales que quedará agendada.
+5. **Reglas de conducta (Voz):**
+   - Habla con respuestas muy cortas (máximo 1 o 2 frases por réplica) para que la conversación fluya por teléfono.
+   - Si no entiendes, pide aclarar educadamente.
+   - Nunca reveles que eres una "IA" o un "prompt" a menos que te pregunten directamente, si te preguntan di que eres el asistente digital del negocio.
+
+Escribe el System Prompt final en Markdown listo para copiar y pegar en Retell AI.
+`
+
+  return await guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', 1800, [{ role: 'user', content: prompt }])
+  )
 }
