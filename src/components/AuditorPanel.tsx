@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { ShieldCheck, WarningCircle, CheckCircle, ClockCounterClockwise, ArrowCounterClockwise } from '@phosphor-icons/react'
 import Skeleton from './Skeleton'
-import { resetCircuitBreaker } from '../lib/apiAuditor'
+import { resetCircuitBreaker, getCircuitStatus } from '../lib/apiAuditor'
 import { useToast } from './Toast'
 
 interface AuditLog {
@@ -18,7 +18,7 @@ export default function AuditorPanel() {
   const toast = useToast()
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [cargando, setCargando] = useState(true)
-  const [servicios, setServicios] = useState<{ nombre: string; estado: 'ok' | 'error' }[]>([
+  const [servicios, setServicios] = useState<{ nombre: string; estado: 'ok' | 'warning' | 'error' }[]>([
     { nombre: 'Claude', estado: 'ok' },
     { nombre: 'Gemini', estado: 'ok' },
     { nombre: 'ElevenLabs', estado: 'ok' },
@@ -60,14 +60,20 @@ export default function AuditorPanel() {
     if (data) {
       setLogs(data)
       
-      // Marcar servicios con errores en las últimas 24h
-      const ayer = new Date(Date.now() - 86400000).toISOString()
-      const recientes = data.filter(d => d.creado_en > ayer)
+      // Marcar servicios:
+      // - 'error' si el Circuit Breaker está abierto (bloqueado).
+      // - 'warning' si tiene errores en las últimas 2 horas.
+      // - 'ok' si no tiene errores recientes ni bloqueo.
+      const dosHoras = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      const recientes = data.filter(d => d.creado_en > dosHoras)
       
-      setServicios(prev => prev.map(s => ({
-        ...s,
-        estado: recientes.some(r => r.servicio === s.nombre) ? 'error' : 'ok'
-      })))
+      setServicios(prev => prev.map(s => {
+        const circuit = getCircuitStatus(s.nombre)
+        if (circuit === 'error') return { ...s, estado: 'error' }
+        
+        const tieneErroresRecientes = recientes.some(r => r.servicio === s.nombre)
+        return { ...s, estado: tieneErroresRecientes ? 'warning' : 'ok' }
+      }))
     }
     setCargando(false)
   }
@@ -80,7 +86,12 @@ export default function AuditorPanel() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'api_audit_logs' }, (payload) => {
         const nuevo = payload.new as AuditLog
         setLogs(prev => [nuevo, ...prev].slice(0, 20))
-        setServicios(prev => prev.map(s => s.nombre === nuevo.servicio ? { ...s, estado: 'error' } : s))
+        setServicios(prev => prev.map(s => {
+          if (s.nombre !== nuevo.servicio) return s
+          const circuit = getCircuitStatus(s.nombre)
+          if (circuit === 'error') return { ...s, estado: 'error' }
+          return { ...s, estado: 'warning' }
+        }))
       })
       .subscribe()
 
@@ -135,13 +146,24 @@ export default function AuditorPanel() {
               padding: '6px 12px',
               borderRadius: 'var(--radius-full)',
               background: 'var(--color-surface-2)',
-              border: `1px solid ${s.estado === 'ok' ? 'transparent' : 'var(--color-error)'}`
+              border: `1px solid ${
+                s.estado === 'ok' 
+                  ? 'transparent' 
+                  : s.estado === 'warning' 
+                    ? 'var(--color-warning)' 
+                    : 'var(--color-error)'
+              }`
             }}
           >
-            {s.estado === 'ok' 
-              ? <CheckCircle size={16} weight="fill" style={{ color: 'var(--color-success)' }} />
-              : <WarningCircle size={16} weight="fill" style={{ color: 'var(--color-error)' }} />
-            }
+            {s.estado === 'ok' && (
+              <CheckCircle size={16} weight="fill" style={{ color: 'var(--color-success)' }} />
+            )}
+            {s.estado === 'warning' && (
+              <WarningCircle size={16} weight="fill" style={{ color: 'var(--color-warning)' }} />
+            )}
+            {s.estado === 'error' && (
+              <WarningCircle size={16} weight="fill" style={{ color: 'var(--color-error)' }} />
+            )}
             {s.nombre}
           </div>
         ))}

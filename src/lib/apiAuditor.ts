@@ -10,11 +10,26 @@ interface AuditorOptions extends RequestInit {
   timeoutMs?: number
 }
 
-// Memoria del Circuit Breaker (reinicia si recargas, ideal para SPA)
-// Tracks: fallos consecutivos por servicio
-const circuitBreaker: Record<string, { failures: number; lastFailure: number }> = {}
 const CB_THRESHOLD = 5 // fallos seguidos
 const CB_COOLDOWN = 60000 // 1 minuto de bloqueo
+
+let circuitBreaker: Record<string, { failures: number; lastFailure: number }> = {}
+try {
+  const cached = sessionStorage.getItem('wiare_circuit_breakers')
+  if (cached) {
+    circuitBreaker = JSON.parse(cached)
+  }
+} catch (e) {
+  console.warn('Error leyendo circuit breaker de sessionStorage:', e)
+}
+
+function saveCircuitBreaker() {
+  try {
+    sessionStorage.setItem('wiare_circuit_breakers', JSON.stringify(circuitBreaker))
+  } catch (e) {
+    console.warn('Error guardando circuit breaker en sessionStorage:', e)
+  }
+}
 
 async function logApiError(
   servicio: AuditorService,
@@ -64,6 +79,7 @@ export async function fetchWithAudit(
     } else {
       // Cooldown superado, "Half-Open", permitimos 1 intento
       cbState.failures = CB_THRESHOLD - 1
+      saveCircuitBreaker()
     }
   }
 
@@ -88,6 +104,7 @@ export async function fetchWithAudit(
         // Éxito: Reset Circuit Breaker
         if (circuitBreaker[service]) {
           circuitBreaker[service].failures = 0
+          saveCircuitBreaker()
         }
         return response
       }
@@ -123,6 +140,7 @@ export async function fetchWithAudit(
   cbState.failures += 1
   cbState.lastFailure = Date.now()
   circuitBreaker[service] = cbState
+  saveCircuitBreaker()
 
   // Registrar en Telemetría
   logApiError(service, urlStr, method, lastError?.message || 'Error desconocido', lastStatus)
@@ -154,5 +172,16 @@ export function resetCircuitBreaker(service?: string) {
       circuitBreaker[key].lastFailure = 0
     }
   }
+  saveCircuitBreaker()
+}
+
+export function getCircuitStatus(service: string): 'ok' | 'error' {
+  const cbState = circuitBreaker[service]
+  if (!cbState) return 'ok'
+  const timeSinceLast = Date.now() - cbState.lastFailure
+  if (cbState.failures >= CB_THRESHOLD && timeSinceLast < CB_COOLDOWN) {
+    return 'error'
+  }
+  return 'ok'
 }
 
