@@ -350,13 +350,15 @@ export default function QuickView({
       finalBody = l.analisis_brechas.email_cuerpo
     } else {
       const defaultSubject = 'pregunta rápida'
-      const defaultBody = `{{icebreaker}}
+      const defaultBody = `Hola {{nombre_decisor}}, soy Jacobo, cofundador de WIARE.
+
+Me he fijado en {{nombre_negocio}} porque tenéis excelentes reseñas en {{ciudad}} pero vuestro horario de atención es limitado.
 
 {{puntos}}
 
-Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches cómo sonaría con el nombre de {{nombre_negocio}}? Si no encaja, cero compromiso.
+Si te cuadra, ¿te puedo pasar un audio de 30 segundos por WhatsApp para que escuches cómo sonaría tu recepcionista automática contestando con el nombre de {{nombre_negocio}}?
 
-Jacobo.`
+Un saludo, Jacobo.`
 
       const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
       const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody

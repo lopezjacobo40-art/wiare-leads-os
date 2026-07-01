@@ -168,21 +168,21 @@ Debes redactar un correo de venta en frío hiper-personalizado y su respectivo a
 REGLAS DE REDACCIÓN:
 1. LIMPIEZA DE NOMBRE: Limpia el nombre del negocio. Si el nombre en Google Maps incluye slogans o frases SEO (ej: "Clínica Moratín Podología || podólogo centro de Madrid"), acórtalo a lo que diría un humano (ej: "Clínica Moratín" o "Clínica Moratín Podología").
 2. ASUNTO (email_asunto): Un asunto muy corto, de 2 a 4 palabras, en minúsculas y casual que genere curiosidad (ej: "pregunta rápida", "duda sobre vuestras llamadas", "duda sobre {{nombre_limpio}}").
-3. CUERPO (email_cuerpo):
-   - Saludo directo al decisor si se conoce su nombre (ej: "Hola Carlos,") o general si no (ej: "Hola,").
-   - Icebreaker: Una primera línea rápida basada en un detalle real de su negocio (sus reseñas, su web, años abierta).
-   - Dolor/Coste: Traduce la pérdida de llamadas a dinero/pacientes perdidos al mes basándote en su sector y volumen de reseñas (ej: "Haciendo números, una clínica dental de vuestro tamaño en Madrid suele perder 6-8 llamadas a la semana fuera de horario. Con vuestro ticket medio, eso son fácilmente 2.500€/mes que se van directos a la competencia.").
-   - Solución/Grand Slam Offer: Presenta de forma simple el sistema (una recepcionista digital que atiende 24h con vuestro nombre y agenda las citas directamente, sonando idéntica a un humano).
-   - CTA ÚNICO DE FRICCIÓN CERO: Pide permiso para enviarle un audio personalizado de WhatsApp de 30 segundos (ej: "Si te cuadra, ¿te puedo pasar un audio de 30 segundos por WhatsApp para que escuches cómo sonaría contestando con el nombre de Clínica Moratín?").
-   - Firma casual (ej: "Un saludo, Jacobo").
+3. CUERPO (email_cuerpo): Debe seguir estrictamente la siguiente estructura y orden:
+   - Saludo y Presentación (muy breve): "Hola [Nombre decisor si se conoce, sino general], soy Jacobo, cofundador de WIARE." (alternar aleatoriamente firmando como Luis: "soy Luis, cofundador de WIARE.").
+   - Propuesta de valor breve: Qué hace WIARE adaptado a su sector (ej: "ayudamos a clínicas dentales a recuperar llamadas perdidas de pacientes fuera de horario").
+   - Por qué nos hemos fijado en su negocio: "Me he fijado en [Nombre limpio] porque..." (ej: "tenéis excelentes reseñas en Valencia pero vuestro horario de atención es limitado, por lo que seguro que perdéis llamadas cuando estáis cerrados").
+   - Dolor/Coste: Traduce la pérdida a cifras concretas de dinero/clientes perdidos al mes basándote en su sector y volumen de reseñas (ej: "Haciendo números, un negocio de vuestro tamaño suele perder 6-8 llamadas a la semana. Con vuestro ticket medio, eso son fácilmente 2.500€/mes que se van directos a la competencia.").
+   - CTA ÚNICO DE FRICCIÓN CERO (WhatsApp): Pide permiso para pasarle la demo por WhatsApp (ej: "Si te cuadra, ¿te puedo pasar un audio de 30 segundos por WhatsApp para que escuches cómo sonaría tu propia recepcionista automática contestando con el nombre de [Nombre limpio]?").
+   - Firma: "Un saludo, Jacobo" (o "Un saludo, Luis", coincidiendo con el remitente inicial).
    - IMPORTANTE: No metas listas de viñetas, guiones ni estructures el email como un folleto de ventas. Debe fluir como un correo de texto plano rápido enviado desde el móvil.
    - NUNCA incluyas múltiples CTAs. El único CTA debe ser el de WhatsApp.
 
 PROHIBICIONES ABSOLUTAS (Incumplirlas arruinará la venta):
-1. PROHIBIDO saludar con "Estimado/a", "Espero que este email le encuentre bien", "Mi nombre es Jacobo de WIARE", "Es un placer", "Le escribo porque".
+1. PROHIBIDO saludar con "Estimado/a", "Espero que este email le encuentre bien", "Es un placer", "Le escribo porque". (Se permite y exige presentarse como "soy Jacobo/Luis, cofundador de WIARE").
 2. PROHIBIDO usar palabras de marketing trilladas como "optimizar", "revolucionar", "solución integral", "plataforma innovadora", "agilizar procesos", "potenciar", "incrementar".
 3. PROHIBIDO incluir guiones, viñetas, o listas numeradas en el email.
-4. PROHIBIDO despedirse con "Atentamente", "Cordialmente", "Quedo a la espera de sus comentarios". Usa "Un saludo, Jacobo" o "Hablamos,".
+4. PROHIBIDO despedirse con "Atentamente", "Cordialmente", "Quedo a la espera de sus comentarios". Usa "Un saludo, Jacobo" (o Luis).
 5. El email entero no debe superar las 90-110 palabras y debe tener estructura de texto plano (párrafos de 1 o 2 líneas como mucho). Debe parecer escrito a toda prisa desde un teléfono móvil.
 
 Genera el análisis estructurado del negocio.
