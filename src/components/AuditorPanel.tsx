@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { ShieldCheck, WarningCircle, CheckCircle, ClockCounterClockwise } from '@phosphor-icons/react'
+import { ShieldCheck, WarningCircle, CheckCircle, ClockCounterClockwise, ArrowCounterClockwise } from '@phosphor-icons/react'
 import Skeleton from './Skeleton'
+import { resetCircuitBreaker } from '../lib/apiAuditor'
+import { useToast } from './Toast'
 
 interface AuditLog {
   id: string
@@ -13,6 +15,7 @@ interface AuditLog {
 }
 
 export default function AuditorPanel() {
+  const toast = useToast()
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [cargando, setCargando] = useState(true)
   const [servicios, setServicios] = useState<{ nombre: string; estado: 'ok' | 'error' }[]>([
@@ -22,6 +25,29 @@ export default function AuditorPanel() {
     { nombre: 'Apify', estado: 'ok' },
     { nombre: 'Hunter', estado: 'ok' },
   ])
+
+  const resetear = async () => {
+    try {
+      // 1. Reset in-memory circuit breaker
+      resetCircuitBreaker()
+      
+      // 2. Delete logs from database
+      const { error } = await supabase
+        .from('api_audit_logs')
+        .delete()
+        .neq('id', '0') // Deletes all rows
+        
+      if (error) throw error
+      
+      // 3. Reset UI state
+      setServicios(prev => prev.map(s => ({ ...s, estado: 'ok' })))
+      setLogs([])
+      
+      toast('Auditor de APIs reseteado con éxito', 'success')
+    } catch (err: any) {
+      toast(`Error al resetear: ${err.message}`, 'error')
+    }
+  }
 
   const cargar = async () => {
     setCargando(true)
@@ -80,9 +106,20 @@ export default function AuditorPanel() {
           <ShieldCheck size={20} weight="fill" style={{ color: 'var(--color-primary)' }} />
           Agente Auditor de APIs
         </h2>
-        <button className="btn-ghost" onClick={cargar} style={{ padding: '6px' }}>
-          <ClockCounterClockwise size={18} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button 
+            className="btn-secondary" 
+            onClick={resetear} 
+            style={{ fontSize: 12, padding: '6px 12px', minHeight: 'auto', gap: 6, display: 'inline-flex', alignItems: 'center' }}
+            title="Resetear Circuit Breaker y limpiar historial de fallos"
+          >
+            <ArrowCounterClockwise size={14} />
+            Restablecer APIs
+          </button>
+          <button className="btn-ghost" onClick={cargar} style={{ padding: '6px' }} title="Recargar logs">
+            <ClockCounterClockwise size={18} />
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>

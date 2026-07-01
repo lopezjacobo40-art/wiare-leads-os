@@ -141,3 +141,18 @@ export async function fetchWithAudit(
 
   throw lastError
 }
+
+export function resetCircuitBreaker(service?: string) {
+  if (service) {
+    if (circuitBreaker[service]) {
+      circuitBreaker[service].failures = 0
+      circuitBreaker[service].lastFailure = 0
+    }
+  } else {
+    for (const key of Object.keys(circuitBreaker)) {
+      circuitBreaker[key].failures = 0
+      circuitBreaker[key].lastFailure = 0
+    }
+  }
+}
+
