@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
+import { construirGmailUrl } from '../lib/emailOutreach'
 import { analizarBrechas, toAnalisisBrechas, extraerDatosDecisor } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
 import { buscarDecisorLinkedIn, generarPermutacionesEmail } from '../lib/apifyClient'
@@ -123,8 +124,15 @@ export default function Leads() {
   )
 
   const filtrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase()
     let res = leads.filter((l) => {
-      if (busqueda && !l.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false
+      if (q) {
+        const haystack = [l.nombre, l.ciudad, l.sector, l.email, l.decisor_nombre, l.telefono]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
       if (sectorFiltro !== 'todos' && l.sector !== sectorFiltro) return false
       if (faseFiltro !== 'todas' && l.fase !== faseFiltro) return false
       if (fuenteFiltro === 'web_calculadora' && l.fuente !== 'web_calculadora') return false
@@ -892,7 +900,7 @@ export default function Leads() {
         }}
       >
         <input
-          placeholder="Buscar por nombre…"
+          placeholder="Buscar por nombre, ciudad, email o decisor…"
           value={busqueda}
           onChange={(e) => { setBusqueda(e.target.value); setPagina(1) }}
           style={{ ...inputStyle, flex: '1 1 200px' }}
@@ -1222,47 +1230,16 @@ export default function Leads() {
                             className="btn-ghost"
                             style={{ padding: 8, minHeight: 36, minWidth: 36, color: '#A855F7' }}
                             onClick={() => {
-                              if (!lead.email) {
+                              const url = construirGmailUrl(lead)
+                              if (!url) {
                                 toast('Este lead no tiene email', 'error')
                                 return
                               }
-                              let finalSubject = ''
-                              let finalBody = ''
-
-                              if (lead.analisis_brechas?.email_asunto && lead.analisis_brechas?.email_cuerpo) {
-                                finalSubject = lead.analisis_brechas.email_asunto
-                                finalBody = lead.analisis_brechas.email_cuerpo
-                              } else {
-                                const defaultSubject = 'pregunta rápida'
-                                const defaultBody = `{{icebreaker}}
-
-{{puntos}}
-
-Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches cómo sonaría con el nombre de {{nombre_negocio}}? Si no encaja, cero compromiso.
-
-Jacobo.`
-
-                                const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
-                                const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
-
-                                const nombreDecisor = lead.decisor_nombre ? lead.decisor_nombre.split(' ')[0] : 'propietario'
-                                const icebreaker = lead.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${lead.nombre} y me pareció muy interesante.`
-                                const puntosFormat = (lead.analisis_brechas?.puntos_email || []).join('\n\n')
-
-                                finalSubject = subjectTemplate
-                                  .replace(/{{nombre_negocio}}/g, lead.nombre)
-                                  .replace(/{{nombre_decisor}}/g, nombreDecisor)
-                                  .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
-
-                                finalBody = bodyTemplate
-                                  .replace(/{{nombre_negocio}}/g, lead.nombre)
-                                  .replace(/{{nombre_decisor}}/g, nombreDecisor)
-                                  .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
-                                  .replace(/{{icebreaker}}/g, icebreaker)
-                                  .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+                              window.open(url, '_blank')
+                              // Auto-ofrecer el avance de fase para que el funnel no se quede desactualizado
+                              if (window.confirm(`¿Has enviado el email a ${lead.nombre}? Se moverá a "Email enviado".`)) {
+                                marcarEmailEnviado(lead)
                               }
-
-                              window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`, '_blank')
                             }}
                           >
                             <PaperPlaneTilt size={16} />

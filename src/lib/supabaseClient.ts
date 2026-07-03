@@ -127,6 +127,18 @@ export const FASES = [
   'baja'
 ] as const
 
+/* Fases del funnel operativo diario (v6/v7). El Kanban muestra solo estas;
+   si un lead está en una fase de cierre (propuesta_enviada…baja) su columna
+   aparece dinámicamente para no ocultarlo. 'brechas_detectadas' es legacy. */
+export const FASES_KANBAN = [
+  'nuevo',
+  'negocio_analizado',
+  'listo_para_enviar',
+  'email_enviado',
+  'respondido',
+  'reunion_agendada',
+] as const
+
 export const FASE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
   negocio_analizado: 'Negocio analizado',

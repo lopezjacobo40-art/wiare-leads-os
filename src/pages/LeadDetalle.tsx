@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas, generarPropuestaComercial, generarSystemPromptSofia } from '../lib/claudeApi'
+import { construirGmailUrl } from '../lib/emailOutreach'
 import { fetchWithAudit } from '../lib/apiAuditor'
 import { labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
@@ -291,48 +292,14 @@ export default function LeadDetalle() {
 
   // Abre el redactor de Gmail con el destinatario y plantilla prerrellenada.
   const abrirGmail = () => {
-    if (!lead?.email) return
-
-    let finalSubject = ''
-    let finalBody = ''
-
-    if (lead.analisis_brechas?.email_asunto && lead.analisis_brechas?.email_cuerpo) {
-      finalSubject = lead.analisis_brechas.email_asunto
-      finalBody = lead.analisis_brechas.email_cuerpo
-    } else {
-      const defaultSubject = 'pregunta rápida'
-      const defaultBody = `Hola {{nombre_decisor}}, soy Jacobo, cofundador de WIARE.
-
-Me he fijado en {{nombre_negocio}} porque tenéis excelentes reseñas en {{ciudad}} pero vuestro horario de atención es limitado.
-
-{{puntos}}
-
-Si te cuadra, ¿te puedo pasar un audio de 30 segundos por WhatsApp para que escuches cómo sonaría tu recepcionista automática contestando con el nombre de {{nombre_negocio}}?
-
-Un saludo, Jacobo.`
-
-      const subjectTemplate = localStorage.getItem('email_template_subject') || defaultSubject
-      const bodyTemplate = localStorage.getItem('email_template_body') || defaultBody
-
-      const nombreDecisor = lead.decisor_nombre ? lead.decisor_nombre.split(' ')[0] : 'propietario'
-      const icebreaker = lead.icebreaker || `Hola ${nombreDecisor}, vi vuestro negocio ${lead.nombre} y me pareció muy interesante.`
-      const puntosFormat = (lead.analisis_brechas?.puntos_email || []).join('\n\n')
-
-      finalSubject = subjectTemplate
-        .replace(/{{nombre_negocio}}/g, lead.nombre)
-        .replace(/{{nombre_decisor}}/g, nombreDecisor)
-        .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
-
-      finalBody = bodyTemplate
-        .replace(/{{nombre_negocio}}/g, lead.nombre)
-        .replace(/{{nombre_decisor}}/g, nombreDecisor)
-        .replace(/{{ciudad}}/g, lead.ciudad || 'tu ciudad')
-        .replace(/{{icebreaker}}/g, icebreaker)
-        .replace(/{{puntos}}/g, puntosFormat || '- Sin puntos detectados')
+    if (!lead) return
+    const url = construirGmailUrl(lead)
+    if (!url) return
+    window.open(url, '_blank')
+    // Auto-ofrecer el avance de fase para que el funnel no se quede desactualizado
+    if (lead.fase !== 'email_enviado' && window.confirm(`¿Has enviado el email a ${lead.nombre}? Se moverá a "Email enviado".`)) {
+      marcarEnviado()
     }
-
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`
-    window.open(gmailUrl, '_blank')
   }
 
   // Marca el email como enviado: fase 'email_enviado' + registra para el contador diario.

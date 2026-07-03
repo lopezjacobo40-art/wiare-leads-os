@@ -16,22 +16,11 @@ import { useSortable, SortableContext, sortableKeyboardCoordinates, verticalList
 import { CSS } from '@dnd-kit/utilities'
 import { MapPin, MagnifyingGlassPlus, DotsNine } from '@phosphor-icons/react'
 import { supabase, type Lead } from '../lib/supabaseClient'
-import { FASES, FASE_LABELS } from '../lib/supabaseClient'
+import { FASES, FASES_KANBAN, FASE_LABELS } from '../lib/supabaseClient'
 import ScoreBadge from './ScoreBadge'
 import FuenteBadge from './FuenteBadge'
+import { FASE_COLOR } from './FaseSelector'
 import { useToast } from './Toast'
-
-// Color por fase. Cada hex corresponde 1:1 con un token de globals.css
-// (se mantiene en hex porque rgbaFromHex() deriva los fondos translúcidos a partir de él).
-const FASE_COLOR: Record<string, string> = {
-  nuevo: '#A1A1AA',
-  negocio_analizado: '#6366F1',
-  brechas_detectadas: '#F97316',   // naranja — brechas detectadas, pendiente de acción
-  listo_para_enviar: '#A855F7',
-  email_enviado: '#22D3EE',
-  respondido: '#22C55E',
-  reunion_agendada: '#16A34A',
-}
 
 function rgbaFromHex(hex: string, alpha: number): string {
   const h = hex.replace('#', '')
@@ -353,7 +342,13 @@ export default function KanbanBoard({ leads: leadsProp, onOpenLead }: { leads: L
         onDragCancel={() => setActiveId(null)}
       >
         <div className="kanban-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
-          {FASES.map((fase) => (
+          {/* Fases operativas siempre visibles + columnas dinámicas para fases de cierre con leads */}
+          {[
+            ...FASES_KANBAN,
+            ...FASES.filter(
+              (f) => !(FASES_KANBAN as readonly string[]).includes(f) && leads.some((l) => l.fase === f)
+            ),
+          ].map((fase) => (
             <Column
               key={fase}
               fase={fase}

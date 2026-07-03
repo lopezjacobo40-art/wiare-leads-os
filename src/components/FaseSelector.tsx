@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CaretDown, Check } from '@phosphor-icons/react'
 import { FASES, FASE_LABELS } from '../lib/supabaseClient'
 
-/* Colores semánticos por fase (compartidos con el Kanban). */
+/* Colores semánticos por fase — ÚNICA fuente (el Kanban importa de aquí). */
 export const FASE_COLOR: Record<string, string> = {
   nuevo: '#A1A1AA',
   negocio_analizado: '#6366F1',
@@ -11,6 +11,12 @@ export const FASE_COLOR: Record<string, string> = {
   email_enviado: '#22D3EE',
   respondido: '#22C55E',
   reunion_agendada: '#16A34A',
+  propuesta_enviada: '#F59E0B',
+  aceptado: '#22C55E',
+  cobrado_setup: '#16A34A',
+  en_implementacion: '#6366F1',
+  activo: '#22C55E',
+  baja: '#A1A1AA',
 }
 
 interface Props {
@@ -76,7 +82,7 @@ export default function FaseSelector({ fase, onChange }: Props) {
             animation: 'fade-in 150ms cubic-bezier(0.4,0,0.2,1)',
           }}
         >
-          {FASES.map((f) => {
+          {FASES.filter((f) => f !== 'brechas_detectadas' || f === fase).map((f) => {
             const activo = f === fase
             const c = FASE_COLOR[f]
             return (
