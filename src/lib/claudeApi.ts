@@ -3,6 +3,8 @@ import { guardedCall } from './tokenGuard'
 import { SECTORES, RESISTENCIAS, type Resistencia } from './simuladorData'
 import { WIARE_CONTEXTO } from './wiareContexto'
 import { getNichoBrechas } from './brechasConfig'
+import { errMsg } from './errores'
+import { HORMOZI_ADN_CORE, HORMOZI_ADN_OFERTA } from './hormoziAdn'
 import { callGemini } from './geminiApi'
 import { fetchWithAudit } from './apiAuditor'
 
@@ -125,8 +127,9 @@ export async function analizarBrechas(lead: Lead): Promise<ResultadoBrechas> {
       ? JSON.stringify(lead.horario)
       : 'Desconocido'
 
-  const prompt = `CONTEXTO Y PERSONA: Actúas como el clon digital de Alex Hormozi. Eres un maestro en ventas B2B, creación de "Grand Slam Offers" y psicología de conversión.
-Tu misión es cualificar leads para WIARE, una agencia que instala un sistema de atención 24/7 (agente de voz IA + CRM) para negocios locales en España que pierden clientes por no coger el teléfono.
+  const prompt = `${HORMOZI_ADN_CORE}
+
+MISIÓN: cualificar leads para WIARE, una agencia que instala un sistema de atención 24/7 (agente de voz IA + CRM) para negocios locales en España que pierden clientes por no coger el teléfono.
 
 REGLA FUNDAMENTAL: La mayoría de negocios NO son clientes ideales. Sé brutalmente honesto.
 Si el encaje es débil, puntuación BAJA (1-4) y recomendación DESCARTAR. No infles el score.
@@ -217,13 +220,13 @@ Genera el análisis estructurado del negocio.
 
   const text = await guardedCall('score', () => callGemini(prompt, schema))
   
-  let parsed: any
+  let parsed
   try {
     const json = text.replace(/```json|```/g, '').trim()
     parsed = JSON.parse(json)
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error parsing Gemini response:', err, 'Raw response was:', text)
-    throw new Error(`Error al procesar el análisis (JSON inválido): ${err.message}`)
+    throw new Error(`Error al procesar el análisis (JSON inválido): ${errMsg(err)}`, { cause: err })
   }
   const recomendacion = ['contactar', 'dudoso', 'descartar'].includes(parsed.recomendacion)
     ? parsed.recomendacion as ResultadoBrechas['recomendacion']
@@ -426,7 +429,7 @@ Responde SOLO en JSON con esta estructura:
     parsed = JSON.parse(json)
   } catch (parseErr) {
     console.error('generarCalendarioMensual parse error. Raw:', text, parseErr)
-    throw new Error('Error al generar el calendario (respuesta inválida)')
+    throw new Error('Error al generar el calendario (respuesta inválida)', { cause: parseErr })
   }
 
   return (parsed.entradas ?? []).filter((e) =>
@@ -480,7 +483,7 @@ Responde SOLO en JSON con esta estructura:
     parsed = JSON.parse(json)
   } catch (parseErr) {
     console.error('generarPost parse error. Raw text:', text, parseErr)
-    throw new Error('Error al generar el post (respuesta inválida)')
+    throw new Error('Error al generar el post (respuesta inválida)', { cause: parseErr })
   }
   return {
     gancho: String(parsed.gancho ?? ''),
@@ -548,7 +551,11 @@ Responde SOLO en JSON con esta estructura:
 }
 
 export async function generarPropuestaComercial(lead: Lead): Promise<string> {
-  const prompt = `Actúas como Alex Hormozi, experto en ofertas Grand Slam. Escribe una propuesta comercial de alta conversión en Markdown, personalizada y directa al grano para el negocio:
+  const prompt = `${HORMOZI_ADN_CORE}
+
+${HORMOZI_ADN_OFERTA}
+
+TAREA: Escribe una propuesta comercial de alta conversión en Markdown, personalizada y directa al grano para el negocio:
 Nombre: ${lead.nombre}
 Sector: ${lead.sector}
 Ciudad: ${lead.ciudad || 'España'}
