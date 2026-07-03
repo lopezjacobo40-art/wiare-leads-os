@@ -669,9 +669,6 @@ interface Integracion {
 
 function SeccionIntegraciones() {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
-  const anthropicKey = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined
-  const retellKey = import.meta.env.VITE_RETELL_API_KEY as string | undefined
-  const placesKey = import.meta.env.VITE_GOOGLE_PLACES_API_KEY as string | undefined
 
   const integraciones: Integracion[] = [
     {
@@ -684,23 +681,23 @@ function SeccionIntegraciones() {
     {
       icon: Brain,
       nombre: 'Claude API',
-      ok: !!anthropicKey,
-      etiquetaOk: 'Configurado',
-      detalle: anthropicKey ? maskKey(anthropicKey) : undefined,
+      ok: true,
+      etiquetaOk: 'Configurado (Backend)',
+      detalle: 'Proxy Seguro /api/claude',
     },
     {
       icon: Phone,
       nombre: 'Retell AI',
-      ok: !!retellKey,
-      etiquetaOk: 'Configurado',
-      detalle: retellKey ? 'Voz: custom-Carolina · es_ES' : undefined,
+      ok: true,
+      etiquetaOk: 'Configurado (Backend)',
+      detalle: 'Proxy Seguro /api/retell',
     },
     {
       icon: MapPin,
       nombre: 'Google Places',
-      ok: !!placesKey,
-      etiquetaOk: 'Configurado',
-      etiquetaKo: 'Sin configurar',
+      ok: true,
+      etiquetaOk: 'Configurado (Backend)',
+      detalle: 'Proxy Seguro /api/google-places',
     },
     {
       icon: Table,
@@ -901,12 +898,9 @@ function SkeletonCard() {
 }
 
 // ── Helpers puros ──
-function maskKey(key: string): string {
-  return `${key.slice(0, 8)}••••••••`
-}
-
-function truncar(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n)}…` : s
+function truncar(str: string, max: number) {
+  if (str.length <= max) return str
+  return str.slice(0, max) + '...'
 }
 
 function formatoFechaHora(iso: string): string {
@@ -983,18 +977,18 @@ function SeccionElevenLabs() {
   const [probandoCliente, setProbandoCliente] = useState(false)
 
   useEffect(() => {
-    setProvider((localStorage.getItem('tts_provider') as 'elevenlabs' | 'azure') || (import.meta.env.VITE_TTS_PROVIDER as 'elevenlabs' | 'azure') || 'elevenlabs')
+    setProvider((localStorage.getItem('tts_provider') as 'elevenlabs' | 'azure') || 'elevenlabs')
     
     // ElevenLabs
-    setElKey(localStorage.getItem('elevenlabs_api_key') || import.meta.env.VITE_ELEVENLABS_API_KEY || '')
-    setElVoiceAi(localStorage.getItem('elevenlabs_voice_id') || import.meta.env.VITE_ELEVENLABS_VOICE_ID || 'Xb7hH8MSUJpSbSDYk0k2')
-    setElVoiceCliente(localStorage.getItem('elevenlabs_voice_id_cliente') || import.meta.env.VITE_ELEVENLABS_VOICE_ID_CLIENTE || 'IKne3meq5aSn9XLyUdCD')
+    setElKey(localStorage.getItem('elevenlabs_api_key') || '')
+    setElVoiceAi(localStorage.getItem('elevenlabs_voice_id') || 'Xb7hH8MSUJpSbSDYk0k2')
+    setElVoiceCliente(localStorage.getItem('elevenlabs_voice_id_cliente') || 'IKne3meq5aSn9XLyUdCD')
 
     // Azure
-    setAzKey(localStorage.getItem('azure_api_key') || import.meta.env.VITE_AZURE_API_KEY || '')
-    setAzRegion(localStorage.getItem('azure_region') || import.meta.env.VITE_AZURE_REGION || 'westeurope')
-    setAzVoiceAi(localStorage.getItem('azure_voice_id') || import.meta.env.VITE_AZURE_VOICE_ID || 'es-ES-ElviraNeural')
-    setAzVoiceCliente(localStorage.getItem('azure_voice_id_cliente') || import.meta.env.VITE_AZURE_VOICE_ID_CLIENTE || 'es-ES-AlvaroNeural')
+    setAzKey(localStorage.getItem('azure_api_key') || '')
+    setAzRegion(localStorage.getItem('azure_region') || 'westeurope')
+    setAzVoiceAi(localStorage.getItem('azure_voice_id') || 'es-ES-ElviraNeural')
+    setAzVoiceCliente(localStorage.getItem('azure_voice_id_cliente') || 'es-ES-AlvaroNeural')
   }, [])
 
   const guardar = () => {

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix,
-  MapTrifold, Headset, MagnifyingGlassPlus, ChatCircleDots,
+  MapTrifold, ChatCircleDots,
   PencilLine, CalendarBlank, BookOpen,
 } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
@@ -24,9 +24,7 @@ const NAV: NavItem[] = [
 
 // Sección "Mi agencia": construcción y herramientas internas de WIARE.
 const MI_AGENCIA: NavItem[] = [
-  { to: '/roadmap', label: 'Roadmap', icon: MapTrifold, end: false },
-  { to: '/simulador', label: 'Simulador', icon: Headset, end: false },
-  { to: '/biblioteca', label: 'Negocios analizados', icon: MagnifyingGlassPlus, end: false },
+  { to: '/roadmap', label: 'Roadmap y Formación', icon: MapTrifold, end: false },
   { to: '/consultor', label: 'Consultor IA', icon: ChatCircleDots, end: false },
 ]
 
@@ -64,6 +62,7 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
   const [uso, setUso] = useState<UsoHoy | null>(null)
   const [totalLeads, setTotalLeads] = useState<number | null>(null)
   const [ultimaExtraccion, setUltimaExtraccion] = useState<string | null>(null)
+  const [tareasHoy, setTareasHoy] = useState<number>(0)
 
   useEffect(() => {
     getUsoHoy().then(setUso).catch(() => {})
@@ -79,6 +78,16 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
       .order('created_at', { ascending: false })
       .limit(1)
       .then(({ data }) => setUltimaExtraccion(data?.[0]?.created_at ?? null))
+    // Tareas de nurturing para hoy
+    const hoy = new Date()
+    hoy.setHours(23, 59, 59, 999)
+    supabase
+      .from('leads_os')
+      .select('id, proximo_toque_fecha', { count: 'exact' })
+      .not('proximo_toque_fecha', 'is', null)
+      .lte('proximo_toque_fecha', hoy.toISOString())
+      .neq('fase', 'descartado')
+      .then(({ count }) => setTareasHoy(count ?? 0))
   }, [location.pathname])
 
   const logout = () => {
@@ -166,7 +175,9 @@ export default function Sidebar({ onLogout, open = false, onClose }: SidebarProp
           const badge = item.to === '/leads' && totalLeads != null ? totalLeads : undefined
           const subtexto =
             item.to === '/extraer' && ultimaExtraccion ? tiempoRelativo(ultimaExtraccion) : undefined
-          return <NavRow key={item.to} item={item} badge={badge} subtexto={subtexto} />
+          // Mostrar badge de tareas pendientes en el Dashboard
+          const dashBadge = item.to === '/' && tareasHoy > 0 ? tareasHoy : undefined
+          return <NavRow key={item.to} item={item} badge={badge ?? dashBadge} subtexto={subtexto} badgeWarning={item.to === '/' && tareasHoy > 0} />
         })}
 
         <GrupoLabel>Mi agencia</GrupoLabel>
@@ -297,8 +308,8 @@ function GrupoLabel({ children }: { children: ReactNode }) {
 }
 
 /* Fila de navegación: estilo compartido por todos los grupos.
-   Soporta badge numérico (leads) y subtexto (última extracción). */
-function NavRow({ item, badge, subtexto }: { item: NavItem; badge?: number; subtexto?: string }) {
+   Soporta badge numérico (leads), subtexto y badgeWarning (tareas urgentes). */
+function NavRow({ item, badge, subtexto, badgeWarning }: { item: NavItem; badge?: number; subtexto?: string; badgeWarning?: boolean }) {
   const { to, label, icon: Icon, end } = item
   return (
     <NavLink
@@ -341,8 +352,12 @@ function NavRow({ item, badge, subtexto }: { item: NavItem; badge?: number; subt
                 textAlign: 'center',
                 padding: '1px 6px',
                 borderRadius: 'var(--radius-full)',
-                background: isActive ? 'var(--color-primary)' : 'var(--color-surface-2)',
-                color: isActive ? '#fff' : 'var(--color-text-secondary)',
+                background: badgeWarning
+                  ? 'rgba(245,158,11,0.15)'
+                  : isActive ? 'var(--color-primary)' : 'var(--color-surface-2)',
+                color: badgeWarning
+                  ? 'var(--color-warning)'
+                  : isActive ? '#fff' : 'var(--color-text-secondary)',
                 flexShrink: 0,
               }}
             >

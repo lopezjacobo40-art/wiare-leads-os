@@ -1,4 +1,4 @@
-import type { Lead } from './supabaseClient'
+import { authHeaders, type Lead } from './supabaseClient'
 
 /* ─────────────────────────────────────────────
    Cliente de exportación a Google Sheets.
@@ -36,7 +36,7 @@ export interface ExportResult {
 export async function exportarASheets(leads: Lead[]): Promise<ExportResult> {
   const res = await fetch('/api/export-sheets', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ leads: leads.map(aDTO) }),
   })
 

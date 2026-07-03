@@ -165,7 +165,7 @@ export default function QuickView({
   }
 
   const sintetizarAudioFinal = async (script: DialogoAudio[]) => {
-    const provider = localStorage.getItem('tts_provider') || import.meta.env.VITE_TTS_PROVIDER || 'elevenlabs'
+    const provider = localStorage.getItem('tts_provider') || 'elevenlabs'
     
     let apiKey = ''
     let voiceIdAi = ''
@@ -173,24 +173,14 @@ export default function QuickView({
     let azureRegion = ''
     
     if (provider === 'azure') {
-      apiKey = localStorage.getItem('azure_api_key') || import.meta.env.VITE_AZURE_API_KEY || ''
-      azureRegion = localStorage.getItem('azure_region') || import.meta.env.VITE_AZURE_REGION || 'westeurope'
-      voiceIdAi = localStorage.getItem('azure_voice_id') || import.meta.env.VITE_AZURE_VOICE_ID || 'es-ES-ElviraNeural'
-      voiceIdCliente = localStorage.getItem('azure_voice_id_cliente') || import.meta.env.VITE_AZURE_VOICE_ID_CLIENTE || 'es-ES-AlvaroNeural'
-      
-      if (!apiKey) {
-        toast('Configura tu clave de suscripción de Azure Speech en Configuración primero', 'error')
-        return
-      }
+      apiKey = localStorage.getItem('azure_api_key') || ''
+      azureRegion = localStorage.getItem('azure_region') || 'westeurope'
+      voiceIdAi = localStorage.getItem('azure_voice_id') || 'es-ES-ElviraNeural'
+      voiceIdCliente = localStorage.getItem('azure_voice_id_cliente') || 'es-ES-AlvaroNeural'
     } else {
-      apiKey = localStorage.getItem('elevenlabs_api_key') || import.meta.env.VITE_ELEVENLABS_API_KEY || ''
-      voiceIdAi = localStorage.getItem('elevenlabs_voice_id') || import.meta.env.VITE_ELEVENLABS_VOICE_ID || ''
-      voiceIdCliente = localStorage.getItem('elevenlabs_voice_id_cliente') || import.meta.env.VITE_ELEVENLABS_VOICE_ID_CLIENTE || ''
-      
-      if (!apiKey || !voiceIdAi || !voiceIdCliente) {
-        toast('Configura las TRES claves de ElevenLabs en Configuración o en el archivo .env primero (API Key, Voice AI, Voice Cliente)', 'error')
-        return
-      }
+      apiKey = localStorage.getItem('elevenlabs_api_key') || ''
+      voiceIdAi = localStorage.getItem('elevenlabs_voice_id') || 'Xb7hH8MSUJpSbSDYk0k2'
+      voiceIdCliente = localStorage.getItem('elevenlabs_voice_id_cliente') || 'IKne3meq5aSn9XLyUdCD'
     }
     
     setGenerandoAudio(true)
@@ -215,49 +205,36 @@ export default function QuickView({
       for (const linea of script) {
         const voiceId = linea.speaker === 'cliente' ? voiceIdCliente : voiceIdAi
         
-        let res: Response
+        let reqBody: any = {
+          provider,
+          voiceId,
+          customApiKey: apiKey
+        }
+
         if (provider === 'azure') {
-          // Mejorar la naturalidad agregando pausas y bajando la velocidad al 94%
+          reqBody.azureRegion = azureRegion
           let textWithPauses = escapeXml(linea.text);
           textWithPauses = textWithPauses
             .replace(/,\s/g, ', <break time="150ms"/> ')
             .replace(/\.\s/g, '. <break time="300ms"/> ')
             .replace(/\?\s/g, '? <break time="350ms"/> ')
             .replace(/!\s/g, '! <break time="300ms"/> ');
-
-          const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='es-ES'><voice xml:lang='es-ES' name='${voiceId}'><prosody rate='94%'>${textWithPauses}</prosody></voice></speak>`
-          
-          res = await fetchWithAudit(`https://${azureRegion}.tts.speech.microsoft.com/cognitiveservices/v1`, {
-            method: 'POST',
-            service: 'Generic',
-            retries: 3,
-            headers: {
-              'Ocp-Apim-Subscription-Key': apiKey,
-              'Content-Type': 'application/ssml+xml',
-              'X-Microsoft-OutputFormat': 'audio-24khz-96kbitrate-mono-mp3',
-              'User-Agent': 'wiare-leads-os'
-            },
-            body: ssml
-          })
+          reqBody.ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='es-ES'><voice xml:lang='es-ES' name='${voiceId}'><prosody rate='94%'>${textWithPauses}</prosody></voice></speak>`
         } else {
-          res = await fetchWithAudit(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
-            method: 'POST',
-            service: 'ElevenLabs',
-            retries: 3,
-            headers: {
-              'Content-Type': 'application/json',
-              'xi-api-key': apiKey
-            },
-            body: JSON.stringify({
-              text: linea.text,
-              model_id: "eleven_multilingual_v2",
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.75
-              }
-            })
-          })
+          reqBody.jsonPayload = {
+            text: linea.text,
+            model_id: "eleven_multilingual_v2",
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+          }
         }
+
+        const res = await fetchWithAudit('/api/tts', {
+          method: 'POST',
+          service: provider === 'azure' ? 'Generic' : 'ElevenLabs',
+          retries: 3,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reqBody)
+        })
 
         if (!res.ok) {
           const errText = await res.text()

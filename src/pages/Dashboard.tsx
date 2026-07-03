@@ -140,13 +140,16 @@ export default function Dashboard() {
   const sectores = Object.entries(porSector).sort((a, b) => b[1] - a[1])
   const maxSector = sectores[0]?.[1] ?? 1
 
+  const pctAnalizados = leads.length > 0 ? Math.round((analizados / leads.length) * 100) : 0
+
   const metricas = [
     {
       label: 'Total leads',
       value: leads.length,
       icon: Users,
       color: 'var(--color-text-secondary)',
-      contexto: sinAnalizar > 0 ? `${sinAnalizar} sin analizar` : 'Todos analizados',
+      contexto: sinAnalizar > 0 ? `${sinAnalizar} sin analizar` : 'Pipeline limpio',
+      ratio: null as number | null,
     },
     {
       label: 'Leads calientes',
@@ -154,20 +157,23 @@ export default function Dashboard() {
       icon: Fire,
       color: 'var(--color-warning)',
       contexto: `${calientesSinTrabajar.length} sin contactar`,
+      ratio: leads.length > 0 ? Math.round((calientes / leads.length) * 100) : 0,
     },
     {
       label: 'Negocios analizados',
       value: analizados,
       icon: MagnifyingGlassPlus,
       color: 'var(--color-primary)',
-      contexto: `${sinAnalizar} pendientes`,
+      contexto: `${pctAnalizados}% del total`,
+      ratio: pctAnalizados,
     },
     {
       label: 'MRR potencial',
       value: `${mrrTotal.toLocaleString('es-ES')}€`,
       icon: CurrencyEur,
       color: 'var(--color-success)',
-      contexto: `${nuevosSemana} esta semana`,
+      contexto: `${nuevosSemana} nuevos esta semana`,
+      ratio: null as number | null,
     },
   ]
 
@@ -302,6 +308,28 @@ export default function Dashboard() {
                   >
                     {m.label}
                   </p>
+                  {/* Barra de progreso contextual */}
+                  {m.ratio != null && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontWeight: 500 }}>{m.contexto}</span>
+                        <span style={{ fontSize: 10, color: m.color, fontWeight: 700 }}>{m.ratio}%</span>
+                      </div>
+                      <div style={{ height: 3, borderRadius: 999, background: 'var(--color-surface-2)', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${m.ratio}%`,
+                          background: m.color,
+                          borderRadius: 999,
+                          transition: 'width 800ms cubic-bezier(0.16,1,0.3,1)',
+                          opacity: 0.8
+                        }} />
+                      </div>
+                    </div>
+                  )}
+                  {m.ratio == null && (
+                    <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 6 }}>{m.contexto}</p>
+                  )}
                 </div>
 
 

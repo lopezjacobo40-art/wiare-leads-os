@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireAuth } from './_lib/verifyAuth.js'
 
 /* ─────────────────────────────────────────────
    Vercel Function: busca email de contacto real de un negocio.
@@ -252,6 +253,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
+  if (!(await requireAuth(req, res))) return
 
   const { web, descripcion, nombre } = req.body as {
     web?: string

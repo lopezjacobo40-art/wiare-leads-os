@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient'
+import { supabase, authHeaders } from './supabaseClient'
 
 type AuditorService = 'Claude' | 'Gemini' | 'ElevenLabs' | 'Apify' | 'GooglePlaces' | 'Hunter' | 'Retell' | 'Generic'
 
@@ -93,8 +93,14 @@ export async function fetchWithAudit(
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
+      // Los endpoints internos /api/* requieren la sesión de Supabase Auth
+      const headers = urlStr.startsWith('/api/')
+        ? { ...(fetchOptions.headers as Record<string, string> | undefined), ...(await authHeaders()) }
+        : fetchOptions.headers
+
       const response = await fetch(url, {
         ...fetchOptions,
+        headers,
         signal: controller.signal,
       })
 
@@ -112,9 +118,18 @@ export async function fetchWithAudit(
       // Si no es OK, tratamos errores según HTTP Status
       lastStatus = response.status
       if (lastStatus === 429 || lastStatus >= 500) {
+        // Rate limit o error de servidor — vale la pena reintentar
         throw new Error(`HTTP Error ${lastStatus}: ${response.statusText}`)
+      } else if (lastStatus === 401 || lastStatus === 402 || lastStatus === 403) {
+        // Error de autenticación o saldo agotado — no reintentar, no es un fallo del servicio
+        // sino un problema de configuración del cliente. Solo logear en consola.
+        const errMsg = lastStatus === 402
+          ? `Saldo agotado o límite de plan alcanzado (${lastStatus})`
+          : `Error de autenticación/permisos (${lastStatus}): ${response.statusText}`
+        console.warn(`[Auditor] ${service}: ${errMsg}`)
+        throw new Error(errMsg)
       } else {
-        // Errores 4xx (Bad Request, Unauthorized), no tiene sentido reintentar
+        // Otros errores 4xx (Bad Request) — registrar brevemente pero no incrementar el circuit breaker
         logApiError(service, urlStr, method, `Client Error: ${response.statusText}`, lastStatus)
         return response
       }

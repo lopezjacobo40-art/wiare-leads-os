@@ -26,8 +26,8 @@ import { useToast } from './Toast'
 const FASE_COLOR: Record<string, string> = {
   nuevo: '#A1A1AA',
   negocio_analizado: '#6366F1',
+  brechas_detectadas: '#F97316',   // naranja — brechas detectadas, pendiente de acción
   listo_para_enviar: '#A855F7',
-  brechas_detectadas: '#A855F7',  // legacy
   email_enviado: '#22D3EE',
   respondido: '#22C55E',
   reunion_agendada: '#16A34A',

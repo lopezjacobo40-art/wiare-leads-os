@@ -6,8 +6,7 @@ import { getNichoBrechas } from './brechasConfig'
 import { callGemini } from './geminiApi'
 import { fetchWithAudit } from './apiAuditor'
 
-const API_URL = 'https://api.anthropic.com/v1/messages'
-const KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
+const API_URL = '/api/claude'
 
 /* Mensaje de una conversación multi-turno. */
 export type ChatMsg = { role: 'user' | 'assistant'; content: string }
@@ -38,10 +37,7 @@ async function callClaudeChat(
     retries: 2,
     fallback: fallbackGemini,
     headers: {
-      'x-api-key': KEY,
-      'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
-      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
       model,

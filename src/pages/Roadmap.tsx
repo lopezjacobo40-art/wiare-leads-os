@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckCircle, Circle, Spinner, CaretDown, BookOpen, Signpost } from '@phosphor-icons/react'
+import { CheckCircle, Circle, Spinner, CaretDown, BookOpen, Signpost, Headset } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
 import { FASES_SEMILLA, type Fase, type EstadoFase } from '../lib/roadmapData'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
 import Skeleton from '../components/Skeleton'
 import { useToast } from '../components/Toast'
+import Simulador from './Simulador'
 
 /* Configuración visual por estado: color + icono + etiqueta. */
 const ESTADO: Record<EstadoFase, { label: string; color: string; bg: string; Icon: typeof CheckCircle }> = {
@@ -25,7 +27,18 @@ export default function Roadmap() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editando, setEditando] = useState<number | null>(null)
-  const [subTab, setSubTab] = useState<'roadmap' | 'onboarding'>('onboarding')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab = (searchParams.get('tab') as 'roadmap' | 'onboarding' | 'simulador') || 'onboarding'
+  const [subTab, setSubTab] = useState<'roadmap' | 'onboarding' | 'simulador'>(initialTab)
+
+  // Sincronizar el query param al cambiar de tab para deep links
+  useEffect(() => {
+    if (subTab !== 'onboarding') {
+      setSearchParams({ tab: subTab }, { replace: true })
+    } else {
+      setSearchParams({}, { replace: true })
+    }
+  }, [subTab, setSearchParams])
 
   // Carga + seed automático si la tabla está vacía.
   useEffect(() => {
@@ -141,6 +154,26 @@ export default function Roadmap() {
         >
           <Signpost size={16} weight={subTab === 'roadmap' ? 'fill' : 'regular'} /> Roadmap de la Agencia
         </button>
+        <button
+          onClick={() => setSubTab('simulador')}
+          className={`btn-ghost ${subTab === 'simulador' ? 'active' : ''}`}
+          style={{
+            background: subTab === 'simulador' ? 'var(--color-primary-subtle)' : 'transparent',
+            color: subTab === 'simulador' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            padding: '8px 16px',
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 150ms ease',
+          }}
+        >
+          <Headset size={16} weight={subTab === 'simulador' ? 'fill' : 'regular'} /> Simulador
+        </button>
       </div>
 
       {/* ── TAB ONBOARDING ── */}
@@ -158,47 +191,74 @@ export default function Roadmap() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               {/* Sección 1 */}
               <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>1. Extracción de Leads Fríos</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>1. Dashboard — Tu Centro de Mando Diario</h3>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Ve a la pestaña <strong>"Extraer leads"</strong>. Escribe un sector (ej: <em>Clínica podológica</em> o <em>Taller mecánico</em>) y una ciudad (ej: <em>Valencia</em>). El sistema lanzará un robot en Apify para scrapear negocios reales de Google Maps de forma masiva en segundo plano.
+                  Empieza cada día en el <strong>Dashboard</strong>. Verás 4 métricas clave:
+                  <ul style={{ margin: '6px 0 0 16px', padding: 0, listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <li><strong>Total leads:</strong> Cuántos negocios hay en el sistema.</li>
+                    <li><strong>Leads calientes (🔥):</strong> Score ≥ 7. Con barra de progreso mostrando el porcentaje del total.</li>
+                    <li><strong>Negocios analizados:</strong> Muestra el % del pipeline ya analizado con IA.</li>
+                    <li><strong>MRR potencial:</strong> Suma del ingreso mensual estimado de todos los leads activos.</li>
+                  </ul>
+                  El sidebar también mostrará un <strong>badge naranja</strong> junto a "Dashboard" si tienes <em>toques de nurturing pendientes</em> para hoy.
                 </p>
               </div>
 
               {/* Sección 2 */}
               <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>2. Enriquecimiento y Búsqueda de Decisores en Lote</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>2. Extracción de Leads Fríos</h3>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Una vez extraídos, ve a <strong>"Todos los leads"</strong>. Selecciona en lote los leads que te interesen y haz clic en <strong>"Buscar decisores"</strong> en la barra inferior. El OS buscará de forma automatizada los nombres de los fundadores/dueños en LinkedIn, deducirá su correo electrónico directo e inyectará la información sin que tengas que ir uno por uno.
+                  Ve a la pestaña <strong>"Extraer leads"</strong>. Escribe un sector (ej: <em>Clínica podológica</em> o <em>Taller mecánico</em>) y una ciudad (ej: <em>Valencia</em>). El sistema lanzará un robot en Apify para scrapear negocios reales de Google Maps de forma masiva en segundo plano.
+                  <br /><br />
+                  En <strong>producción (Vercel)</strong> los webhooks de Apify están activos, por lo que el sistema recibirá la notificación de extracción completada automáticamente. En local, el modo es polling manual.
                 </p>
               </div>
 
               {/* Sección 3 */}
               <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>3. Calificación de Brechas e Informe IA</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>3. Enriquecimiento y Búsqueda de Decisores en Lote</h3>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Con tus leads seleccionados, haz clic en <strong>"Analizar brechas"</strong> en lote. Claude analizará sus datos públicos (reseñas, horario, web) y calculará cuántas llamadas pierden a la semana y cuántos euros les cuesta al mes. Además, te redactará de forma automática el correo frío estilo Alex Hormozi (saludo casual, icebreaker real, dolor económico y propuesta de valor directa).
+                  Una vez extraídos, ve a <strong>"Todos los leads"</strong>. Selecciona en lote los leads que te interesen y haz clic en <strong>"Buscar decisores"</strong> en la barra inferior. El OS buscará de forma automatizada los nombres de los fundadores/dueños en LinkedIn, deducirá su correo electrónico directo e inyectará la información sin que tengas que ir uno por uno.
                 </p>
               </div>
 
               {/* Sección 4 */}
               <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>4. Preparación de la "Demo Robada" (Paso Crítico)</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>4. Calificación de Brechas e Informe IA</h3>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Entra en la ficha de detalle de cualquier lead caliente. Haz clic en <strong>"Paso 1: Generar Guión"</strong> para redactar el diálogo. Si necesitas corregir la pronunciación o palabras, modifícalo en el formulario interactivo. Luego, haz clic en <strong>"Paso 2: Generar Audio"</strong>. El sistema sintetizará un audio real simulado en español de España de alta naturalidad usando pausas y respiraciones de Azure/ElevenLabs.
+                  Con tus leads seleccionados, haz clic en <strong>"Analizar brechas"</strong> en lote. Claude analizará sus datos públicos (reseñas, horario, web) y calculará cuántas llamadas pierden a la semana y cuántos euros les cuesta al mes. Además, te redactará de forma automática el correo frío estilo Alex Hormozi.
+                  <br /><br />
+                  Los leads analizados avanzan automáticamente a la fase <strong>"Brechas detectadas"</strong> (naranja en el Kanban) — diferente de "Negocio analizado" (morado) para que siempre distingas los que ya tienen informe completo y email listo.
                 </p>
               </div>
 
               {/* Sección 5 */}
               <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>5. Outreach Casual (Gmail y WhatsApp)</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>5. Preparación de la "Demo Robada" (Paso Crítico)</h3>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Haz clic en <strong>"Abrir Gmail"</strong> en la vista detallada del lead. El OS abrirá tu cliente de correo con el asunto y cuerpo de Hormozi ya rellenados. Al enviar, haz clic en <strong>"Marcar como enviado"</strong> para avanzar la fase en el pipeline. Usa los botones rápidos de WhatsApp para pasarle el audio de 30 segundos directamente a su móvil.
+                  Entra en la ficha de detalle de cualquier lead caliente. Haz clic en <strong>"Paso 1: Generar Guión"</strong> para redactar el diálogo. Si necesitas corregir la pronunciación o palabras, modifícalo en el formulario interactivo. Luego, haz clic en <strong>"Paso 2: Generar Audio"</strong>. El sistema sintetizará un audio real simulado en español de España de alta naturalidad usando pausas y respiraciones de Azure/ElevenLabs.
                 </p>
               </div>
 
               {/* Sección 6 */}
               <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>6. Centralización del Cierre y Entrega (Business OS)</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>6. Outreach Casual (Gmail y WhatsApp)</h3>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                  Haz clic en <strong>"Abrir Gmail"</strong> en la vista detallada del lead. El OS abrirá tu cliente de correo con el asunto y cuerpo de Hormozi ya rellenados. Al enviar, haz clic en <strong>"Marcar como enviado"</strong> para avanzar la fase en el pipeline. Usa los botones rápidos de WhatsApp para pasarle el audio de 30 segundos directamente a su móvil.
+                </p>
+              </div>
+
+              {/* Sección 7 */}
+              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>7. Nurturing — El seguimiento que cierra contratos</h3>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                  En la ficha de cada lead puedes programar el <strong>próximo toque</strong> (llamada, email o WhatsApp) con fecha. El Dashboard te mostrará en "Tareas de Nurturing" todos los leads que necesitan atención <strong>hoy</strong>. El sidebar mostrará un número naranja junto a Dashboard para que no lo olvides.
+                </p>
+              </div>
+
+              {/* Sección 8 */}
+              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>8. Centralización del Cierre y Entrega (Business OS)</h3>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
                   Cuando el prospecto muestre interés:
                   <ul style={{ margin: '6px 0 0 16px', padding: 0, listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -208,10 +268,24 @@ export default function Roadmap() {
                   </ul>
                 </p>
               </div>
+
+              {/* Sección 9 - Herramientas internas */}
+              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>9. Herramientas Internas de la Agencia</h3>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                  <ul style={{ margin: '0 0 0 16px', padding: 0, listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <li><strong>Simulador de Ventas:</strong> Practica tu pitch contra un cliente IA que se resiste. Elige sector y dureza. Evalúa la llamada al terminar.</li>
+                    <li><strong>Consultor IA:</strong> Pregunta cualquier duda sobre WIARE: pitch, objeciones, precios. Responde como un experto en cierre de ventas de agencias IA.</li>
+                    <li><strong>Negocios Analizados:</strong> Biblioteca de todos los leads con informe de brechas completo. Útil para buscar referentes por sector.</li>
+                    <li><strong>Contenido (Generador + Calendario + Biblioteca):</strong> Genera posts para Instagram/LinkedIn, programa el mes completo y gestiona el estado de publicación.</li>
+                  </ul>
+                </p>
+              </div>
             </div>
           </div>
         </div>
       )}
+
 
       {/* ── TAB ROADMAP ── */}
       {subTab === 'roadmap' && (
@@ -419,6 +493,11 @@ export default function Roadmap() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── TAB SIMULADOR ── */}
+      {subTab === 'simulador' && (
+        <Simulador embedded={true} />
       )}
     </PageTransition>
   )

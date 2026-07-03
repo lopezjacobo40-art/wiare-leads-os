@@ -10,7 +10,7 @@ import { useToast } from '../components/Toast'
 
 type Estado = 'config' | 'chat' | 'evaluado'
 
-export default function Simulador() {
+export default function Simulador({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
   const [estado, setEstado] = useState<Estado>('config')
   const [sectorId, setSectorId] = useState(SECTORES[0].id)
@@ -82,20 +82,31 @@ export default function Simulador() {
     }
   }
 
-  return (
-    <PageTransition>
-      <PageHeader
-        titulo="Simulador de Ventas"
-        subtitulo="Practica tu pitch contra un cliente IA que se resiste. Por sector y dureza."
-        acciones={
-          estado !== 'config' ? (
-            <button className="btn-secondary" onClick={reiniciar}>
-              <ArrowClockwise size={16} />
-              Reiniciar
-            </button>
-          ) : undefined
-        }
-      />
+  const content = (
+    <>
+      {!embedded && (
+        <PageHeader
+          titulo="Simulador de Ventas"
+          subtitulo="Practica tu pitch contra un cliente IA que se resiste. Por sector y dureza."
+          acciones={
+            estado !== 'config' ? (
+              <button className="btn-secondary" onClick={reiniciar}>
+                <ArrowClockwise size={16} />
+                Reiniciar
+              </button>
+            ) : undefined
+          }
+        />
+      )}
+
+      {embedded && estado !== 'config' && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+          <button className="btn-secondary" onClick={reiniciar}>
+            <ArrowClockwise size={16} />
+            Reiniciar
+          </button>
+        </div>
+      )}
 
       {/* ── Configuración ── */}
       {estado === 'config' && (
@@ -258,6 +269,16 @@ export default function Simulador() {
           )}
         </div>
       )}
+    </>
+  )
+
+  if (embedded) {
+    return content
+  }
+
+  return (
+    <PageTransition>
+      {content}
     </PageTransition>
   )
 }

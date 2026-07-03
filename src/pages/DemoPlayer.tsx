@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
 import { Headphones, LockKey } from '@phosphor-icons/react'
 
 export default function DemoPlayer() {
@@ -14,29 +13,18 @@ export default function DemoPlayer() {
 
     async function loadAndTrack() {
       try {
-        // 1. Cargar datos del lead (solo lo necesario)
-        const { data: leadData, error: leadError } = await supabase
-          .from('leads_os')
-          .select('nombre, demo_audio_url')
-          .eq('id', id)
-          .single()
-
-        if (leadError || !leadData || !leadData.demo_audio_url) {
+        // Página pública: los datos y la telemetría van vía /api/demo (server-side),
+        // sin acceso directo a la base de datos.
+        const res = await fetch(`/api/demo?id=${encodeURIComponent(id!)}`)
+        if (!res.ok) {
           setError(true)
           setLoading(false)
           return
         }
-
-        setLead(leadData)
+        const data = await res.json()
+        setLead(data)
         setLoading(false)
-
-        // 2. Registrar evento de telemetría (Radar)
-        // Ignorar si falla, para no romper la experiencia
-        await supabase.from('telemetria_os').insert({
-          lead_id: id,
-          evento: 'demo_escuchada'
-        })
-      } catch (err) {
+      } catch {
         setError(true)
         setLoading(false)
       }

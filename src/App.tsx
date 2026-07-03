@@ -8,16 +8,14 @@ import Leads from './pages/Leads'
 import LeadDetalle from './pages/LeadDetalle'
 import Configuracion from './pages/Configuracion'
 import Roadmap from './pages/Roadmap'
-import Simulador from './pages/Simulador'
 import Consultor from './pages/Consultor'
-import Biblioteca from './pages/Biblioteca'
 import Generador from './pages/contenido/Generador'
 import Calendario from './pages/contenido/Calendario'
 import BibliotecaContent from './pages/contenido/BibliotecaContent'
 import DemoPlayer from './pages/DemoPlayer'
 import Sidebar from './components/Sidebar'
 import { useToast } from './components/Toast'
-import { supabase } from './lib/supabaseClient'
+import { supabase, usernameFromSession } from './lib/supabaseClient'
 
 function Shell({ onLogout }: { onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -64,9 +62,10 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/leads/:id" element={<LeadDetalle />} />
           <Route path="/configuracion" element={<Configuracion />} />
           <Route path="/roadmap" element={<Roadmap />} />
-          <Route path="/simulador" element={<Simulador />} />
+          {/* /simulador y /biblioteca redirigen a sus nuevas ubicaciones integradas */}
+          <Route path="/simulador" element={<Navigate to="/roadmap?tab=simulador" replace />} />
+          <Route path="/biblioteca" element={<Navigate to="/leads?analizados=1" replace />} />
           <Route path="/consultor" element={<Consultor />} />
-          <Route path="/biblioteca" element={<Biblioteca />} />
           <Route path="/contenido/generador" element={<Generador />} />
           <Route path="/contenido/calendario" element={<Calendario />} />
           <Route path="/contenido/biblioteca" element={<BibliotecaContent />} />
@@ -78,8 +77,27 @@ function Shell({ onLogout }: { onLogout: () => void }) {
 }
 
 export default function App() {
-  const [user, setUser] = useState<string | null>(sessionStorage.getItem('wiare_user'))
+  const [user, setUser] = useState<string | null>(null)
+  const [cargandoSesion, setCargandoSesion] = useState(true)
   const location = useLocation()
+
+  // Restaura la sesión de Supabase Auth al montar y escucha cambios (login/logout/refresh)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const username = usernameFromSession(session)
+      if (username) sessionStorage.setItem('wiare_user', username)
+      setUser(username)
+      setCargandoSesion(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const username = usernameFromSession(session)
+      if (username) sessionStorage.setItem('wiare_user', username)
+      else sessionStorage.removeItem('wiare_user')
+      setUser(username)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   // Ruta pública para leads (bypass de autenticación)
   if (location.pathname.startsWith('/d/')) {
@@ -90,9 +108,17 @@ export default function App() {
     )
   }
 
+  if (cargandoSesion) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="spinner" style={{ width: 24, height: 24, borderWidth: 3 }} />
+      </div>
+    )
+  }
+
   if (!user) {
     return <Login onLogin={(u) => setUser(u)} />
   }
 
-  return <Shell onLogout={() => setUser(null)} />
+  return <Shell onLogout={() => { supabase.auth.signOut() }} />
 }

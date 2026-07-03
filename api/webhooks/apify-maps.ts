@@ -14,15 +14,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Apify Webhook payload
-  const { eventType, resource } = req.body
+  const { resource } = req.body
 
   if (!resource || !resource.id) {
     return res.status(400).json({ error: 'Missing resource ID' })
   }
 
   const runId = resource.id
-  const status = resource.status // SUCCEEDED, FAILED, etc.
-  const datasetId = resource.defaultDatasetId
 
   try {
     // 1. Buscar la extracción en Supabase para obtener contexto (sector, ciudad, extraccion_id)
@@ -36,6 +34,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error(`Extracción no encontrada para run_id: ${runId}`)
       return res.status(404).json({ error: 'Extracción no encontrada' })
     }
+
+    // 1b. Verificar el run contra la API de Apify con nuestro token — no confiamos
+    //     en el payload del webhook (cualquiera puede POSTear aquí). El run debe
+    //     existir en NUESTRA cuenta; status y datasetId salen de la fuente fiable.
+    const runRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_KEY}`)
+    if (!runRes.ok) {
+      console.error(`Run ${runId} no verificable en Apify (HTTP ${runRes.status})`)
+      return res.status(401).json({ error: 'Run no verificable' })
+    }
+    const runData = (await runRes.json()).data
+    const status = runData.status // SUCCEEDED, FAILED, etc.
+    const datasetId = runData.defaultDatasetId
 
     if (status !== 'SUCCEEDED') {
       await supabase

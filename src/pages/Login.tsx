@@ -1,24 +1,40 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { supabase } from '../lib/supabaseClient'
 
-const USERS: Record<string, string> = {
-  [import.meta.env.VITE_AUTH_USER_1 ?? 'jacobo']: import.meta.env.VITE_AUTH_PASS_1 ?? '',
-  [import.meta.env.VITE_AUTH_USER_2 ?? 'luis']: import.meta.env.VITE_AUTH_PASS_2 ?? '',
-}
 
 export default function Login({ onLogin }: { onLogin: (user: string) => void }) {
   const [usuario, setUsuario] = useState('')
   const [pass, setPass] = useState('')
   const [error, setError] = useState('')
 
-  const submit = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false)
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     const u = usuario.trim().toLowerCase()
-    if (USERS[u] && USERS[u] === pass) {
-      sessionStorage.setItem('wiare_user', u)
-      onLogin(u)
-    } else {
-      setError('Usuario o contraseña incorrectos')
+    // El login pide solo el nombre; internamente cada usuario es <nombre>@wiare.app en Supabase Auth
+    const email = u.includes('@') ? u : `${u}@wiare.app`
+
+    setLoading(true)
+    setError('')
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password: pass,
+      })
+
+      if (authError || !data.session) {
+        setError('Usuario o contraseña incorrectos')
+      } else {
+        const username = (data.session.user.user_metadata?.username as string | undefined) ?? u
+        sessionStorage.setItem('wiare_user', username)
+        onLogin(username)
+      }
+    } catch {
+      setError('Error conectando al servidor')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -124,8 +140,13 @@ export default function Login({ onLogin }: { onLogin: (user: string) => void }) 
           </p>
         )}
 
-        <button type="submit" className="btn-primary" style={{ width: '100%', height: 40, marginTop: 8 }}>
-          Entrar
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={loading}
+          style={{ width: '100%', height: 44 }}
+        >
+          {loading ? 'Entrando...' : 'Entrar'}
         </button>
       </motion.form>
     </div>

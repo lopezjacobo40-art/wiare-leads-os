@@ -1,5 +1,4 @@
 // Google Places API (New) v1 — soporta CORS desde navegador, a diferencia del endpoint legacy.
-const KEY = import.meta.env.VITE_GOOGLE_PLACES_API_KEY
 import { fetchWithAudit } from './apiAuditor'
 
 const FIELD_MASK = [
@@ -63,16 +62,14 @@ export async function extraerLeads(
     }
     if (pageToken) body.pageToken = pageToken
 
-    const res = await fetchWithAudit('https://places.googleapis.com/v1/places:searchText', {
+    const res = await fetchWithAudit('/api/google-places', {
       method: 'POST',
       service: 'GooglePlaces',
       retries: 3,
       headers: {
         'Content-Type': 'application/json',
-        'X-Goog-Api-Key': KEY,
-        'X-Goog-FieldMask': FIELD_MASK,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ fieldMask: FIELD_MASK, payload: body }),
     })
 
     if (!res.ok) {

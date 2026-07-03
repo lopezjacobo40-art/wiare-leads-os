@@ -1,4 +1,6 @@
 import { google } from 'googleapis'
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireAuth } from './_lib/verifyAuth.js'
 
 /* ─────────────────────────────────────────────
    API route serverless (Vercel Function, Node)
@@ -128,10 +130,11 @@ async function buscarSheetExistente(auth: ReturnType<typeof getAuth>): Promise<s
   return res.data.files?.[0]?.id ?? null
 }
 
-export default async function handler(req: { method?: string; body?: unknown }, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' })
   }
+  if (!(await requireAuth(req, res))) return
 
   try {
     const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as { leads?: LeadDTO[] }
@@ -290,10 +293,4 @@ export default async function handler(req: { method?: string; body?: unknown }, 
     const message = err instanceof Error ? err.message : 'Error exportando a Google Sheets'
     return res.status(500).json({ error: message })
   }
-}
-
-// Tipo mínimo de la respuesta de Vercel para no depender de @vercel/node.
-interface VercelResponse {
-  status: (code: number) => VercelResponse
-  json: (body: unknown) => void
 }

@@ -42,6 +42,7 @@ export default function Leads() {
   const [pagina, setPagina] = useState(1)
   // Filtros especiales activados por deep-link desde el Dashboard.
   const [soloInactivos, setSoloInactivos] = useState(false)
+  const [soloAnalizados, setSoloAnalizados] = useState(false) // redirigido desde /biblioteca
 
   const [scoringId, setScoringId] = useState<string | null>(null)
   const [batch, setBatch] = useState<{ actual: number; total: number } | null>(null)
@@ -75,12 +76,14 @@ export default function Leads() {
     const inact = searchParams.get('inactivo')
     const fu = searchParams.get('fuente')
     const ext = searchParams.get('extraccion')
+    const anal = searchParams.get('analizados')
     if (sm) setScoreMin(Number(sm))
     if (f) setFaseFiltro(f)
     if (inact) setSoloInactivos(true)
     if (fu) setFuenteFiltro(fu)
     if (ext) setExtraccionFiltro(ext)
-    if (sm || f || inact || fu || ext) {
+    if (anal) setSoloAnalizados(true)
+    if (sm || f || inact || fu || ext || anal) {
       setOrden('prioridad')
       // Limpia la URL para no "fijar" el filtro al recargar manualmente.
       setSearchParams({}, { replace: true })
@@ -129,6 +132,7 @@ export default function Leads() {
       if (fuenteFiltro === 'extraccion' && l.fuente === 'web_calculadora') return false
       if (scoreMin > 0 && (l.score_cualificacion ?? -1) < scoreMin) return false
       if (soloInactivos && !esInactivo(l)) return false
+      if (soloAnalizados && !l.analizado_at) return false
       return true
     })
     // Filtro web → los más urgentes primero (mayor pérdida real)
@@ -640,6 +644,44 @@ export default function Leads() {
           </>
         }
       />
+
+      {soloAnalizados && (
+        <div style={{
+          background: 'var(--color-primary-subtle)',
+          color: 'var(--color-primary)',
+          padding: '12px 16px',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: 14,
+          fontWeight: 500,
+          border: '1px solid var(--color-primary)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <MagnifyingGlassPlus size={18} weight="fill" />
+            Viendo solo leads que ya han sido analizados por la IA.
+          </div>
+          <button
+            onClick={() => {
+              setSoloAnalizados(false)
+              setSearchParams({}, { replace: true })
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--color-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              padding: 4
+            }}
+            title="Quitar filtro"
+          >
+            <X size={16} weight="bold" />
+          </button>
+        </div>
+      )}
 
       {batch && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>

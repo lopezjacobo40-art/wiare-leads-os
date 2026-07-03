@@ -1,10 +1,9 @@
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
-const KEY = import.meta.env.VITE_GEMINI_API_KEY
+import { authHeaders } from './supabaseClient'
 
 export async function callGemini(prompt: string, config?: Record<string, any>): Promise<string> {
-  const res = await fetch(`${GEMINI_URL}?key=${KEY}`, {
+  const res = await fetch('/api/gemini', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {

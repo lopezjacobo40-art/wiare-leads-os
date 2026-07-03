@@ -1,9 +1,26 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type Session } from '@supabase/supabase-js'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(url, key)
+
+/* Nombre de usuario corto (jacobo/luis) a partir de la sesión de Supabase Auth. */
+export function usernameFromSession(session: Session | null): string | null {
+  if (!session) return null
+  return (
+    (session.user.user_metadata?.username as string | undefined) ??
+    session.user.email?.split('@')[0] ??
+    null
+  )
+}
+
+/* Cabecera Authorization con el access token de la sesión actual,
+   para las llamadas a los endpoints /api/*. */
+export async function authHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession()
+  return session ? { Authorization: `Bearer ${session.access_token}` } : {}
+}
 
 export interface Lead {
   id: string
@@ -97,6 +114,7 @@ export interface Extraccion {
 export const FASES = [
   'nuevo',
   'negocio_analizado',
+  'brechas_detectadas',
   'listo_para_enviar',
   'email_enviado',
   'respondido',
