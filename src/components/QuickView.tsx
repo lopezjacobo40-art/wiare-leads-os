@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { construirGmailUrl } from '../lib/emailOutreach'
+import { errMsg } from '../lib/errores'
 import { analizarBrechas, toAnalisisBrechas, generarGuionAudio, type DialogoAudio } from '../lib/claudeApi'
 import ScoreBadge from './ScoreBadge'
 import FaseSelector from './FaseSelector'
@@ -36,7 +37,7 @@ export default function QuickView({
   const [analizando, setAnalizando] = useState(false)
   const [generandoAudio, setGenerandoAudio] = useState(false)
   const [localLead, setLocalLead] = useState<Lead | null>(lead)
-  const [demosHistorial, setDemosHistorial] = useState<any[]>([])
+  const [demosHistorial, setDemosHistorial] = useState<{ id: string; audio_url: string; created_at: string; script: DialogoAudio[] | null }[]>([])
   const [scriptEdicion, setScriptEdicion] = useState<DialogoAudio[] | null>(null)
   const [generandoScript, setGenerandoScript] = useState(false)
 
@@ -138,8 +139,8 @@ export default function QuickView({
 
       toast('Audio eliminado del historial', 'success')
       cargarHistorialDemos()
-    } catch (err: any) {
-      toast(`Error al eliminar: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error al eliminar: ${errMsg(err)}`, 'error')
     }
   }
 
@@ -149,8 +150,8 @@ export default function QuickView({
       const guion = await generarGuionAudio(l)
       setScriptEdicion(guion)
       toast('Guion generado por Claude. Modifica los textos a tu gusto.', 'success')
-    } catch (err: any) {
-      toast(err.message || 'Error al generar guion', 'error')
+    } catch (err) {
+      toast(errMsg(err) || 'Error al generar guion', 'error')
     } finally {
       setGenerandoScript(false)
     }
@@ -168,9 +169,9 @@ export default function QuickView({
   const sintetizarAudioFinal = async (script: DialogoAudio[]) => {
     const provider = localStorage.getItem('tts_provider') || 'elevenlabs'
     
-    let apiKey = ''
-    let voiceIdAi = ''
-    let voiceIdCliente = ''
+    let apiKey: string
+    let voiceIdAi: string
+    let voiceIdCliente: string
     let azureRegion = ''
     
     if (provider === 'azure') {
@@ -206,7 +207,7 @@ export default function QuickView({
       for (const linea of script) {
         const voiceId = linea.speaker === 'cliente' ? voiceIdCliente : voiceIdAi
         
-        let reqBody: any = {
+        const reqBody: Record<string, unknown> = {
           provider,
           voiceId,
           customApiKey: apiKey
@@ -279,8 +280,8 @@ export default function QuickView({
       cargarHistorialDemos()
       toast('Demo de voz generada con éxito', 'success')
       
-    } catch (err: any) {
-      toast(err.message || 'Error al generar demo', 'error')
+    } catch (err) {
+      toast(errMsg(err) || 'Error al generar demo', 'error')
     } finally {
       setGenerandoAudio(false)
     }
@@ -746,7 +747,7 @@ export default function QuickView({
 
 
 
-function InfoFila({ icon: Icon, color, label, children }: { icon: any; color: string; label: string; children: React.ReactNode }) {
+function InfoFila({ icon: Icon, color, label, children }: { icon: React.ElementType; color: string; label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid var(--color-border)' }}>
       <Icon size={16} weight="fill" style={{ color, marginTop: 2, marginRight: 12 }} />

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { errMsg } from '../lib/errores'
 import { ShieldCheck, WarningCircle, CheckCircle, ClockCounterClockwise, ArrowCounterClockwise } from '@phosphor-icons/react'
 import Skeleton from './Skeleton'
 import { resetCircuitBreaker, getCircuitStatus } from '../lib/apiAuditor'
@@ -44,8 +45,8 @@ export default function AuditorPanel() {
       setLogs([])
       
       toast('Auditor de APIs reseteado con éxito', 'success')
-    } catch (err: any) {
-      toast(`Error al resetear: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error al resetear: ${errMsg(err)}`, 'error')
     }
   }
 

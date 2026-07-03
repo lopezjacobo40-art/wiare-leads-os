@@ -22,7 +22,7 @@ function usuarioActual(): string {
     if (typeof sessionStorage !== 'undefined') {
       return sessionStorage.getItem('wiare_user') ?? 'desconocido'
     }
-  } catch (e) {
+  } catch {
     // ignorar
   }
   return 'desconocido'

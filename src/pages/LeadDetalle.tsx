@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode, type ElementType } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, FileText, CurrencyEur, Note,
@@ -10,6 +10,7 @@ import {
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas, generarPropuestaComercial, generarSystemPromptSofia } from '../lib/claudeApi'
 import { construirGmailUrl } from '../lib/emailOutreach'
+import { errMsg } from '../lib/errores'
 import { fetchWithAudit } from '../lib/apiAuditor'
 import { labelFuente } from '../lib/emailFinder'
 import ScoreBadge from '../components/ScoreBadge'
@@ -65,7 +66,7 @@ function DatoFila({
 
 type Tab = 'informe' | 'propuesta' | 'sofia' | 'implementacion' | 'costes' | 'notas'
 
-const TABS: { id: Tab; label: string; icon: any }[] = [
+const TABS: { id: Tab; label: string; icon: ElementType }[] = [
   { id: 'informe', label: 'Informe de brechas', icon: FileText },
   { id: 'propuesta', label: 'Propuesta', icon: FileText },
   { id: 'sofia', label: 'Agente Sofía', icon: IdentificationCard },
@@ -337,8 +338,8 @@ export default function LeadDetalle() {
       setPropuestaDraft(prop)
       await actualizar({ propuesta_md: prop })
       toast('Propuesta comercial generada', 'success')
-    } catch (err: any) {
-      toast(`Error generando propuesta: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error generando propuesta: ${errMsg(err)}`, 'error')
     } finally {
       setGeneratingProposal(false)
     }
@@ -350,8 +351,8 @@ export default function LeadDetalle() {
     try {
       await actualizar({ propuesta_md: propuestaDraft })
       toast('Propuesta guardada correctamente', 'success')
-    } catch (err: any) {
-      toast(`Error guardando propuesta: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error guardando propuesta: ${errMsg(err)}`, 'error')
     } finally {
       setSavingProposal(false)
     }
@@ -366,8 +367,8 @@ export default function LeadDetalle() {
       setSystemPromptSofia(promptText)
       await actualizar({ system_prompt_sofia: promptText })
       toast('System Prompt para Sofía generado con éxito', 'success')
-    } catch (err: any) {
-      toast(`Error generando prompt: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error generando prompt: ${errMsg(err)}`, 'error')
     } finally {
       setGeneratingSofiaPrompt(false)
     }
@@ -382,8 +383,8 @@ export default function LeadDetalle() {
         system_prompt_sofia: systemPromptSofia
       })
       toast('Configuración del agente guardada', 'success')
-    } catch (err: any) {
-      toast(`Error guardando agente: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error guardando agente: ${errMsg(err)}`, 'error')
     } finally {
       setSavingSofia(false)
     }
@@ -399,8 +400,8 @@ export default function LeadDetalle() {
       if (err) throw err
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, completada: !current } : t)))
       toast('Tarea actualizada', 'success')
-    } catch (err: any) {
-      toast(`Error actualizando tarea: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error actualizando tarea: ${errMsg(err)}`, 'error')
     }
   }
 
@@ -418,8 +419,8 @@ export default function LeadDetalle() {
         setNuevaTarea('')
         toast('Tarea agregada', 'success')
       }
-    } catch (err: any) {
-      toast(`Error agregando tarea: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error agregando tarea: ${errMsg(err)}`, 'error')
     }
   }
 
@@ -429,8 +430,8 @@ export default function LeadDetalle() {
       if (err) throw err
       setTasks((prev) => prev.filter((t) => t.id !== taskId))
       toast('Tarea eliminada', 'success')
-    } catch (err: any) {
-      toast(`Error eliminando tarea: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error eliminando tarea: ${errMsg(err)}`, 'error')
     }
   }
 

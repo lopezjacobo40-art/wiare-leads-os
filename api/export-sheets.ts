@@ -224,8 +224,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── 7. Formato vía batchUpdate (header + freeze + auto-resize + colores) ──
-    // Necesitamos saber el total de filas actuales para formatear correctamente.
-    const totalRows = existingIds.length + toAppend.length // incluye header row
     const requests: unknown[] = [
       // Header: fondo #6366F1, texto blanco, negrita
       {

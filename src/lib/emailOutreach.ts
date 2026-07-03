@@ -22,8 +22,8 @@ Jacobo.`
 export function construirGmailUrl(lead: Lead): string | null {
   if (!lead.email) return null
 
-  let asunto = ''
-  let cuerpo = ''
+  let asunto: string
+  let cuerpo: string
 
   if (lead.analisis_brechas?.email_asunto && lead.analisis_brechas?.email_cuerpo) {
     asunto = lead.analisis_brechas.email_asunto

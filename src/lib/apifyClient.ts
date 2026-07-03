@@ -2,7 +2,7 @@ const ACTOR_ID = 'compass~crawler-google-places'
 
 import { fetchWithAudit } from './apiAuditor'
 
-async function callApifyProxy(endpoint: string, method: string = 'GET', payload?: any, retries: number = 3) {
+async function callApifyProxy(endpoint: string, method: string = 'GET', payload?: unknown, retries: number = 3) {
   return await fetchWithAudit('/api/apify', {
     method: 'POST',
     service: 'Apify',
@@ -190,7 +190,7 @@ export async function extraerLeadsConApify(
 
   const items: Record<string, unknown>[] = await datasetRes.json()
 
-  onProgress?.(`✅ ${items.length} negocios extraídos`)
+  onProgress?.(`${items.length} negocios extraídos`)
 
   // 4. Mapear al formato ApifyLead
   return items.map((item) => ({
@@ -371,7 +371,7 @@ export function generarPermutacionesEmail(nombreCompleto: string, dominio: strin
     try {
       const url = new URL(cleanDomain)
       cleanDomain = url.hostname.replace('www.', '')
-    } catch (e) {
+    } catch {
       // ignorar
     }
   }

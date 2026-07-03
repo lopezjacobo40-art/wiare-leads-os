@@ -16,10 +16,9 @@ import { useSortable, SortableContext, sortableKeyboardCoordinates, verticalList
 import { CSS } from '@dnd-kit/utilities'
 import { MapPin, MagnifyingGlassPlus, DotsNine } from '@phosphor-icons/react'
 import { supabase, type Lead } from '../lib/supabaseClient'
-import { FASES, FASES_KANBAN, FASE_LABELS } from '../lib/supabaseClient'
+import { FASES, FASES_KANBAN, FASE_COLOR, FASE_LABELS } from '../lib/supabaseClient'
 import ScoreBadge from './ScoreBadge'
 import FuenteBadge from './FuenteBadge'
-import { FASE_COLOR } from './FaseSelector'
 import { useToast } from './Toast'
 
 function rgbaFromHex(hex: string, alpha: number): string {

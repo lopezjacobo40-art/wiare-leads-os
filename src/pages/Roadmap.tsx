@@ -196,7 +196,7 @@ export default function Roadmap() {
                   Empieza cada día en el <strong>Dashboard</strong>. Verás 4 métricas clave:
                   <ul style={{ margin: '6px 0 0 16px', padding: 0, listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <li><strong>Total leads:</strong> Cuántos negocios hay en el sistema.</li>
-                    <li><strong>Leads calientes (🔥):</strong> Score ≥ 7. Con barra de progreso mostrando el porcentaje del total.</li>
+                    <li><strong>Leads calientes:</strong> Score ≥ 7. Con barra de progreso mostrando el porcentaje del total.</li>
                     <li><strong>Negocios analizados:</strong> Muestra el % del pipeline ya analizado con IA.</li>
                     <li><strong>MRR potencial:</strong> Suma del ingreso mensual estimado de todos los leads activos.</li>
                   </ul>
@@ -305,7 +305,7 @@ export default function Roadmap() {
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${progreso.pct}%` }}
-                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   style={{ height: '100%', borderRadius: 'var(--radius-full)', background: 'var(--gradient-brand)' }}
                 />
               </div>

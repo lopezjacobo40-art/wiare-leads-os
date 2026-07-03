@@ -68,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 3. Mapear y procesar (filtrado básico de duplicados si se quiere, o insertar todo)
     // Extraemos la lógica de apifyClient para limpiar
-    const leadsParaInsertar = items.map((item: any) => ({
+    const leadsParaInsertar = items.map((item) => ({
       nombre: String(item.title || item.name || ''),
       sector: extraccion.sector,
       telefono: item.phone || item.phoneUnformatted || null,
@@ -92,14 +92,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }))
 
     // 4. Filtrar duplicados existentes en DB
-    const placeIds = leadsParaInsertar.map((l: any) => l.google_place_id).filter(Boolean)
+    const placeIds = leadsParaInsertar.map((l) => l.google_place_id).filter(Boolean)
     const { data: existentes } = await supabase
       .from('leads_os')
       .select('google_place_id')
       .in('google_place_id', placeIds)
 
-    const yaExisten = new Set((existentes ?? []).map((e: any) => e.google_place_id))
-    const nuevos = leadsParaInsertar.filter((l: any) => !yaExisten.has(l.google_place_id))
+    const yaExisten = new Set((existentes ?? []).map((e) => e.google_place_id))
+    const nuevos = leadsParaInsertar.filter((l) => !yaExisten.has(l.google_place_id))
 
     // 5. Insertar en leads_os
     if (nuevos.length > 0) {
@@ -121,8 +121,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({ message: 'Extracción completada', insertados: nuevos.length })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error en webhook Apify:', error)
-    return res.status(500).json({ error: error.message })
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'Internal Server Error' })
   }
 }

@@ -1,23 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CaretDown, Check } from '@phosphor-icons/react'
-import { FASES, FASE_LABELS } from '../lib/supabaseClient'
+import { FASES, FASE_COLOR, FASE_LABELS } from '../lib/supabaseClient'
 
-/* Colores semánticos por fase — ÚNICA fuente (el Kanban importa de aquí). */
-export const FASE_COLOR: Record<string, string> = {
-  nuevo: '#A1A1AA',
-  negocio_analizado: '#6366F1',
-  listo_para_enviar: '#A855F7',
-  brechas_detectadas: '#A855F7',  // legacy
-  email_enviado: '#22D3EE',
-  respondido: '#22C55E',
-  reunion_agendada: '#16A34A',
-  propuesta_enviada: '#F59E0B',
-  aceptado: '#22C55E',
-  cobrado_setup: '#16A34A',
-  en_implementacion: '#6366F1',
-  activo: '#22C55E',
-  baja: '#A1A1AA',
-}
 
 interface Props {
   fase: string

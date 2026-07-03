@@ -15,6 +15,7 @@ import {
   PlayCircle,
 } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
+import { errMsg } from '../lib/errores'
 import Skeleton from '../components/Skeleton'
 import { fetchWithAudit } from '../lib/apiAuditor'
 import { useToast } from '../components/Toast'
@@ -1084,8 +1085,8 @@ function SeccionElevenLabs() {
       const audio = new Audio(audioUrl)
       await audio.play()
       toast('Reproduciendo muestra de voz...', 'success')
-    } catch (err: any) {
-      toast(`Error al probar voz: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error al probar voz: ${errMsg(err)}`, 'error')
     } finally {
       setLoader(false)
     }

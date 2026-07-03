@@ -16,7 +16,7 @@ import { requireAuth } from './_lib/verifyAuth.js'
    ───────────────────────────────────────────── */
 
 const APIFY_BASE = 'https://api.apify.com/v2'
-const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g
+const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
 
 const DOMINIOS_IGNORAR = [
   'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.es',
@@ -166,7 +166,7 @@ async function emailConScraping(web: string, dominio: string): Promise<string | 
       if (!res.ok) continue
       const html = await res.text()
       // También buscar en atributos data-* y href="mailto:..."
-      const mailtoMatches = [...html.matchAll(/mailto:([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g)]
+      const mailtoMatches = [...html.matchAll(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g)]
         .map((m) => m[1])
       todosEmails.push(...extraerEmails(html), ...mailtoMatches)
     } catch {
@@ -226,7 +226,7 @@ async function buscarDecisorLinkedIn(nombreEmpresa: string, web: string): Promis
 
     const partes = title.split('-').map((p: string) => p.trim())
     const nombreDecisor = partes[0]
-    let cargoDecisor = partes.length > 1 ? partes[1] : 'Dueño/a'
+    const cargoDecisor = partes.length > 1 ? partes[1] : 'Dueño/a'
     
     if (nombreDecisor.toLowerCase().includes(nombreEmpresa.toLowerCase())) return null
 

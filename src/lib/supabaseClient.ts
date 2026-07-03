@@ -139,6 +139,23 @@ export const FASES_KANBAN = [
   'reunion_agendada',
 ] as const
 
+/* Colores semánticos por fase — ÚNICA fuente (Kanban y FaseSelector importan de aquí). */
+export const FASE_COLOR: Record<string, string> = {
+  nuevo: '#A1A1AA',
+  negocio_analizado: '#6366F1',
+  listo_para_enviar: '#A855F7',
+  brechas_detectadas: '#A855F7',  // legacy
+  email_enviado: '#22D3EE',
+  respondido: '#22C55E',
+  reunion_agendada: '#16A34A',
+  propuesta_enviada: '#F59E0B',
+  aceptado: '#22C55E',
+  cobrado_setup: '#16A34A',
+  en_implementacion: '#6366F1',
+  activo: '#22C55E',
+  baja: '#A1A1AA',
+}
+
 export const FASE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo',
   negocio_analizado: 'Negocio analizado',

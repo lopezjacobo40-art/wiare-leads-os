@@ -63,7 +63,7 @@ export default function Dashboard() {
         gsap.fromTo(
           '.gsap-stagger',
           { opacity: 0, y: 40, scale: 0.95 },
-          { opacity: 1, y: 0, scale: 1, duration: 1.2, ease: 'power4.out', stagger: 0.1 }
+          { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: 'power4.out', stagger: 0.05 }
         )
       }, containerRef)
       return () => ctx.revert()
@@ -313,7 +313,7 @@ export default function Dashboard() {
                           width: `${m.ratio}%`,
                           background: m.color,
                           borderRadius: 999,
-                          transition: 'width 800ms cubic-bezier(0.16,1,0.3,1)',
+                          transition: 'width 300ms cubic-bezier(0.16,1,0.3,1)',
                           opacity: 0.8
                         }} />
                       </div>
@@ -379,7 +379,7 @@ export default function Dashboard() {
                       background: 'var(--gradient-brand)',
                       borderRadius: 999,
                       transform: `scaleX(${count / maxSector})`,
-                      transition: 'transform 0.5s cubic-bezier(0.16,1,0.3,1)',
+                      transition: 'transform 300ms cubic-bezier(0.16,1,0.3,1)',
                       transformOrigin: 'left',
                     }}
                   />

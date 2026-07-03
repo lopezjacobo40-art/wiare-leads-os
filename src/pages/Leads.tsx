@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
 import { construirGmailUrl } from '../lib/emailOutreach'
+import { errMsg } from '../lib/errores'
 import { analizarBrechas, toAnalisisBrechas, extraerDatosDecisor } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
 import { buscarDecisorLinkedIn, generarPermutacionesEmail } from '../lib/apifyClient'
@@ -567,8 +568,8 @@ export default function Leads() {
       )
       await cargar()
       toast('Búsqueda de decisores en lote completada', 'success')
-    } catch (err: any) {
-      toast(`Error en lote de decisores: ${err.message}`, 'error')
+    } catch (err) {
+      toast(`Error en lote de decisores: ${errMsg(err)}`, 'error')
     } finally {
       setBatch(null)
       setBuscandoDecisorLote(false)

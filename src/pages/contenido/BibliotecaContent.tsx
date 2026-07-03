@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   InstagramLogo, LinkedinLogo, Plus, MagnifyingGlass, Funnel,
   Copy, Check, Trash, CalendarBlank, CaretDown, CaretUp,
-  PencilSimple, BookOpen, ArrowSquareOut,
+  PencilSimple, BookOpen, ArrowSquareOut, X,
 } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../lib/supabaseClient'
@@ -374,8 +374,8 @@ export default function BibliotecaContent() {
                               <button className="btn-primary" onClick={() => asignarFecha(post.id, fechaEditar)} style={{ minHeight: 30, padding: '4px 10px', fontSize: 12 }}>
                                 OK
                               </button>
-                              <button className="btn-ghost" onClick={() => setEditandoFecha(null)} style={{ minHeight: 30, padding: '4px 8px', fontSize: 12 }}>
-                                ✕
+                              <button className="btn-ghost" onClick={() => setEditandoFecha(null)} aria-label="Cancelar" style={{ minHeight: 30, padding: '4px 8px', fontSize: 12 }}>
+                                <X size={13} />
                               </button>
                             </div>
                           ) : (

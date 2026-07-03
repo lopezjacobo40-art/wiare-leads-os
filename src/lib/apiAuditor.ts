@@ -84,7 +84,7 @@ export async function fetchWithAudit(
   }
 
   let attempt = 0
-  let lastError: any = null
+  let lastError: unknown = null
   let lastStatus: number | undefined = undefined
 
   // --- 2. Bucle de Reintentos (Exponential Backoff) ---
@@ -133,11 +133,11 @@ export async function fetchWithAudit(
         logApiError(service, urlStr, method, `Client Error: ${response.statusText}`, lastStatus)
         return response
       }
-    } catch (err: any) {
+    } catch (err) {
       lastError = err
 
       // Si fue abortado por timeout
-      if (err.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         lastError = new Error('Timeout agotado tras ' + timeoutMs + 'ms')
       }
 
@@ -158,7 +158,7 @@ export async function fetchWithAudit(
   saveCircuitBreaker()
 
   // Registrar en Telemetría
-  logApiError(service, urlStr, method, lastError?.message || 'Error desconocido', lastStatus)
+  logApiError(service, urlStr, method, lastError instanceof Error ? lastError.message : 'Error desconocido', lastStatus)
   console.error(`[Auditor] Fallo crítico en ${service} tras ${retries} reintentos.`, lastError)
 
   // --- 4. Ejecutar Fallback (Plan B) si existe ---
@@ -166,8 +166,8 @@ export async function fetchWithAudit(
     console.log(`[Auditor] Activando Fallback para ${service}...`)
     try {
       return await fallback()
-    } catch (fallbackErr: any) {
-      logApiError(service, urlStr, method, `Fallback falló: ${fallbackErr?.message}`)
+    } catch (fallbackErr) {
+      logApiError(service, urlStr, method, `Fallback falló: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`)
       throw fallbackErr
     }
   }

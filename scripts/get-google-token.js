@@ -1,4 +1,3 @@
-/* eslint-disable */
 /*
  * Obtiene un refresh_token de Google OAuth2 de forma interactiva.
  *

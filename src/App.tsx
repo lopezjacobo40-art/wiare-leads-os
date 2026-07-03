@@ -32,7 +32,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         if (payload.new.evento === 'demo_escuchada') {
           const { data } = await supabase.from('leads_os').select('nombre').eq('id', payload.new.lead_id).single()
           const nombre = data?.nombre || 'Un prospecto'
-          toast(`🔥 ¡${nombre} está escuchando tu demo de voz ahora mismo!`, 'info')
+          toast(`¡${nombre} está escuchando tu demo de voz ahora mismo!`, 'info')
         }
       })
       .subscribe()

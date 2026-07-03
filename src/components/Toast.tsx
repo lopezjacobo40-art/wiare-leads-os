@@ -151,6 +151,7 @@ function ToastViewport({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: 
 }
 
 /* Hook de consumo. Devuelve siempre una función válida aunque falte el provider. */
+// eslint-disable-next-line react-refresh/only-export-components -- hook y provider conviven a propósito
 export function useToast(): (mensaje: string, tipo?: ToastTipo) => void {
   const ctx = useContext(ToastContext)
   // Fallback defensivo: si por error se usa fuera del provider, no rompe la app.

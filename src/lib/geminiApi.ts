@@ -1,6 +1,6 @@
 import { authHeaders } from './supabaseClient'
 
-export async function callGemini(prompt: string, config?: Record<string, any>): Promise<string> {
+export async function callGemini(prompt: string, config?: Record<string, unknown>): Promise<string> {
   const res = await fetch('/api/gemini', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },

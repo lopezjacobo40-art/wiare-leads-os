@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabaseClient'
 import { extraerLeadsConApify, extraerLeadsConApifyAsync, type ApifyLead } from '../lib/apifyClient'
 import { processBatch } from '../lib/tokenGuard'
 import { fetchWithAudit } from '../lib/apiAuditor'
+import { errMsg } from '../lib/errores'
 import LoadingBar from '../components/LoadingBar'
 import PageHeader from '../components/PageHeader'
 import PageTransition from '../components/PageTransition'
@@ -222,7 +223,7 @@ export default function Extraccion() {
           async (l) => {
             let email: string | null = null
             let fuente = 'sin_email'
-            let decisor: any = null
+            let decisor: { nombre?: string; cargo?: string; linkedin?: string; emailPredictivo?: string | null } | null = null
             try {
               const res = await fetchWithAudit('/api/find-email', {
                 method: 'POST',
@@ -275,9 +276,9 @@ export default function Extraccion() {
         setLog((prev) => [...prev, `${encontrados} de ${sinEmail.length} emails encontrados`])
       }
       setEstado('completado')
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error en extracción:', err)
-      setErrorMsg(err?.message || (typeof err === 'string' ? err : 'Error desconocido'))
+      setErrorMsg(errMsg(err))
       setEstado('error')
     }
   }

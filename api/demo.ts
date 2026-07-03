@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
 
     return res.status(200).json({ nombre: lead.nombre, demo_audio_url: lead.demo_audio_url })
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Internal Server Error' })
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'Internal Server Error' })
   }
 }
