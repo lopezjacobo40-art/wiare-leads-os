@@ -62,13 +62,15 @@ export function buildSlideHtml(
   const totalStr = String(total).padStart(2, '0')
   const esUltimo = index >= total - 1
 
-  // Párrafos: en el CTA, el último se marca como acción (indigo)
+  // Párrafos: en el CTA, el último se convierte en botón (píldora indigo)
   const paras = escapeHtml(slide.texto).split(/\n{2,}/)
   const parrafos = paras
     .map((p, i) => {
       const conBr = resaltarCifras(p.replace(/\n/g, '<br/>'))
-      const accion = slide.rol === 'cta' && i === paras.length - 1
-      return `<p class="${accion ? 'action' : ''}">${conBr}</p>`
+      const esBoton = slide.rol === 'cta' && i === paras.length - 1
+      return esBoton
+        ? `<span class="btn">${conBr} <span class="btn-arrow">&rarr;</span></span>`
+        : `<p>${conBr}</p>`
     })
     .join('')
 
@@ -87,15 +89,36 @@ export function buildSlideHtml(
     color: ${TINTA};
     font-family: '${body}', sans-serif;
     padding: 100px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    -webkit-font-smoothing: antialiased;
+    position: relative;
     overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Elemento gráfico: círculo de degradado de marca, abajo-derecha, sangrando ── */
+  .blob {
+    position: absolute;
+    right: -160px;
+    bottom: -160px;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, ${indigo} 0%, ${cyan} 100%);
+    z-index: 0;
+  }
+  .blob-arrow {
+    position: absolute;
+    right: 150px;
+    bottom: 172px;
+    z-index: 1;
+    font-family: '${headings}', sans-serif;
+    font-weight: 800;
+    font-size: 84px;
+    line-height: 1;
+    color: #fff;
   }
 
   /* ── Cabecera: índice grande (cyan) + logo ── */
-  .top { display: flex; align-items: flex-start; justify-content: space-between; }
+  .top { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; }
   .index { display: flex; align-items: baseline; }
   .index .n {
     font-family: '${headings}', sans-serif;
@@ -112,10 +135,10 @@ export function buildSlideHtml(
     color: ${GRIS};
     margin-left: 10px;
   }
-  .logo { height: 44px; object-fit: contain; display: block; }
+  .logo { height: 72px; object-fit: contain; display: block; }
 
   /* ── Copy: arriba, la jerarquía tipográfica es el diseño ── */
-  .content { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 72px; }
+  .content { position: relative; z-index: 2; margin-top: 76px; }
   .copy {
     font-family: '${headings}', sans-serif;
     font-weight: ${slide.rol === 'hook' ? 800 : 700};
@@ -125,35 +148,42 @@ export function buildSlideHtml(
     overflow-wrap: anywhere;
   }
   .copy p + p { margin-top: 30px; }
-  /* Cifras/dinero: color de marca + un punto más de tamaño y peso */
+  /* Cifras/dinero: color de marca, un punto más grandes */
   .copy .hl { color: ${indigo}; font-weight: 800; font-size: 1.06em; }
-  /* Línea de acción del CTA */
-  .copy p.action { color: ${indigo}; }
-  .copy p.action .hl { color: ${TINTA}; }
 
-  /* ── Pie: regla cyan + flecha de swipe ── */
-  .bottom { display: flex; align-items: center; justify-content: space-between; }
-  .rule { height: 8px; width: 104px; border-radius: 999px; background: ${cyan}; }
-  .swipe {
+  /* ── Subrayado cyan bajo el titular ── */
+  .underline { height: 14px; width: 190px; border-radius: 999px; background: ${cyan}; margin-top: 48px; }
+
+  /* ── Botón (CTA): píldora indigo con flecha ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 44px;
+    padding: 26px 46px;
+    background: ${indigo};
+    color: #fff;
+    border-radius: 999px;
     font-family: '${headings}', sans-serif;
     font-weight: 700;
-    font-size: 44px;
-    color: ${indigo};
-    line-height: 1;
+    font-size: ${Math.round(base * 0.52)}px;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
   }
+  .btn .hl { color: #fff; }
+  .btn-arrow { font-weight: 800; }
 </style>
 </head>
 <body>
+  <div class="blob"></div>
+  ${esUltimo ? '' : '<div class="blob-arrow">&rarr;</div>'}
   <div class="top">
     <div class="index"><span class="n">${numero}</span><span class="tot">/ ${totalStr}</span></div>
     <img class="logo" src="${logoUrl}" alt="logo"/>
   </div>
   <div class="content">
     <div class="copy">${parrafos}</div>
-  </div>
-  <div class="bottom">
-    <div class="rule"></div>
-    ${esUltimo ? '' : '<div class="swipe">&rarr;</div>'}
+    ${slide.rol === 'cta' ? '' : '<div class="underline"></div>'}
   </div>
 </body>
 </html>`
