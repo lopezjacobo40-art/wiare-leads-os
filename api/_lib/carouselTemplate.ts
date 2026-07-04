@@ -54,9 +54,9 @@ export function buildSlideHtml(
 
   // Tamaño base por rol; se reduce si el texto es largo (fit tipográfico)
   const len = slide.texto.length
-  let base = slide.rol === 'hook' ? 88 : slide.rol === 'cta' ? 62 : 58
-  if (len > 150) base = Math.round(base * 0.82)
-  if (len > 230) base = Math.round(base * 0.7)
+  let base = slide.rol === 'hook' ? 108 : slide.rol === 'cta' ? 82 : 78
+  if (len > 150) base = Math.round(base * 0.84)
+  if (len > 230) base = Math.round(base * 0.72)
 
   const numero = String(index + 1).padStart(2, '0')
   const totalStr = String(total).padStart(2, '0')
@@ -114,14 +114,14 @@ export function buildSlideHtml(
   }
   .logo { height: 44px; object-fit: contain; display: block; }
 
-  /* ── Copy: la jerarquía tipográfica es el diseño ── */
-  .content { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  /* ── Copy: arriba, la jerarquía tipográfica es el diseño ── */
+  .content { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 72px; }
   .copy {
     font-family: '${headings}', sans-serif;
     font-weight: ${slide.rol === 'hook' ? 800 : 700};
     font-size: ${base}px;
-    line-height: 1.14;
-    letter-spacing: -0.025em;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
     overflow-wrap: anywhere;
   }
   .copy p + p { margin-top: 30px; }
