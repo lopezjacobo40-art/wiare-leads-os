@@ -682,3 +682,68 @@ Responde SOLO con un array JSON válido, sin markdown, sin texto extra:
     }
   })
 }
+
+/* ─────────────────────────────────────────────
+   Content OS — genera el copy de un carrusel de 5 slides para una idea.
+   Estructura Hormozi (problema-agitación-solución) mapeada a los 5 roles:
+   hook, problema, solucion, prueba_social, cta.
+   Usa ejemplos de copy real de WIARE como referencia de tono.
+   Devuelve [{ rol, texto }] con los 5 slides en orden.
+   ───────────────────────────────────────────── */
+export interface CopySlideGenerado {
+  rol: 'hook' | 'problema' | 'solucion' | 'prueba_social' | 'cta'
+  texto: string
+}
+
+export async function generarCopyCarrusel(
+  idea: { titulo: string; gancho?: string | null; pilar?: string | null },
+  ejemplosTono: string[],
+  tonoMarca?: string | null
+): Promise<CopySlideGenerado[]> {
+  const ejemplosBloque = ejemplosTono.length
+    ? `\nEJEMPLOS DE COPY REAL DE WIARE (imita ESTE tono, ritmo y vocabulario; NO los copies literalmente):\n${ejemplosTono.map((e, i) => `[${i + 1}] ${e}`).join('\n')}`
+    : ''
+
+  const prompt = `${HORMOZI_ADN_CORE}
+
+CONTEXTO WIARE: atención automatizada 24/7 para negocios locales — foco en clínicas dentales y restaurantes de Madrid. Servicios: agente de voz 24/7 (Retell AI), chat agent de WhatsApp, CRM personalizado. Dolor central: perder llamadas y clientes por no coger el teléfono.
+${tonoMarca ? `\nTONO DE MARCA: ${tonoMarca}` : ''}${ejemplosBloque}
+
+IDEA DEL CARRUSEL:
+Título: ${idea.titulo}${idea.gancho ? `\nGancho de partida: ${idea.gancho}` : ''}${idea.pilar ? `\nPilar: ${idea.pilar}` : ''}
+
+TAREA: Escribe el copy de un carrusel de Instagram de EXACTAMENTE 5 slides, con estructura problema-agitación-solución:
+1. "hook": la portada. Una frase que pare el scroll. Corta y potente.
+2. "problema": nombra el dolor concreto del dueño del negocio.
+3. "solucion": cómo lo resuelve WIARE, en simple, sin tecnicismos ("IA", "bot", "algoritmo" PROHIBIDOS — di "atención", "recepción").
+4. "prueba_social": una cifra o resultado creíble que demuestre que funciona.
+5. "cta": una única llamada a la acción de fricción cero.
+
+Cada slide: 1-2 frases máximo, pensado para leerse en pantalla de móvil. Directo, sin relleno.
+
+Responde SOLO con un array JSON válido, sin markdown, sin texto extra:
+[{"rol":"hook","texto":"..."},{"rol":"problema","texto":"..."},{"rol":"solucion","texto":"..."},{"rol":"prueba_social","texto":"..."},{"rol":"cta","texto":"..."}]`
+
+  const raw = await guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', 1600, [{ role: 'user', content: prompt }])
+  )
+
+  let parsed: unknown
+  try {
+    const json = raw.replace(/```json|```/g, '').trim()
+    parsed = JSON.parse(json)
+  } catch (err) {
+    console.error('generarCopyCarrusel parse error. Raw:', raw)
+    throw new Error(`No se pudo generar el copy (respuesta inválida): ${errMsg(err)}`, { cause: err })
+  }
+  if (!Array.isArray(parsed)) throw new Error('Respuesta inesperada al generar el copy')
+
+  const ORDEN: CopySlideGenerado['rol'][] = ['hook', 'problema', 'solucion', 'prueba_social', 'cta']
+  const porRol = new Map<string, string>()
+  for (const s of parsed as Record<string, unknown>[]) {
+    const rol = String(s.rol ?? '')
+    if (ORDEN.includes(rol as CopySlideGenerado['rol'])) porRol.set(rol, String(s.texto ?? '').trim())
+  }
+  // Garantiza los 5 slides en orden, aunque el modelo se salte alguno
+  return ORDEN.map((rol) => ({ rol, texto: porRol.get(rol) ?? '' }))
+}

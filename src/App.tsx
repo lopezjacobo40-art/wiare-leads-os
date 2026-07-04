@@ -11,6 +11,7 @@ import Roadmap from './pages/Roadmap'
 import Consultor from './pages/Consultor'
 import BrandKit from './pages/content/BrandKit'
 import Ideas from './pages/content/Ideas'
+import VozMarca from './pages/content/VozMarca'
 import DemoPlayer from './pages/DemoPlayer'
 import Sidebar from './components/Sidebar'
 import BrandKitProvider from './components/BrandKitProvider'
@@ -79,6 +80,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/content" element={<ContentLayout />}>
             <Route index element={<Navigate to="/content/ideas" replace />} />
             <Route path="ideas" element={<Ideas />} />
+            <Route path="voz" element={<VozMarca />} />
             <Route path="brand-kit" element={<BrandKit />} />
           </Route>
           {/* Rutas del módulo de contenido antiguo, retiradas del sidebar (se eliminan al cerrar el nuevo módulo) */}

@@ -15,6 +15,8 @@ import {
   fetchPillars, fetchIdeas, crearIdeas, actualizarIdea, borrarIdea,
   IDEA_ESTADOS, type ContentPillar, type ContentIdea, type IdeaEstado,
 } from '../../lib/contentIdeas'
+import { fetchVoiceExamples } from '../../lib/brandVoice'
+import IdeaDrawer from '../../components/content/IdeaDrawer'
 
 function rgba(hex: string, a: number): string {
   const h = hex.replace('#', '')
@@ -49,12 +51,13 @@ function IdeaCardContenido({ idea, pilarNombre }: { idea: ContentIdea; pilarNomb
   )
 }
 
-function IdeaCard({ idea, pilarNombre, onDelete }: { idea: ContentIdea; pilarNombre?: string; onDelete: (id: string) => void }) {
+function IdeaCard({ idea, pilarNombre, onDelete, onOpen }: { idea: ContentIdea; pilarNombre?: string; onDelete: (id: string) => void; onOpen: (idea: ContentIdea) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: idea.id })
   return (
     <div
       ref={setNodeRef}
       className="kanban-card"
+      onClick={() => onOpen(idea)}
       style={{
         transform: CSS.Transform.toString(transform), transition,
         opacity: isDragging ? 0.4 : 1, position: 'relative',
@@ -79,9 +82,9 @@ function IdeaCard({ idea, pilarNombre, onDelete }: { idea: ContentIdea; pilarNom
 }
 
 /* ── Columna ── */
-function Columna({ estado, label, color, ideas, pilarNombreDe, onDelete }: {
+function Columna({ estado, label, color, ideas, pilarNombreDe, onDelete, onOpen }: {
   estado: IdeaEstado; label: string; color: string; ideas: ContentIdea[]
-  pilarNombreDe: (id: string | null) => string | undefined; onDelete: (id: string) => void
+  pilarNombreDe: (id: string | null) => string | undefined; onDelete: (id: string) => void; onOpen: (idea: ContentIdea) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: estado })
   return (
@@ -100,7 +103,7 @@ function Columna({ estado, label, color, ideas, pilarNombreDe, onDelete }: {
       >
         <SortableContext items={ideas.map((i) => i.id)} strategy={verticalListSortingStrategy}>
           {ideas.map((idea) => (
-            <IdeaCard key={idea.id} idea={idea} pilarNombre={pilarNombreDe(idea.pilar_id)} onDelete={onDelete} />
+            <IdeaCard key={idea.id} idea={idea} pilarNombre={pilarNombreDe(idea.pilar_id)} onDelete={onDelete} onOpen={onOpen} />
           ))}
         </SortableContext>
         {ideas.length === 0 && (
@@ -121,6 +124,8 @@ export default function Ideas() {
   const [pilarMenuOpen, setPilarMenuOpen] = useState(false)
   const [generando, setGenerando] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [ejemplosTono, setEjemplosTono] = useState<string[]>([])
+  const [ideaAbierta, setIdeaAbierta] = useState<ContentIdea | null>(null)
 
   // Colores de estado resueltos desde el brand kit (indigo/cyan no hardcodeados)
   const colorDe = (tono: 'neutro' | 'indigo' | 'cyan' | 'exito'): string => {
@@ -131,10 +136,13 @@ export default function Ideas() {
   }
 
   const cargar = async () => {
-    const [ps, is] = await Promise.all([fetchPillars(), fetchIdeas()])
+    const [ps, is, ex] = await Promise.all([fetchPillars(), fetchIdeas(), fetchVoiceExamples()])
     setPillars(ps)
     setIdeas(is)
+    setEjemplosTono(ex.map((e) => e.texto_ejemplo))
     if (!pilarSel && ps.length > 0) setPilarSel(ps[0].id)
+    // Si hay una idea abierta, refresca su copia con los datos nuevos
+    setIdeaAbierta((prev) => (prev ? is.find((i) => i.id === prev.id) ?? null : null))
     setLoading(false)
   }
   useEffect(() => { cargar() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
@@ -240,7 +248,7 @@ export default function Ideas() {
           <div className="kanban-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
             {IDEA_ESTADOS.map((s) => (
               <Columna key={s.id} estado={s.id} label={s.label} color={colorDe(s.tono)}
-                ideas={ideas.filter((i) => i.estado === s.id)} pilarNombreDe={pilarNombreDe} onDelete={eliminar} />
+                ideas={ideas.filter((i) => i.estado === s.id)} pilarNombreDe={pilarNombreDe} onDelete={eliminar} onOpen={setIdeaAbierta} />
             ))}
           </div>
           <DragOverlay>
@@ -251,6 +259,16 @@ export default function Ideas() {
             ) : null}
           </DragOverlay>
         </DndContext>
+      )}
+
+      {ideaAbierta && (
+        <IdeaDrawer
+          idea={ideaAbierta}
+          pilarNombre={pilarNombreDe(ideaAbierta.pilar_id)}
+          ejemplosTono={ejemplosTono}
+          onClose={() => setIdeaAbierta(null)}
+          onSaved={cargar}
+        />
       )}
     </PageTransition>
   )

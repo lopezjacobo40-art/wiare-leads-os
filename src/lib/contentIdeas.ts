@@ -16,6 +16,23 @@ export interface ContentPillar {
 export type IdeaFormato = 'carrusel' | 'video'
 export type IdeaEstado = 'idea' | 'en_progreso' | 'listo' | 'publicado'
 
+/* Los 5 slides del carrusel, en orden. El rol define su papel en la plantilla
+   (Fase 4) y guía a la IA para generar el copy con estructura Hormozi (PAS). */
+export type SlideRol = 'hook' | 'problema' | 'solucion' | 'prueba_social' | 'cta'
+
+export const SLIDE_ROLES: { rol: SlideRol; label: string }[] = [
+  { rol: 'hook', label: 'Hook' },
+  { rol: 'problema', label: 'Problema' },
+  { rol: 'solucion', label: 'Solución' },
+  { rol: 'prueba_social', label: 'Prueba social' },
+  { rol: 'cta', label: 'CTA' },
+]
+
+export interface CopySlide {
+  rol: SlideRol
+  texto: string
+}
+
 export interface ContentIdea {
   id: string
   pilar_id: string | null
@@ -24,6 +41,7 @@ export interface ContentIdea {
   formato: IdeaFormato
   estado: IdeaEstado
   fecha_creacion: string
+  copy_slides: CopySlide[] | null
 }
 
 /* Estados del Kanban, en orden de flujo. Los colores de marca (indigo/cyan) NO
@@ -65,7 +83,7 @@ export async function crearIdeas(
 
 export async function actualizarIdea(
   id: string,
-  patch: Partial<Pick<ContentIdea, 'titulo' | 'gancho' | 'formato' | 'estado' | 'pilar_id'>>
+  patch: Partial<Pick<ContentIdea, 'titulo' | 'gancho' | 'formato' | 'estado' | 'pilar_id' | 'copy_slides'>>
 ): Promise<{ error: string | null }> {
   const { error } = await supabase.from('content_ideas_os').update(patch).eq('id', id)
   return { error: error?.message ?? null }
