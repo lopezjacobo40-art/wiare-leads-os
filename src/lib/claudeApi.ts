@@ -713,7 +713,7 @@ IDEA DEL CARRUSEL:
 Título: ${idea.titulo}${idea.gancho ? `\nGancho de partida: ${idea.gancho}` : ''}${idea.pilar ? `\nPilar: ${idea.pilar}` : ''}
 
 TAREA: Escribe el copy de un carrusel de Instagram de EXACTAMENTE 5 slides, con estructura problema-agitación-solución:
-1. "hook": la portada. Una frase que pare el scroll. Corta y potente.
+1. "hook": la portada. UNA sola frase corta que pare el scroll (máximo 10 palabras). Un único gancho, sin segunda frase.
 2. "problema": nombra el dolor concreto del dueño del negocio.
 3. "solucion": cómo lo resuelve WIARE, en simple, sin tecnicismos ("IA", "bot", "algoritmo" PROHIBIDOS — di "atención", "recepción").
 4. "prueba_social": una cifra o resultado creíble que demuestre que funciona.
