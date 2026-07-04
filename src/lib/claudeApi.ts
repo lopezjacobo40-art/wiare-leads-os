@@ -620,3 +620,65 @@ Escribe el System Prompt final en Markdown listo para copiar y pegar en Retell A
     callClaudeChat('claude-haiku-4-5-20251001', 1800, [{ role: 'user', content: prompt }])
   )
 }
+
+/* ─────────────────────────────────────────────
+   Content OS — genera 5 ideas de contenido para un pilar dado.
+   Usa el contexto de servicios WIARE + el ADN Hormozi + el tono de marca.
+   Devuelve [{ titulo, gancho, formato }].
+   ───────────────────────────────────────────── */
+export interface IdeaGenerada {
+  titulo: string
+  gancho: string
+  formato: 'carrusel' | 'video'
+}
+
+export async function generarIdeasContenido(pilar: {
+  nombre_pilar: string
+  descripcion?: string | null
+  objetivo?: string | null
+  servicio_relacionado?: string | null
+}, tonoMarca?: string | null): Promise<IdeaGenerada[]> {
+  const prompt = `${HORMOZI_ADN_CORE}
+
+CONTEXTO WIARE: agencia española que instala atención automatizada 24/7 para negocios locales — foco en clínicas dentales y restaurantes de Madrid. Servicios: agente de voz 24/7 (Retell AI), chat agent de WhatsApp, CRM personalizado. El dolor central del cliente: pierde llamadas y clientes cuando no puede coger el teléfono.
+${tonoMarca ? `\nTONO DE MARCA (respétalo): ${tonoMarca}` : ''}
+
+PILAR DE CONTENIDO: "${pilar.nombre_pilar}"
+${pilar.descripcion ? `Descripción: ${pilar.descripcion}` : ''}
+${pilar.objetivo ? `Objetivo: ${pilar.objetivo}` : ''}
+${pilar.servicio_relacionado ? `Servicio relacionado: ${pilar.servicio_relacionado}` : ''}
+
+TAREA: Genera EXACTAMENTE 5 ideas de contenido para Instagram/LinkedIn alineadas con este pilar. Cada idea debe ser concreta y accionable para clínicas dentales o restaurantes de Madrid, no genérica.
+
+Para cada idea:
+- "titulo": tema del post, claro y corto (máx 8 palabras).
+- "gancho": la primera frase del post (el hook que para el scroll), con fuerza, estilo Hormozi.
+- "formato": "carrusel" o "video" (elige el que mejor encaje con la idea).
+
+Responde SOLO con un array JSON válido, sin markdown, sin texto extra:
+[{"titulo":"...","gancho":"...","formato":"carrusel"}, ...]`
+
+  const raw = await guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', 1500, [{ role: 'user', content: prompt }])
+  )
+
+  let parsed: unknown
+  try {
+    const json = raw.replace(/```json|```/g, '').trim()
+    parsed = JSON.parse(json)
+  } catch (err) {
+    console.error('generarIdeasContenido parse error. Raw:', raw)
+    throw new Error(`No se pudieron generar las ideas (respuesta inválida): ${errMsg(err)}`, { cause: err })
+  }
+
+  if (!Array.isArray(parsed)) throw new Error('Respuesta inesperada al generar ideas')
+
+  return parsed.slice(0, 5).map((i) => {
+    const o = i as Record<string, unknown>
+    return {
+      titulo: String(o.titulo ?? '').trim() || 'Idea sin título',
+      gancho: String(o.gancho ?? '').trim(),
+      formato: o.formato === 'video' ? 'video' : 'carrusel',
+    }
+  })
+}

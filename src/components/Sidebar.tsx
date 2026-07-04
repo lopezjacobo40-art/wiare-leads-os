@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix,
   MapTrifold, ChatCircleDots,
-  Palette,
+  Palette, Lightbulb,
 } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
@@ -30,6 +30,7 @@ const MI_AGENCIA: NavItem[] = [
 
 // Sección "Contenido": módulo Content OS (marca, ideación y carruseles para RRSS).
 const CONTENIDO: NavItem[] = [
+  { to: '/content/ideas', label: 'Ideas', icon: Lightbulb, end: false },
   { to: '/content/brand-kit', label: 'Brand Kit', icon: Palette, end: false },
 ]
 
