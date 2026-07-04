@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { List } from '@phosphor-icons/react'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -9,13 +9,21 @@ import LeadDetalle from './pages/LeadDetalle'
 import Configuracion from './pages/Configuracion'
 import Roadmap from './pages/Roadmap'
 import Consultor from './pages/Consultor'
-import Generador from './pages/contenido/Generador'
-import Calendario from './pages/contenido/Calendario'
-import BibliotecaContent from './pages/contenido/BibliotecaContent'
+import BrandKit from './pages/content/BrandKit'
 import DemoPlayer from './pages/DemoPlayer'
 import Sidebar from './components/Sidebar'
+import BrandKitProvider from './components/BrandKitProvider'
 import { useToast } from './components/Toast'
 import { supabase, usernameFromSession } from './lib/supabaseClient'
+
+/* Layout del módulo de Content: provee el brand kit a todas sus páginas. */
+function ContentLayout() {
+  return (
+    <BrandKitProvider>
+      <Outlet />
+    </BrandKitProvider>
+  )
+}
 
 function Shell({ onLogout }: { onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -66,9 +74,13 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/simulador" element={<Navigate to="/roadmap?tab=simulador" replace />} />
           <Route path="/biblioteca" element={<Navigate to="/leads?analizados=1" replace />} />
           <Route path="/consultor" element={<Consultor />} />
-          <Route path="/contenido/generador" element={<Generador />} />
-          <Route path="/contenido/calendario" element={<Calendario />} />
-          <Route path="/contenido/biblioteca" element={<BibliotecaContent />} />
+          {/* ── Módulo Content OS (nuevo) ── */}
+          <Route path="/content" element={<ContentLayout />}>
+            <Route index element={<Navigate to="/content/brand-kit" replace />} />
+            <Route path="brand-kit" element={<BrandKit />} />
+          </Route>
+          {/* Rutas del módulo de contenido antiguo, retiradas del sidebar (se eliminan al cerrar el nuevo módulo) */}
+          <Route path="/contenido/*" element={<Navigate to="/content/brand-kit" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
