@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { X, Sparkle, FloppyDisk, Rows, VideoCamera, Image as ImageIcon, ArrowClockwise, DownloadSimple } from '@phosphor-icons/react'
+import { X, Sparkle, FloppyDisk, Rows, VideoCamera, FilmSlate, ImageSquare, Image as ImageIcon, ArrowClockwise, DownloadSimple } from '@phosphor-icons/react'
 import { useToast } from '../Toast'
 import { useBrandKit } from '../../lib/brandKit'
 import { generarCopyCarrusel } from '../../lib/claudeApi'
 import { renderCarrusel, descargarZip } from '../../lib/renderCarousel'
 import { FORMATOS, FORMATO_DEFAULT, type FormatoKey } from '../../lib/formatos'
-import { actualizarIdea, SLIDE_ROLES, type ContentIdea, type CopySlide, type CarruselImagen } from '../../lib/contentIdeas'
+import { actualizarIdea, SLIDE_ROLES, FORMATO_LABELS, type ContentIdea, type CopySlide, type CarruselImagen, type IdeaFormato } from '../../lib/contentIdeas'
+
+const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = { carrusel: Rows, video: VideoCamera, reel: FilmSlate, post: ImageSquare }
 
 /* Detalle de una idea: genera y edita el copy del carrusel (5 slides).
    El copy se guarda como borrador editable en la idea. NO se renderiza aún (eso es Fase 4). */
@@ -39,6 +41,7 @@ export default function IdeaDrawer({
     setDirty(false)
   }, [idea])
 
+  const esCarrusel = idea.formato === 'carrusel'
   const copyCompleto = slides.length === 5 && slides.every((s) => s.texto.trim())
 
   const generarDiseno = async () => {
@@ -144,8 +147,8 @@ export default function IdeaDrawer({
               <X size={18} />
             </button>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-full)', padding: '3px 10px' }}>
-              {idea.formato === 'video' ? <VideoCamera size={12} weight="fill" /> : <Rows size={12} weight="fill" />}
-              {idea.formato === 'video' ? 'Vídeo' : 'Carrusel'}
+              {(() => { const I = FORMATO_ICONO[idea.formato as IdeaFormato] ?? Rows; return <I size={12} weight="fill" /> })()}
+              {idea.semana != null ? `${idea.semana === 0 ? 'Base' : `S${idea.semana}`} · ` : ''}{FORMATO_LABELS[idea.formato as IdeaFormato] ?? idea.formato}
             </span>
           </div>
           <h2 style={{ fontSize: 19, fontWeight: 700, fontFamily: 'var(--font-display)', lineHeight: 1.25 }}>{idea.titulo}</h2>
@@ -159,6 +162,16 @@ export default function IdeaDrawer({
 
         {/* Cuerpo */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {!esCarrusel ? (
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+              <p style={{ marginBottom: 12 }}>
+                Este ítem del calendario es un <strong>{(FORMATO_LABELS[idea.formato as IdeaFormato] ?? idea.formato).toLowerCase()}</strong>. El generador crea carruseles; este formato lo produces por tu cuenta (grabas el reel / diseñas el post).
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
+                Usa el gancho de arriba como punto de partida. Cuando esté publicado, arrástralo a «Publicado» en el tablero.
+              </p>
+            </div>
+          ) : (<>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Copy del carrusel
@@ -266,10 +279,11 @@ export default function IdeaDrawer({
               )}
             </div>
           )}
+          </>)}
         </div>
 
         {/* Footer */}
-        {slides.length > 0 && (
+        {esCarrusel && slides.length > 0 && (
           <div style={{ padding: '16px 24px', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'flex-end' }}>
             <button onClick={guardar} disabled={guardando || !dirty} className="btn-primary" style={{ gap: 6 }}>
               {guardando ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <FloppyDisk size={15} weight="fill" />}

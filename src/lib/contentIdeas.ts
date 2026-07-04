@@ -13,8 +13,17 @@ export interface ContentPillar {
   creado_en: string
 }
 
-export type IdeaFormato = 'carrusel' | 'video'
+export type IdeaFormato = 'carrusel' | 'video' | 'reel' | 'post'
 export type IdeaEstado = 'idea' | 'en_progreso' | 'listo' | 'publicado'
+
+/* Etiqueta e icono por formato (para las tarjetas). El icono se resuelve en el
+   componente; aquí solo el texto. */
+export const FORMATO_LABELS: Record<IdeaFormato, string> = {
+  carrusel: 'Carrusel',
+  video: 'Vídeo',
+  reel: 'Reel',
+  post: 'Post',
+}
 
 /* Los 5 slides del carrusel, en orden. El rol define su papel en la plantilla
    (Fase 4) y guía a la IA para generar el copy con estructura Hormozi (PAS). */
@@ -49,6 +58,7 @@ export interface ContentIdea {
   copy_slides: CopySlide[] | null
   imagenes: CarruselImagen[] | null
   aspecto: string
+  semana: number | null
 }
 
 /* Estados del Kanban, en orden de flujo. Los colores de marca (indigo/cyan) NO
@@ -74,6 +84,8 @@ export async function fetchIdeas(): Promise<ContentIdea[]> {
   const { data, error } = await supabase
     .from('content_ideas_os')
     .select('*')
+    // Primero el calendario en orden de semana; las ideas sueltas (sin semana) al final
+    .order('semana', { ascending: true, nullsFirst: false })
     .order('fecha_creacion', { ascending: false })
   if (error) { console.error('fetchIdeas error:', error); return [] }
   return (data as ContentIdea[]) ?? []

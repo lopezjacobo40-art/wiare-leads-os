@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core'
 import { useSortable, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Sparkle, Trash, Rows, VideoCamera, CaretDown } from '@phosphor-icons/react'
+import { Sparkle, Trash, Rows, VideoCamera, FilmSlate, ImageSquare, CaretDown } from '@phosphor-icons/react'
 import PageHeader from '../../components/PageHeader'
 import PageTransition from '../../components/PageTransition'
 import { useToast } from '../../components/Toast'
@@ -13,8 +13,16 @@ import { useBrandKit } from '../../lib/brandKit'
 import { generarIdeasContenido } from '../../lib/claudeApi'
 import {
   fetchPillars, fetchIdeas, crearIdeas, actualizarIdea, borrarIdea,
-  IDEA_ESTADOS, type ContentPillar, type ContentIdea, type IdeaEstado,
+  IDEA_ESTADOS, FORMATO_LABELS, type ContentPillar, type ContentIdea, type IdeaEstado, type IdeaFormato,
 } from '../../lib/contentIdeas'
+
+/* Icono por formato de la idea. */
+const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = {
+  carrusel: Rows,
+  video: VideoCamera,
+  reel: FilmSlate,
+  post: ImageSquare,
+}
 import { fetchVoiceExamples } from '../../lib/brandVoice'
 import IdeaDrawer from '../../components/content/IdeaDrawer'
 
@@ -26,8 +34,22 @@ function rgba(hex: string, a: number): string {
 
 /* ── Card ── */
 function IdeaCardContenido({ idea, pilarNombre }: { idea: ContentIdea; pilarNombre?: string }) {
+  const FormatoIcono = FORMATO_ICONO[idea.formato as IdeaFormato] ?? Rows
   return (
     <>
+      {/* Cabecera: chip de semana del calendario + pilar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 6 }}>
+        {idea.semana != null ? (
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-primary)', background: 'var(--color-primary-subtle)', borderRadius: 'var(--radius-full)', padding: '1px 8px', letterSpacing: '0.02em' }}>
+            {idea.semana === 0 ? 'Base' : `S${idea.semana}`}
+          </span>
+        ) : <span />}
+        {pilarNombre && (
+          <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {pilarNombre}
+          </span>
+        )}
+      </div>
       <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.3, marginBottom: 6 }}>
         {idea.titulo}
       </p>
@@ -36,16 +58,11 @@ function IdeaCardContenido({ idea, pilarNombre }: { idea: ContentIdea; pilarNomb
           {idea.gancho}
         </p>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-full)', padding: '2px 8px' }}>
-          {idea.formato === 'video' ? <VideoCamera size={11} weight="fill" /> : <Rows size={11} weight="fill" />}
-          {idea.formato === 'video' ? 'Vídeo' : 'Carrusel'}
+          <FormatoIcono size={11} weight="fill" />
+          {FORMATO_LABELS[idea.formato as IdeaFormato] ?? idea.formato}
         </span>
-        {pilarNombre && (
-          <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {pilarNombre}
-          </span>
-        )}
       </div>
     </>
   )
