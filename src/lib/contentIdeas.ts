@@ -33,6 +33,11 @@ export interface CopySlide {
   texto: string
 }
 
+export interface CarruselImagen {
+  rol: SlideRol
+  url: string
+}
+
 export interface ContentIdea {
   id: string
   pilar_id: string | null
@@ -42,6 +47,7 @@ export interface ContentIdea {
   estado: IdeaEstado
   fecha_creacion: string
   copy_slides: CopySlide[] | null
+  imagenes: CarruselImagen[] | null
 }
 
 /* Estados del Kanban, en orden de flujo. Los colores de marca (indigo/cyan) NO
@@ -83,7 +89,7 @@ export async function crearIdeas(
 
 export async function actualizarIdea(
   id: string,
-  patch: Partial<Pick<ContentIdea, 'titulo' | 'gancho' | 'formato' | 'estado' | 'pilar_id' | 'copy_slides'>>
+  patch: Partial<Pick<ContentIdea, 'titulo' | 'gancho' | 'formato' | 'estado' | 'pilar_id' | 'copy_slides' | 'imagenes'>>
 ): Promise<{ error: string | null }> {
   const { error } = await supabase.from('content_ideas_os').update(patch).eq('id', id)
   return { error: error?.message ?? null }

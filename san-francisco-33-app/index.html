@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>San Francisco 33 - Pedidos a Toldo</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- GSAP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+  <!-- Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Fonts: Playfair (Serif) + Outfit (UI) -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg: #FAF8F5;
+      --text: #1A1A1A;
+      --accent: #489882;
+      --surface: #FFFFFF;
+    }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+      padding-bottom: 140px;
+      overflow-x: hidden;
+    }
+    h1, h2, h3, h4, .font-serif {
+      font-family: 'Playfair Display', serif;
+    }
+    
+    /* Bento Grid Classes */
+    .bento-grid {
+      display: grid;
+      grid-auto-flow: dense;
+      gap: 1.5rem;
+    }
+    
+    /* Hover Physics */
+    .hover-physics {
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .hover-physics:hover {
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.06);
+    }
+
+    /* Product Card */
+    .product-card {
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+      border: 1px solid rgba(0,0,0,0.03);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+      opacity: 0; /* For GSAP */
+      transform: translateY(20px);
+    }
+    
+    .product-img-wrapper {
+      width: 100%;
+      height: 180px;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .product-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.8s ease;
+    }
+    .product-card:hover .product-img {
+      transform: scale(1.05);
+    }
+    
+    .product-title {
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .product-price {
+      font-family: 'Playfair Display', serif;
+      font-weight: 600;
+      font-size: 1.4rem;
+      color: var(--accent);
+    }
+
+    /* Buttons */
+    .btn-action {
+      background-color: var(--text);
+      color: white;
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      transition: transform 0.1s, background-color 0.2s;
+    }
+    .btn-action:active { transform: scale(0.97); }
+    
+    .qty-control {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f1f5f9;
+      border-radius: 12px;
+      padding: 6px;
+      margin-top: 16px;
+    }
+    .qty-btn {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      border-radius: 8px;
+      font-weight: bold;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      color: var(--text);
+      transition: transform 0.1s;
+    }
+    .qty-btn:active { transform: scale(0.92); }
+    .qty-value { font-weight: 700; font-size: 1.1rem; width: 40px; text-align: center; }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,12,0.7);
+      backdrop-filter: blur(8px);
+      z-index: 50;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    @media (min-width: 768px) { .modal-overlay { align-items: center; } }
+    .modal-content {
+      background: var(--bg);
+      width: 100%;
+      max-width: 520px;
+      border-radius: 28px 28px 0 0;
+      padding: 32px 24px;
+      max-height: 90vh;
+      overflow-y: auto;
+      transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @media (min-width: 768px) { .modal-content { border-radius: 28px; } }
+    
+    .modal-overlay.active { display: flex; opacity: 1; }
+    .modal-overlay.active .modal-content { transform: translateY(0); }
+
+    /* Cart Bar */
+    .cart-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      padding: 20px 32px;
+      box-shadow: 0 -20px 40px rgba(0,0,0,0.04);
+      z-index: 40;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transform: translateY(120%);
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      border-top: 1px solid rgba(0,0,0,0.03);
+    }
+    .cart-bar.visible { transform: translateY(0); }
+    .cart-bar-pb { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+
+    /* Upsell Special Styling */
+    .upsell-modal {
+      background: var(--accent);
+      color: white;
+    }
+    
+    /* Inputs */
+    input.sf-input {
+      width: 100%;
+      background: white;
+      border: 1px solid #e2e8f0;
+      padding: 16px 20px;
+      border-radius: 16px;
+      font-size: 1.05rem;
+      color: var(--text);
+      outline: none;
+      transition: all 0.2s;
+      font-family: 'Outfit', sans-serif;
+    }
+    input.sf-input:focus { 
+      border-color: var(--accent); 
+      box-shadow: 0 0 0 4px rgba(72, 152, 130, 0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-6 py-5 flex flex-col md:flex-row justify-center items-center">
+      <img src="https://sanfrancisco33.com/wp-content/uploads/2021/09/sf33_zar.png" alt="San Francisco 33" class="h-14 md:h-16 object-contain drop-shadow-sm">
+    </div>
+  </header>
+
+  <!-- HERO SECTION (Cinematic Center) -->
+  <main class="overflow-x-hidden w-full max-w-full">
+    <section class="w-full relative h-[60vh] md:h-[70vh] flex flex-col items-center justify-center text-center px-6">
+      <div class="absolute inset-0 z-0 bg-black">
+        <img src="https://sanfrancisco33.com/wp-content/uploads/2023/05/bocadillo_33.jpg" class="w-full h-full object-cover filter brightness-[0.5] contrast-125 sepia-[0.1]" alt="Fondo hero" data-speed="0.8" id="hero-bg">
+        <!-- Deep radial wash -->
+        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-black/20 via-black/60 to-[#0A0A0A]/90"></div>
+      </div>
+      
+      <div class="relative z-10 w-full max-w-6xl mx-auto flex flex-col items-center hero-content">
+        <!-- H1 perfectly clamped to guarantee max 2 lines -->
+        <h1 class="font-serif italic text-white drop-shadow-2xl leading-[1.1] mb-6" style="font-size: clamp(3.5rem, 7vw, 6.5rem);">
+          Tu bocadillo<br/>en la playa.
+        </h1>
+        <p class="text-white/80 text-lg md:text-xl max-w-2xl font-light tracking-wide drop-shadow-md">
+          Calidad suprema a pie de arena. Preparamos tu pedido al momento y lo cobramos directamente en tu toldo.
+        </p>
+      </div>
+    </section>
+
+    <!-- SPACING: Massive vertical padding for breathing room -->
+    <div class="py-24 md:py-32">
+      <!-- MENU GRID -->
+      <section class="max-w-7xl mx-auto px-6" id="menu-container">
+        <!-- Generado por JS -->
+      </section>
+    </div>
+  </main>
+
+  <!-- BOTTOM CART BAR -->
+  <div id="cart-bar" class="cart-bar cart-bar-pb">
+    <div>
+      <p class="text-sm text-gray-500 font-medium tracking-wide uppercase">Total pedido</p>
+      <p class="text-3xl font-serif font-bold text-[#489882]" id="cart-total">0.00€</p>
+    </div>
+    <button onclick="openCartModal()" class="bg-[#1A1A1A] text-white px-8 py-5 rounded-2xl font-bold flex items-center gap-3 active:scale-95 transition-transform shadow-xl">
+      <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+      <span class="text-lg">Ver Pedido</span>
+      <span id="cart-badge" class="bg-white text-black text-xs font-bold px-2.5 py-1 rounded-full ml-1">0</span>
+    </button>
+  </div>
+
+  <!-- CART MODAL -->
+  <div id="modal-cart" class="modal-overlay">
+    <div class="modal-content cart-bar-pb shadow-2xl">
+      <div class="flex justify-between items-center mb-8">
+        <h2 class="font-serif text-3xl font-bold">Tu Pedido</h2>
+        <button onclick="closeModal('modal-cart')" class="p-3 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
+      </div>
+      
+      <div id="cart-items" class="space-y-4 mb-8 max-h-[45vh] overflow-y-auto pr-2">
+        <!-- Generado por JS -->
+      </div>
+      
+      <div class="border-t border-gray-100 pt-6 mb-8 flex justify-between items-center">
+        <span class="font-medium text-gray-500 text-lg">Total a pagar</span>
+        <span class="font-serif font-bold text-4xl text-[#1A1A1A]" id="cart-modal-total">0.00€</span>
+      </div>
+
+      <button onclick="proceedToCheckout()" class="w-full bg-[#489882] text-white py-5 rounded-2xl font-bold text-xl flex justify-center items-center gap-3 active:scale-95 transition-transform shadow-lg shadow-teal-900/20">
+        Continuar <i data-lucide="arrow-right" class="w-6 h-6"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- UPSELL MODAL (Hormozi Oferta Descuento) -->
+  <div id="modal-upsell" class="modal-overlay">
+    <div class="modal-content upsell-modal cart-bar-pb relative overflow-hidden shadow-2xl">
+      <div class="absolute -top-32 -right-32 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+      
+      <div class="text-center relative z-10 pt-4 px-2">
+        <div class="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-8 backdrop-blur-sm">
+          <i data-lucide="glass-water" class="w-12 h-12 text-white"></i>
+        </div>
+        <h2 class="font-serif text-4xl font-bold mb-4 drop-shadow-md">¡Último paso!</h2>
+        <p class="text-white/95 text-xl mb-8 leading-relaxed font-light">
+          Ya que has pedido comida, puedes llevarte una <strong>Coca-Cola helada por solo 2,30€</strong> <span class="line-through text-white/60 text-sm">(en vez de 2,50€)</span>.
+        </p>
+        
+        <button onclick="addUpsellAndCheckout()" class="w-full bg-white text-[#489882] py-5 rounded-2xl font-bold text-xl mb-5 shadow-2xl active:scale-95 transition-transform hover:bg-gray-50">
+          ¡Sí, añadir por 2,30€!
+        </button>
+        <button onclick="skipUpsell()" class="w-full text-white/80 font-medium py-3 active:scale-95 transition-transform hover:text-white text-lg">
+          No gracias, prefiero pagar más luego
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHECKOUT / FORM MODAL -->
+  <div id="modal-checkout" class="modal-overlay">
+    <div class="modal-content cart-bar-pb shadow-2xl">
+      <div class="flex justify-between items-center mb-8">
+        <h2 class="font-serif text-3xl font-bold">Dónde entregamos</h2>
+        <button onclick="closeModal('modal-checkout')" class="p-3 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
+      </div>
+      
+      <div class="space-y-5 mb-10">
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Nº de Toldo / Carpa</label>
+          <input type="number" id="f-toldo" class="sf-input" placeholder="Ej: 45">
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Nombre completo</label>
+          <input type="text" id="f-nombre" class="sf-input" placeholder="¿A nombre de quién hacemos la nota?">
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Teléfono Móvil</label>
+          <input type="tel" id="f-tel" class="sf-input" placeholder="Para localizarte en la playa">
+        </div>
+      </div>
+
+      <button onclick="sendOrder()" class="w-full bg-[#1A1A1A] text-white py-5 rounded-2xl font-bold text-xl flex justify-center items-center gap-3 active:scale-95 transition-transform shadow-xl">
+        <i data-lucide="message-square-dashed" class="w-6 h-6"></i>
+        Pedir por WhatsApp
+      </button>
+      <p class="text-center text-sm text-gray-500 mt-6 font-medium"><i data-lucide="shield-check" class="w-4 h-4 inline mr-1 text-[#489882]"></i>Pago seguro en efectivo o tarjeta a la entrega.</p>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    // MENU DATA (With EXACT real images and Clean Interface)
+    const menuData = [
+      { category: 'Bocadillos & Especialidades', items: [
+        { id: 'b1', name: 'Garrote', price: 10.00, desc: 'Clásico irresistible de la casa con un toque especial.', img: 'https://sanfrancisco33.com/wp-content/uploads/2023/05/garrote_san-francisco-33.jpg', span: 'md:col-span-2 lg:col-span-2' },
+        { id: 'b2', name: 'Robintxo', price: 9.50, desc: 'Sabor auténtico a la parrilla, receta única.', img: 'https://sanfrancisco33.com/wp-content/uploads/2023/05/robintxo_san-francisco-33.jpg', span: 'col-span-1' },
+        { id: 'b3', name: 'Imperial', price: 10.00, desc: 'Para los más exigentes, tamaño XL.', img: 'https://sanfrancisco33.com/wp-content/uploads/2023/05/simperial_san-francisco-33.jpg', span: 'col-span-1' },
+        { id: 'b4', name: 'Belartieta', price: 9.50, desc: 'Nuestra receta tradicional y jugosa.', img: 'https://sanfrancisco33.com/wp-content/uploads/2023/05/belartieta_san-francisco-33.jpg', span: 'col-span-1' },
+        { id: 'b5', name: 'Ibérico', price: 9.00, desc: 'Calidad suprema 100% de bellota.', img: 'https://sanfrancisco33.com/wp-content/uploads/2023/05/siberico_san-francisco-33.jpg', span: 'md:col-span-2 lg:col-span-1' },
+        { id: 'b6', name: 'Vegetal', price: 9.00, desc: 'Fresco, crujiente y muy ligero.', img: 'https://sanfrancisco33.com/wp-content/uploads/2023/05/vegetal_san-francisco-33.jpg', span: 'col-span-1' }
+      ]},
+      { category: 'Ensaladas Frescas', items: [
+        { id: 'e1', name: 'Ensalada César', price: 9.00, desc: 'Pollo crujiente, crutones y nuestra salsa César secreta.', img: 'https://sanfrancisco33.com/wp-content/uploads/2023/05/ensalada-cesar_san-francisco-33.jpg', span: 'md:col-span-2 lg:col-span-2' },
+        { id: 'e2', name: 'Ensalada de Verano', price: 8.50, desc: 'Totalmente fresca, perfecta para el calor.', img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=600&auto=format&fit=crop', span: 'col-span-1 lg:col-span-1' }
+      ]},
+      { category: 'Bebidas Frías', items: [
+        { id: 'bebida-coca', name: 'Coca-Cola', price: 2.50, desc: 'Lata 33cl ultra fría.', img: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?q=80&w=600&auto=format&fit=crop', span: 'col-span-1' },
+        { id: 'd2', name: 'Agua Mineral', price: 2.00, desc: 'Botella de plástico 50cl.', img: 'https://images.unsplash.com/photo-1523362628745-0c100150b504?q=80&w=600&auto=format&fit=crop', span: 'col-span-1' },
+        { id: 'd3', name: 'Cerveza', price: 2.50, desc: 'Lata 33cl helada.', img: 'https://images.unsplash.com/photo-1608270586620-248524c67de9?q=80&w=600&auto=format&fit=crop', span: 'col-span-1' }
+      ]}
+    ];
+
+    let cart = {};
+
+    function renderMenu() {
+      const container = document.getElementById('menu-container');
+      let html = '';
+      
+      menuData.forEach((cat, catIdx) => {
+        // Category Header
+        html += `<div class="mb-8 mt-16 gsap-reveal">
+                  <h3 class="font-serif italic text-4xl md:text-5xl text-[#1A1A1A]">${cat.category}</h3>
+                  <div class="h-px w-full bg-gray-200 mt-6"></div>
+                 </div>`;
+        
+        // Gapless Bento Grid
+        html += `<div class="bento-grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">`;
+        
+        cat.items.forEach(item => {
+          html += `
+            <div class="product-card hover-physics gsap-card ${item.span || 'col-span-1'}">
+              <div class="flex-grow">
+                ${item.img ? `<div class="product-img-wrapper"><img src="${item.img}" class="product-img" alt="${item.name}"></div>` : ''}
+                <div class="flex justify-between items-start mb-2 gap-4">
+                  <h4 class="product-title leading-tight">${item.name}</h4>
+                  <span class="product-price">${item.price.toFixed(2)}€</span>
+                </div>
+                <p class="text-gray-500 font-light text-base leading-relaxed">${item.desc}</p>
+              </div>
+              
+              <div id="action-${item.id}" class="mt-4"></div>
+            </div>
+          `;
+        });
+        html += `</div>`;
+      });
+      
+      container.innerHTML = html;
+      initGSAP();
+      updateAllButtons();
+    }
+
+    function initGSAP() {
+      gsap.registerPlugin(ScrollTrigger);
+      
+      gsap.to("#hero-bg", {
+        yPercent: 30,
+        ease: "none",
+        scrollTrigger: {
+          trigger: ".hero-content",
+          start: "top center",
+          end: "bottom top",
+          scrub: true
+        }
+      });
+
+      gsap.utils.toArray('.gsap-reveal').forEach(elem => {
+        gsap.from(elem, {
+          scrollTrigger: { trigger: elem, start: "top 85%" },
+          y: 30, opacity: 0, duration: 0.8, ease: "power3.out"
+        });
+      });
+
+      gsap.utils.toArray('.bento-grid').forEach(grid => {
+        const cards = grid.querySelectorAll('.gsap-card');
+        gsap.to(cards, {
+          scrollTrigger: { trigger: grid, start: "top 85%" },
+          y: 0, opacity: 1, duration: 0.8, stagger: 0.1, ease: "power3.out"
+        });
+      });
+    }
+
+    // Cart Logic
+    function addToCart(id, name, price) {
+      if(!cart[id]) cart[id] = { id, name, price, qty: 0 };
+      cart[id].qty++;
+      updateState();
+    }
+    
+    function removeCartKey(id) {
+      if(cart[id] && cart[id].qty > 0) {
+        cart[id].qty--;
+        if(cart[id].qty === 0) delete cart[id];
+      }
+      updateState();
+    }
+
+    function updateState() {
+      updateAllButtons();
+      updateCartBar();
+      if(document.getElementById('modal-cart').classList.contains('active')) {
+        renderCartModalItems();
+      }
+    }
+
+    function updateAllButtons() {
+      menuData.forEach(cat => {
+        cat.items.forEach(item => {
+          const container = document.getElementById(`action-${item.id}`);
+          if(!container) return;
+          
+          const qty = cart[item.id] ? cart[item.id].qty : 0;
+          
+          if(qty === 0) {
+            container.innerHTML = `
+              <button onclick="addToCart('${item.id}', '${item.name}', ${item.price})" class="btn-action">
+                <i data-lucide="plus" class="w-5 h-5"></i> Añadir
+              </button>
+            `;
+          } else {
+            container.innerHTML = `
+              <div class="qty-control">
+                <button onclick="removeCartKey('${item.id}')" class="qty-btn"><i data-lucide="minus" class="w-5 h-5"></i></button>
+                <span class="qty-value">${qty}</span>
+                <button onclick="addToCart('${item.id}', '${item.name}', ${item.price})" class="qty-btn"><i data-lucide="plus" class="w-5 h-5"></i></button>
+              </div>
+            `;
+          }
+        });
+      });
+      lucide.createIcons();
+    }
+
+    function updateCartBar() {
+      const bar = document.getElementById('cart-bar');
+      let total = 0;
+      let count = 0;
+      
+      for(let key in cart) {
+        total += cart[key].price * cart[key].qty;
+        count += cart[key].qty;
+      }
+      
+      document.getElementById('cart-total').textContent = total.toFixed(2) + '€';
+      document.getElementById('cart-badge').textContent = count;
+      
+      if(count > 0) bar.classList.add('visible');
+      else {
+        bar.classList.remove('visible');
+        closeModal('modal-cart');
+      }
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    function openCartModal() {
+      renderCartModalItems();
+      openModal('modal-cart');
+    }
+
+    function renderCartModalItems() {
+      const container = document.getElementById('cart-items');
+      let html = '';
+      let total = 0;
+      
+      for(let key in cart) {
+        const item = cart[key];
+        total += item.price * item.qty;
+        html += `
+          <div class="flex justify-between items-center bg-gray-50 p-5 rounded-2xl border border-gray-100">
+            <div class="pr-4">
+              <p class="font-bold text-gray-900 text-lg leading-tight mb-1">${item.name}</p>
+              <p class="text-sm font-medium text-gray-500">${item.price.toFixed(2)}€</p>
+            </div>
+            <div class="flex items-center gap-3 bg-white p-2 rounded-xl border border-gray-200 shadow-sm shrink-0">
+              <button onclick="removeCartKey('${key}')" class="w-10 h-10 flex items-center justify-center text-gray-500 active:scale-95 bg-gray-50 rounded-lg"><i data-lucide="minus" class="w-5 h-5"></i></button>
+              <span class="font-bold text-gray-800 w-6 text-center text-lg">${item.qty}</span>
+              <button onclick="addToCart('${item.id}', '${item.name}', ${item.price})" class="w-10 h-10 flex items-center justify-center text-gray-500 active:scale-95 bg-gray-50 rounded-lg"><i data-lucide="plus" class="w-5 h-5"></i></button>
+            </div>
+          </div>
+        `;
+      }
+      
+      container.innerHTML = html;
+      document.getElementById('cart-modal-total').textContent = total.toFixed(2) + '€';
+      lucide.createIcons();
+    }
+
+    // HORMOZI UPSELL LOGIC (DISCOUNTED)
+    function proceedToCheckout() {
+      closeModal('modal-cart');
+      
+      // Upsell Check
+      let hasDrink = false;
+      for(let key in cart) {
+        if(key.includes('bebida') || key.includes('d2') || key.includes('d3') || key.includes('upsell')) hasDrink = true;
+      }
+      
+      if (!hasDrink) {
+        setTimeout(() => { openModal('modal-upsell'); }, 400);
+      } else {
+        setTimeout(() => { openModal('modal-checkout'); }, 400);
+      }
+    }
+
+    function addUpsellAndCheckout() {
+      const upsellKey = 'upsell_coca';
+      if(!cart[upsellKey]) {
+        cart[upsellKey] = { id: 'upsell_coca', name: 'Coca-Cola (Promo)', price: 2.30, qty: 1 };
+      } else {
+        cart[upsellKey].qty++;
+      }
+      updateState();
+      
+      closeModal('modal-upsell');
+      setTimeout(() => { openModal('modal-checkout'); }, 400);
+    }
+
+    function skipUpsell() {
+      closeModal('modal-upsell');
+      setTimeout(() => { openModal('modal-checkout'); }, 400);
+    }
+
+    function sendOrder() {
+      const toldo = document.getElementById('f-toldo').value.trim();
+      const nombre = document.getElementById('f-nombre').value.trim();
+      const tel = document.getElementById('f-tel').value.trim();
+
+      if(!toldo || !nombre) {
+        alert("Por favor, rellena tu número de toldo y tu nombre.");
+        return;
+      }
+
+      let total = 0;
+      const now = new Date();
+      const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+      
+      let msg = 'NUEVO PEDIDO - COBRAR EN ENTREGA\n';
+      msg += '-----------------\n';
+      msg += 'Hora del pedido: ' + timeStr + '\n';
+      msg += 'Toldo: ' + toldo + '\n';
+      msg += 'Cliente: ' + nombre + '\n';
+      if(tel) msg += 'Tel: ' + tel + '\n';
+      msg += '-----------------\n\n';
+      
+      for(let key in cart) {
+        const item = cart[key];
+        msg += `[${item.qty}x] ${item.name} ... ${(item.price * item.qty).toFixed(2)}€\n`;
+        total += item.price * item.qty;
+      }
+      
+      msg += '\n-----------------\n';
+      msg += 'TOTAL A COBRAR: ' + total.toFixed(2) + ' EUR\n';
+
+      const phone = '34617840451';
+      const url = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
+      window.location.href = url;
+    }
+
+    // Init
+    renderMenu();
+  </script>
+</body>
+</html>

@@ -5,6 +5,10 @@
   "functions": {
     "api/find-email.ts": {
       "maxDuration": 60
+    },
+    "api/render-carousel.ts": {
+      "maxDuration": 120,
+      "memory": 1024
     }
   }
 }

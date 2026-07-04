@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { X, Sparkle, FloppyDisk, Rows, VideoCamera } from '@phosphor-icons/react'
+import { X, Sparkle, FloppyDisk, Rows, VideoCamera, Image as ImageIcon, ArrowClockwise, DownloadSimple } from '@phosphor-icons/react'
 import { useToast } from '../Toast'
 import { useBrandKit } from '../../lib/brandKit'
 import { generarCopyCarrusel } from '../../lib/claudeApi'
-import { actualizarIdea, SLIDE_ROLES, type ContentIdea, type CopySlide } from '../../lib/contentIdeas'
+import { renderCarrusel, descargarZip } from '../../lib/renderCarousel'
+import { actualizarIdea, SLIDE_ROLES, type ContentIdea, type CopySlide, type CarruselImagen } from '../../lib/contentIdeas'
 
 /* Detalle de una idea: genera y edita el copy del carrusel (5 slides).
    El copy se guarda como borrador editable en la idea. NO se renderiza aún (eso es Fase 4). */
@@ -24,11 +25,65 @@ export default function IdeaDrawer({
   const [generando, setGenerando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [imagenes, setImagenes] = useState<CarruselImagen[]>([])
+  const [generandoDiseno, setGenerandoDiseno] = useState(false)
+  const [regenIdx, setRegenIdx] = useState<number | null>(null)
+  const [descargando, setDescargando] = useState(false)
 
   useEffect(() => {
     setSlides(idea.copy_slides ?? [])
+    setImagenes(idea.imagenes ?? [])
     setDirty(false)
   }, [idea])
+
+  const copyCompleto = slides.length === 5 && slides.every((s) => s.texto.trim())
+
+  const generarDiseno = async () => {
+    if (!brand) return
+    if (!copyCompleto) { toast('Completa y guarda el copy de los 5 slides primero', 'error'); return }
+    setGenerandoDiseno(true)
+    try {
+      const imgs = await renderCarrusel({ ideaId: idea.id, slides, brand })
+      setImagenes(imgs)
+      // Persiste copy + imágenes juntos
+      await actualizarIdea(idea.id, { copy_slides: slides, imagenes: imgs })
+      setDirty(false)
+      toast('Carrusel renderizado', 'success')
+      onSaved()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error al renderizar', 'error')
+    } finally {
+      setGenerandoDiseno(false)
+    }
+  }
+
+  const regenerarSlide = async (i: number) => {
+    if (!brand) return
+    setRegenIdx(i)
+    try {
+      const [img] = await renderCarrusel({ ideaId: idea.id, slides, brand, onlySlide: i })
+      const nuevas = imagenes.map((im, idx) => (idx === i ? img : im))
+      setImagenes(nuevas)
+      await actualizarIdea(idea.id, { imagenes: nuevas })
+      toast(`Slide ${i + 1} regenerado`, 'success')
+      onSaved()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error al regenerar', 'error')
+    } finally {
+      setRegenIdx(null)
+    }
+  }
+
+  const descargar = async () => {
+    setDescargando(true)
+    try {
+      await descargarZip(imagenes, idea.titulo)
+    } catch {
+      toast('Error al preparar el ZIP', 'error')
+    } finally {
+      setDescargando(false)
+    }
+  }
 
   const puedeGenerar = idea.estado !== 'idea' // se genera al pasar la idea a "En progreso"
 
@@ -147,6 +202,53 @@ export default function IdeaDrawer({
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* ── Diseño del carrusel ── */}
+          {slides.length > 0 && (
+            <div style={{ marginTop: 32, borderTop: '1px solid var(--color-border)', paddingTop: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Diseño
+                </h3>
+                <button onClick={generarDiseno} disabled={generandoDiseno || !copyCompleto} className="btn-primary" style={{ minHeight: 36, padding: '0 12px', gap: 6, fontSize: 13 }}>
+                  {generandoDiseno ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> : <ImageIcon size={14} weight="fill" />}
+                  {generandoDiseno ? 'Renderizando…' : imagenes.length ? 'Regenerar todo' : 'Generar diseño'}
+                </button>
+              </div>
+
+              {imagenes.length === 0 ? (
+                <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', textAlign: 'center', padding: '20px 0' }}>
+                  {copyCompleto ? 'Pulsa «Generar diseño» para renderizar los 5 slides.' : 'Genera y guarda el copy de los 5 slides para poder diseñar.'}
+                </p>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                    {imagenes.map((img, i) => (
+                      <div key={i} style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)', aspectRatio: '1080 / 1350', background: 'var(--color-surface-2)' }}>
+                        <img src={img.url} alt={`Slide ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        <button
+                          onClick={() => regenerarSlide(i)}
+                          disabled={regenIdx !== null}
+                          aria-label={`Regenerar slide ${i + 1}`}
+                          title="Regenerar este slide"
+                          style={{ position: 'absolute', bottom: 6, right: 6, width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.92)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+                        >
+                          {regenIdx === i ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <ArrowClockwise size={14} />}
+                        </button>
+                        <span style={{ position: 'absolute', top: 6, left: 6, fontSize: 10, fontWeight: 600, color: '#fff', background: 'rgba(0,0,0,0.45)', borderRadius: 'var(--radius-full)', padding: '1px 7px' }}>
+                          {i + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={descargar} disabled={descargando} className="btn-secondary" style={{ width: '100%', gap: 6 }}>
+                    {descargando ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <DownloadSimple size={15} weight="bold" />}
+                    {descargando ? 'Preparando ZIP…' : 'Descargar ZIP'}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
