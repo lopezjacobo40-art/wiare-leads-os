@@ -13,7 +13,7 @@ export interface ContentPillar {
   creado_en: string
 }
 
-export type IdeaFormato = 'carrusel' | 'video' | 'reel' | 'post'
+export type IdeaFormato = 'carrusel' | 'video' | 'reel' | 'post' | 'secuencia'
 export type IdeaEstado = 'idea' | 'en_progreso' | 'listo' | 'publicado'
 
 /* Etiqueta e icono por formato (para las tarjetas). El icono se resuelve en el
@@ -23,6 +23,7 @@ export const FORMATO_LABELS: Record<IdeaFormato, string> = {
   video: 'Vídeo',
   reel: 'Reel',
   post: 'Post',
+  secuencia: 'Secuencia',
 }
 
 /* Los 5 slides del carrusel, en orden. El rol define su papel en la plantilla

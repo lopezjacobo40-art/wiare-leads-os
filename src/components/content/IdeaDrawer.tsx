@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { X, Sparkle, FloppyDisk, Rows, VideoCamera, FilmSlate, ImageSquare, Image as ImageIcon, ArrowClockwise, DownloadSimple } from '@phosphor-icons/react'
+import { X, Sparkle, FloppyDisk, Rows, VideoCamera, FilmSlate, ImageSquare, FrameCorners, ArrowRight, Image as ImageIcon, ArrowClockwise, DownloadSimple } from '@phosphor-icons/react'
+import { useNavigate } from 'react-router-dom'
 import { useToast } from '../Toast'
 import { useBrandKit } from '../../lib/brandKit'
 import { generarCopyCarrusel } from '../../lib/claudeApi'
@@ -7,7 +8,7 @@ import { renderCarrusel, descargarZip } from '../../lib/renderCarousel'
 import { FORMATOS, FORMATO_DEFAULT, type FormatoKey } from '../../lib/formatos'
 import { actualizarIdea, SLIDE_ROLES, FORMATO_LABELS, type ContentIdea, type CopySlide, type CarruselImagen, type IdeaFormato } from '../../lib/contentIdeas'
 
-const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = { carrusel: Rows, video: VideoCamera, reel: FilmSlate, post: ImageSquare }
+const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = { carrusel: Rows, video: VideoCamera, reel: FilmSlate, post: ImageSquare, secuencia: FrameCorners }
 
 /* Detalle de una idea: genera y edita el copy del carrusel (5 slides).
    El copy se guarda como borrador editable en la idea. NO se renderiza aún (eso es Fase 4). */
@@ -21,6 +22,7 @@ export default function IdeaDrawer({
   onSaved: () => void
 }) {
   const toast = useToast()
+  const navigate = useNavigate()
   const { brand } = useBrandKit()
   const indigo = brand?.colores.indigo ?? '#6366F1'
 
@@ -163,14 +165,25 @@ export default function IdeaDrawer({
         {/* Cuerpo */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
           {!esCarrusel ? (
-            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
-              <p style={{ marginBottom: 12 }}>
-                Este ítem del calendario es un <strong>{(FORMATO_LABELS[idea.formato as IdeaFormato] ?? idea.formato).toLowerCase()}</strong>. El generador crea carruseles; este formato lo produces por tu cuenta (grabas el reel / diseñas el post).
-              </p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
-                Usa el gancho de arriba como punto de partida. Cuando esté publicado, arrástralo a «Publicado» en el tablero.
-              </p>
-            </div>
+            idea.formato === 'secuencia' ? (
+              <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+                <p style={{ marginBottom: 14 }}>
+                  Esta es una <strong>secuencia de Historias</strong> del calendario. {idea.gancho ? idea.gancho.replace('Objetivo:', 'Su objetivo es') + '.' : ''} Genérala y renderízala (9:16) en la página de Historias.
+                </p>
+                <button className="btn-primary" onClick={() => navigate('/content/historias')} style={{ gap: 6 }}>
+                  Ir a Historias <ArrowRight size={15} weight="bold" />
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+                <p style={{ marginBottom: 12 }}>
+                  Este ítem del calendario es un <strong>{(FORMATO_LABELS[idea.formato as IdeaFormato] ?? idea.formato).toLowerCase()}</strong>. El generador crea carruseles; este formato lo produces por tu cuenta (grabas el reel / diseñas el post).
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
+                  Usa el gancho de arriba como punto de partida. Cuando esté publicado, arrástralo a «Publicado» en el tablero.
+                </p>
+              </div>
+            )
           ) : (<>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>

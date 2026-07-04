@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core'
 import { useSortable, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Sparkle, Trash, Rows, VideoCamera, FilmSlate, ImageSquare, CaretDown } from '@phosphor-icons/react'
+import { Sparkle, Trash, Rows, VideoCamera, FilmSlate, ImageSquare, FrameCorners, CaretDown } from '@phosphor-icons/react'
 import PageHeader from '../../components/PageHeader'
 import PageTransition from '../../components/PageTransition'
 import { useToast } from '../../components/Toast'
@@ -22,6 +22,7 @@ const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = {
   video: VideoCamera,
   reel: FilmSlate,
   post: ImageSquare,
+  secuencia: FrameCorners,
 }
 import { fetchVoiceExamples } from '../../lib/brandVoice'
 import IdeaDrawer from '../../components/content/IdeaDrawer'
