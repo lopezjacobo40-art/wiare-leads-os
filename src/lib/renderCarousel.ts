@@ -2,16 +2,20 @@ import JSZip from 'jszip'
 import { authHeaders } from './supabaseClient'
 import type { BrandKit } from './brandKit'
 import type { CopySlide, CarruselImagen } from './contentIdeas'
+import { FORMATOS, FORMATO_DEFAULT, type FormatoKey } from './formatos'
 
-/* Cliente del render de carruseles. Llama a /api/render-carousel (Puppeteer
-   server-side) con el brand kit + los slides. onlySlide regenera uno solo. */
+/* Cliente del render de carruseles/historias. Llama a /api/render-carousel
+   (Puppeteer server-side) con el brand kit + los slides + el formato.
+   onlySlide regenera uno solo. */
 export async function renderCarrusel(params: {
   ideaId: string
   slides: CopySlide[]
   brand: BrandKit
   onlySlide?: number
+  aspecto?: FormatoKey
 }): Promise<CarruselImagen[]> {
-  const { ideaId, slides, brand, onlySlide } = params
+  const { ideaId, slides, brand, onlySlide, aspecto } = params
+  const fmt = FORMATOS[aspecto ?? FORMATO_DEFAULT] ?? FORMATOS[FORMATO_DEFAULT]
   // El logo puede ser una ruta relativa (/logo-wiare.png): la volvemos absoluta
   const logoUrl = brand.logo_url
     ? (brand.logo_url.startsWith('http') ? brand.logo_url : `${window.location.origin}${brand.logo_url}`)
@@ -26,6 +30,8 @@ export async function renderCarrusel(params: {
       brand: { colores: brand.colores, fuentes: brand.fuentes },
       logoUrl,
       onlySlide,
+      width: fmt.w,
+      height: fmt.h,
     }),
   })
 

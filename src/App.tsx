@@ -11,6 +11,7 @@ import Roadmap from './pages/Roadmap'
 import Consultor from './pages/Consultor'
 import BrandKit from './pages/content/BrandKit'
 import Ideas from './pages/content/Ideas'
+import Historias from './pages/content/Historias'
 import VozMarca from './pages/content/VozMarca'
 import DemoPlayer from './pages/DemoPlayer'
 import Sidebar from './components/Sidebar'
@@ -80,6 +81,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/content" element={<ContentLayout />}>
             <Route index element={<Navigate to="/content/ideas" replace />} />
             <Route path="ideas" element={<Ideas />} />
+            <Route path="historias" element={<Historias />} />
             <Route path="voz" element={<VozMarca />} />
             <Route path="brand-kit" element={<BrandKit />} />
           </Route>

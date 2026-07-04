@@ -18,17 +18,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (!(await requireAuth(req, res))) return
 
-  const { ideaId, slides, brand, logoUrl, onlySlide } = req.body as {
+  const { ideaId, slides, brand, logoUrl, onlySlide, width, height } = req.body as {
     ideaId: string
     slides: CarouselSlide[]
     brand: CarouselBrand
     logoUrl: string
     onlySlide?: number
+    width?: number
+    height?: number
   }
 
   if (!ideaId || !Array.isArray(slides) || slides.length === 0 || !brand || !logoUrl) {
     return res.status(400).json({ error: 'Faltan datos: ideaId, slides, brand o logoUrl' })
   }
+  const W = typeof width === 'number' && width > 0 ? Math.round(width) : 1080
+  const H = typeof height === 'number' && height > 0 ? Math.round(height) : 1350
   if (!supabaseUrl || !serviceKey) {
     return res.status(500).json({ error: 'Missing Supabase config on server' })
   }
@@ -42,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     browser = await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: { width: 1080, height: 1350, deviceScaleFactor: 1 },
+      defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
       executablePath: await chromium.executablePath(),
       headless: true,
     })
@@ -52,12 +56,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const i of indices) {
       const slide = slides[i]
       const page = await browser.newPage()
-      await page.setViewport({ width: 1080, height: 1350, deviceScaleFactor: 1 })
-      await page.setContent(buildSlideHtml(slide, i, total, brand, logoUrl), { waitUntil: 'networkidle0' })
+      await page.setViewport({ width: W, height: H, deviceScaleFactor: 1 })
+      await page.setContent(buildSlideHtml(slide, i, total, brand, logoUrl, W, H), { waitUntil: 'networkidle0' })
       // Asegura que las fuentes web estén cargadas antes de la captura
       try { await page.evaluate(() => (document as unknown as { fonts: { ready: Promise<unknown> } }).fonts.ready) } catch { /* noop */ }
 
-      const png = (await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 1080, height: 1350 } })) as Buffer
+      const png = (await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: W, height: H } })) as Buffer
       await page.close()
 
       const path = `${ideaId}/slide-${i + 1}-${slide.rol}.png`

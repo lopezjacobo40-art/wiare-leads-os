@@ -47,10 +47,15 @@ export function buildSlideHtml(
   total: number,
   brand: CarouselBrand,
   logoUrl: string,
+  ancho = 1080,
+  alto = 1350,
 ): string {
   const { fondo, indigo, cyan } = brand.colores
   const headings = brand.fuentes.headings
   const body = brand.fuentes.body
+
+  // El formato vertical (historias 9:16) da más aire; el cuadrado 1:1, menos
+  const vertical = alto / ancho >= 1.5
 
   // Tamaño base por rol; se reduce si el texto es largo (fit tipográfico)
   const len = slide.texto.length
@@ -83,7 +88,7 @@ export function buildSlideHtml(
 <link href="${googleFontsHref(headings, body)}" rel="stylesheet"/>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 1080px; height: 1350px; }
+  html, body { width: ${ancho}px; height: ${alto}px; }
   body {
     background: ${fondo};
     color: ${TINTA};
@@ -97,10 +102,10 @@ export function buildSlideHtml(
   /* ── Elemento gráfico: círculo de degradado de marca, abajo-derecha, sangrando ── */
   .blob {
     position: absolute;
-    right: -160px;
-    bottom: -160px;
-    width: 500px;
-    height: 500px;
+    right: ${vertical ? -180 : -160}px;
+    bottom: ${vertical ? -180 : -160}px;
+    width: ${vertical ? 620 : 500}px;
+    height: ${vertical ? 620 : 500}px;
     border-radius: 50%;
     background: linear-gradient(135deg, ${indigo} 0%, ${cyan} 100%);
     z-index: 0;
@@ -138,7 +143,7 @@ export function buildSlideHtml(
   .logo { height: 72px; object-fit: contain; display: block; }
 
   /* ── Copy: arriba, la jerarquía tipográfica es el diseño ── */
-  .content { position: relative; z-index: 2; margin-top: 76px; }
+  .content { position: relative; z-index: 2; margin-top: ${vertical ? 240 : 76}px; }
   .copy {
     font-family: '${headings}', sans-serif;
     font-weight: ${slide.rol === 'hook' ? 800 : 700};

@@ -747,3 +747,62 @@ Responde SOLO con un array JSON válido, sin markdown, sin texto extra:
   // Garantiza los 5 slides en orden, aunque el modelo se salte alguno
   return ORDEN.map((rol) => ({ rol, texto: porRol.get(rol) ?? '' }))
 }
+
+/* ─────────────────────────────────────────────
+   Content OS — genera una secuencia de Historias (Stories, vertical) según un
+   objetivo. Cada frame = una frase glanceable; el último es un CTA claro.
+   Devuelve [{ texto }] (4 frames).
+   ───────────────────────────────────────────── */
+export interface FrameHistoria { texto: string }
+
+const OBJETIVO_BRIEF: Record<string, string> = {
+  oferta: 'Anunciar una oferta o promoción concreta y empujar a aprovecharla ya.',
+  dms: 'Conseguir respuestas y DMs: que el espectador te escriba.',
+  educar: 'Educar rápido con un tip útil que genere autoridad.',
+  prueba: 'Mostrar prueba social: un resultado o caso creíble.',
+}
+
+export async function generarHistorias(
+  objetivo: string,
+  tonoMarca?: string | null,
+  ejemplosTono: string[] = [],
+): Promise<FrameHistoria[]> {
+  const brief = OBJETIVO_BRIEF[objetivo] ?? objetivo
+  const ejemplosBloque = ejemplosTono.length
+    ? `\nEJEMPLOS DE COPY REAL DE WIARE (imita el tono, no los copies):\n${ejemplosTono.slice(0, 3).map((e, i) => `[${i + 1}] ${e}`).join('\n')}`
+    : ''
+
+  const prompt = `${HORMOZI_ADN_CORE}
+
+CONTEXTO WIARE: atención automatizada 24/7 para negocios locales — foco en clínicas dentales y restaurantes de Madrid. Servicios: agente de voz 24/7 (Retell AI), chat agent de WhatsApp, CRM personalizado. Dolor central: perder llamadas y clientes por no coger el teléfono.
+${tonoMarca ? `\nTONO DE MARCA: ${tonoMarca}` : ''}${ejemplosBloque}
+
+FORMATO: secuencia de HISTORIAS de Instagram (vertical, se ven de un vistazo, 1-2 segundos cada una).
+OBJETIVO DE LA SECUENCIA: ${brief}
+
+TAREA: Escribe una secuencia de EXACTAMENTE 4 historias encadenadas hacia ese objetivo:
+1. Gancho que pare el dedo (una frase muy corta y potente).
+2. Tensión: el dolor o el dato que pica.
+3. Giro: qué cambia con WIARE (sin tecnicismos; "IA"/"bot" PROHIBIDOS, di "recepción"/"atención").
+4. CTA directísimo, de fricción cero, coherente con el objetivo (ej. "Respóndeme a esta historia", "Desliza hacia arriba", "Escríbeme «AUDIO» por DM").
+
+Cada frame: UNA sola frase, máximo 12 palabras, pensada para leerse enorme en pantalla.
+
+Responde SOLO con un array JSON válido, sin markdown:
+[{"texto":"..."},{"texto":"..."},{"texto":"..."},{"texto":"..."}]`
+
+  const raw = await guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', 1000, [{ role: 'user', content: prompt }])
+  )
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+  } catch (err) {
+    console.error('generarHistorias parse error. Raw:', raw)
+    throw new Error(`No se pudo generar la secuencia (respuesta inválida): ${errMsg(err)}`, { cause: err })
+  }
+  if (!Array.isArray(parsed)) throw new Error('Respuesta inesperada al generar las historias')
+
+  return parsed.slice(0, 4).map((f) => ({ texto: String((f as Record<string, unknown>).texto ?? '').trim() }))
+}

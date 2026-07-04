@@ -4,6 +4,7 @@ import { useToast } from '../Toast'
 import { useBrandKit } from '../../lib/brandKit'
 import { generarCopyCarrusel } from '../../lib/claudeApi'
 import { renderCarrusel, descargarZip } from '../../lib/renderCarousel'
+import { FORMATOS, FORMATO_DEFAULT, type FormatoKey } from '../../lib/formatos'
 import { actualizarIdea, SLIDE_ROLES, type ContentIdea, type CopySlide, type CarruselImagen } from '../../lib/contentIdeas'
 
 /* Detalle de una idea: genera y edita el copy del carrusel (5 slides).
@@ -29,10 +30,12 @@ export default function IdeaDrawer({
   const [generandoDiseno, setGenerandoDiseno] = useState(false)
   const [regenIdx, setRegenIdx] = useState<number | null>(null)
   const [descargando, setDescargando] = useState(false)
+  const [aspecto, setAspecto] = useState<FormatoKey>(FORMATO_DEFAULT)
 
   useEffect(() => {
     setSlides(idea.copy_slides ?? [])
     setImagenes(idea.imagenes ?? [])
+    setAspecto((idea.aspecto as FormatoKey) in FORMATOS ? (idea.aspecto as FormatoKey) : FORMATO_DEFAULT)
     setDirty(false)
   }, [idea])
 
@@ -43,10 +46,10 @@ export default function IdeaDrawer({
     if (!copyCompleto) { toast('Completa y guarda el copy de los 5 slides primero', 'error'); return }
     setGenerandoDiseno(true)
     try {
-      const imgs = await renderCarrusel({ ideaId: idea.id, slides, brand })
+      const imgs = await renderCarrusel({ ideaId: idea.id, slides, brand, aspecto })
       setImagenes(imgs)
-      // Persiste copy + imágenes juntos
-      await actualizarIdea(idea.id, { copy_slides: slides, imagenes: imgs })
+      // Persiste copy + imágenes + formato juntos
+      await actualizarIdea(idea.id, { copy_slides: slides, imagenes: imgs, aspecto })
       setDirty(false)
       toast('Carrusel renderizado', 'success')
       onSaved()
@@ -61,7 +64,7 @@ export default function IdeaDrawer({
     if (!brand) return
     setRegenIdx(i)
     try {
-      const [img] = await renderCarrusel({ ideaId: idea.id, slides, brand, onlySlide: i })
+      const [img] = await renderCarrusel({ ideaId: idea.id, slides, brand, onlySlide: i, aspecto })
       const nuevas = imagenes.map((im, idx) => (idx === i ? img : im))
       setImagenes(nuevas)
       await actualizarIdea(idea.id, { imagenes: nuevas })
@@ -208,14 +211,26 @@ export default function IdeaDrawer({
           {/* ── Diseño del carrusel ── */}
           {slides.length > 0 && (
             <div style={{ marginTop: 32, borderTop: '1px solid var(--color-border)', paddingTop: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
                 <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   Diseño
                 </h3>
-                <button onClick={generarDiseno} disabled={generandoDiseno || !copyCompleto} className="btn-primary" style={{ minHeight: 36, padding: '0 12px', gap: 6, fontSize: 13 }}>
-                  {generandoDiseno ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> : <ImageIcon size={14} weight="fill" />}
-                  {generandoDiseno ? 'Renderizando…' : imagenes.length ? 'Regenerar todo' : 'Generar diseño'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <select
+                    value={aspecto}
+                    onChange={(e) => setAspecto(e.target.value as FormatoKey)}
+                    aria-label="Relación de aspecto"
+                    style={{ height: 36, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '0 10px', fontSize: 13 }}
+                  >
+                    {(Object.keys(FORMATOS) as FormatoKey[]).map((k) => (
+                      <option key={k} value={k}>{FORMATOS[k].label}</option>
+                    ))}
+                  </select>
+                  <button onClick={generarDiseno} disabled={generandoDiseno || !copyCompleto} className="btn-primary" style={{ minHeight: 36, padding: '0 12px', gap: 6, fontSize: 13 }}>
+                    {generandoDiseno ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> : <ImageIcon size={14} weight="fill" />}
+                    {generandoDiseno ? 'Renderizando…' : imagenes.length ? 'Regenerar todo' : 'Generar diseño'}
+                  </button>
+                </div>
               </div>
 
               {imagenes.length === 0 ? (
@@ -226,7 +241,7 @@ export default function IdeaDrawer({
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
                     {imagenes.map((img, i) => (
-                      <div key={i} style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)', aspectRatio: '1080 / 1350', background: 'var(--color-surface-2)' }}>
+                      <div key={i} style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)', aspectRatio: `${FORMATOS[aspecto].w} / ${FORMATOS[aspecto].h}`, background: 'var(--color-surface-2)' }}>
                         <img src={img.url} alt={`Slide ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                         <button
                           onClick={() => regenerarSlide(i)}
