@@ -8,7 +8,7 @@ import { renderCarrusel, descargarZip } from '../../lib/renderCarousel'
 import { FORMATOS, FORMATO_DEFAULT, type FormatoKey } from '../../lib/formatos'
 import { actualizarIdea, SLIDE_ROLES, FORMATO_LABELS, type ContentIdea, type CopySlide, type CarruselImagen, type IdeaFormato } from '../../lib/contentIdeas'
 
-const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = { carrusel: Rows, video: VideoCamera, reel: FilmSlate, post: ImageSquare, secuencia: FrameCorners }
+const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = { carrusel: Rows, video: VideoCamera, reel: FilmSlate, post: ImageSquare, secuencia: FrameCorners, historia: FrameCorners }
 
 /* Detalle de una idea: genera y edita el copy del carrusel (5 slides).
    El copy se guarda como borrador editable en la idea. NO se renderiza aún (eso es Fase 4). */

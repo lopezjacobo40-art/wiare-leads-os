@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix,
   MapTrifold, ChatCircleDots,
-  Palette, Lightbulb, Quotes, FrameCorners,
+  Palette, Quotes, InstagramLogo, CalendarBlank, Binoculars, ChartLineUp, Newspaper,
 } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
@@ -28,10 +28,14 @@ const MI_AGENCIA: NavItem[] = [
   { to: '/consultor', label: 'Consultor IA', icon: ChatCircleDots, end: false },
 ]
 
-// Sección "Contenido": módulo Content OS (marca, ideación y carruseles para RRSS).
+// Sección "Contenido": panel de gestión de contenidos (Instagram, calendario,
+// competidores, analítica, noticias + marca).
 const CONTENIDO: NavItem[] = [
-  { to: '/content/ideas', label: 'Ideas', icon: Lightbulb, end: false },
-  { to: '/content/historias', label: 'Historias', icon: FrameCorners, end: false },
+  { to: '/content/instagram', label: 'Instagram', icon: InstagramLogo, end: false },
+  { to: '/content/calendario', label: 'Calendario', icon: CalendarBlank, end: false },
+  { to: '/content/competidores', label: 'Competidores', icon: Binoculars, end: false },
+  { to: '/content/analitica', label: 'Analítica', icon: ChartLineUp, end: false },
+  { to: '/content/noticias', label: 'Noticias', icon: Newspaper, end: false },
   { to: '/content/voz', label: 'Voz de marca', icon: Quotes, end: false },
   { to: '/content/brand-kit', label: 'Brand Kit', icon: Palette, end: false },
 ]

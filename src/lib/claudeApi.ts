@@ -806,3 +806,66 @@ Responde SOLO con un array JSON válido, sin markdown:
 
   return parsed.slice(0, 4).map((f) => ({ texto: String((f as Record<string, unknown>).texto ?? '').trim() }))
 }
+
+/* ─────────────────────────────────────────────
+   Competidores — replica la idea de un post de un competidor
+   con la voz de WIARE. No copia: extrae el ángulo y lo reescribe
+   para nuestro ICP (clínicas/restaurantes de Madrid).
+   ───────────────────────────────────────────── */
+export interface IdeaReplicada {
+  titulo: string
+  gancho: string
+  caption: string
+  formato: 'carrusel' | 'reel' | 'post'
+}
+
+export async function replicarIdeaCompetidor(
+  post: { caption: string | null; tipo: string | null; likes: number | null; comments: number | null; username: string },
+  ejemplosTono: string[],
+  tonoMarca?: string | null
+): Promise<IdeaReplicada> {
+  const ejemplosBloque = ejemplosTono.length
+    ? `\nEJEMPLOS DE COPY REAL DE WIARE (imita ESTE tono, ritmo y vocabulario; NO los copies literalmente):\n${ejemplosTono.slice(0, 5).map((e, i) => `[${i + 1}] ${e}`).join('\n')}`
+    : ''
+
+  const prompt = `${HORMOZI_ADN_CORE}
+
+CONTEXTO WIARE: agencia española que instala atención automatizada 24/7 para negocios locales — foco en clínicas dentales y restaurantes de Madrid. El dolor central del cliente: pierde llamadas y clientes cuando no puede coger el teléfono.
+${tonoMarca ? `\nTONO DE MARCA (respétalo): ${tonoMarca}` : ''}${ejemplosBloque}
+
+POST DE UN COMPETIDOR (@${post.username}) que ha funcionado bien (${post.likes ?? '?'} likes, ${post.comments ?? '?'} comentarios, tipo ${post.tipo ?? 'desconocido'}):
+"""
+${(post.caption ?? '').slice(0, 1500)}
+"""
+
+TAREA: NO copies el post. Extrae el ÁNGULO que lo hace funcionar (el dolor que toca, la promesa, el formato del gancho) y crea una idea de post PROPIA de WIARE con ese ángulo, adaptada a nuestro ICP y a nuestra oferta.
+
+Devuelve:
+- "titulo": tema del post propio, claro y corto (máx 8 palabras).
+- "gancho": primera frase que para el scroll, estilo Hormozi.
+- "caption": caption completo listo para Instagram (120-200 palabras, con CTA final, sin hashtags).
+- "formato": "carrusel", "reel" o "post" — el que mejor encaje.
+
+Responde SOLO con un objeto JSON válido, sin markdown:
+{"titulo":"...","gancho":"...","caption":"...","formato":"post"}`
+
+  const raw = await guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', 1200, [{ role: 'user', content: prompt }])
+  )
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+  } catch (err) {
+    console.error('replicarIdeaCompetidor parse error. Raw:', raw)
+    throw new Error(`No se pudo replicar la idea (respuesta inválida): ${errMsg(err)}`, { cause: err })
+  }
+  const o = parsed as Record<string, unknown>
+  const formato = o.formato === 'carrusel' || o.formato === 'reel' ? o.formato : 'post'
+  return {
+    titulo: String(o.titulo ?? '').trim() || 'Idea replicada',
+    gancho: String(o.gancho ?? '').trim(),
+    caption: String(o.caption ?? '').trim(),
+    formato,
+  }
+}

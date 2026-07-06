@@ -211,7 +211,7 @@ export async function extraerLeadsConApify(
 
 // Lanza un actor de Apify y devuelve los items del dataset, o [] si falla.
 // Hace polling hasta SUCCEEDED (máx ~90s). No lanza: cualquier fallo → [].
-async function correrActor(actor: string, input: Record<string, unknown>): Promise<Record<string, unknown>[]> {
+export async function correrActor(actor: string, input: Record<string, unknown>): Promise<Record<string, unknown>[]> {
   try {
     const runRes = await callApifyProxy(`/acts/${actor}/runs`, 'POST', input)
     if (!runRes.ok) return []
