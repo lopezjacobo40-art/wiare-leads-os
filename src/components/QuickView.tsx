@@ -64,6 +64,7 @@ export default function QuickView({
       setNotas(lead.notas ?? '')
       cargarHistorialDemos()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recargar solo cuando cambia el lead
   }, [lead])
 
   // Cerrar con Escape (escape-route, regla §1).

@@ -15,6 +15,7 @@ import {
   PlayCircle,
 } from '@phosphor-icons/react'
 import { supabase } from '../lib/supabaseClient'
+import { DEFAULT_SUBJECT, DEFAULT_BODY } from '../lib/emailOutreach'
 import { errMsg } from '../lib/errores'
 import Skeleton from '../components/Skeleton'
 import { fetchWithAudit } from '../lib/apiAuditor'
@@ -34,6 +35,8 @@ const PRECIOS = {
 // Coste estimado por una acción (€) = (tokens / 1000) × precio/1K
 const COSTE_SCORE = (PRECIOS.tokens_score / 1000) * PRECIOS.score // 0.00032 €
 const COSTE_CONTENT = (PRECIOS.tokens_content / 1000) * PRECIOS.content // 0.0054 €
+// Instante de carga del módulo: evita Date.now() durante el render
+const AHORA = Date.now()
 
 // Límites diarios (de .env, con defaults idénticos a tokenGuard.ts)
 function limiteDe(tipo: 'score' | 'content'): number {
@@ -158,7 +161,7 @@ export default function Configuracion() {
     const proyeccionMes = (costeMes / diaDelMes) * 30
 
     // Media diaria histórica
-    const msDesdeInicio = Date.now() - new Date(primeraFecha).getTime()
+    const msDesdeInicio = AHORA - new Date(primeraFecha).getTime()
     const diasHistoricos = Math.max(1, Math.ceil(msDesdeInicio / 86400000))
     const mediaDiaria = costeTotal / diasHistoricos
 
@@ -1271,18 +1274,9 @@ function SeccionPlantillas() {
   const [body, setBody] = useState('')
   const [saved, setSaved] = useState(false)
 
-  const defaultSubject = 'pregunta rápida'
-  const defaultBody = `{{icebreaker}}
-
-{{puntos}}
-
-Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches cómo sonaría con el nombre de {{nombre_negocio}}? Si no encaja, cero compromiso.
-
-Jacobo.`
-
   useEffect(() => {
-    setSubject(localStorage.getItem('email_template_subject') || defaultSubject)
-    setBody(localStorage.getItem('email_template_body') || defaultBody)
+    setSubject(localStorage.getItem('email_template_subject') || DEFAULT_SUBJECT)
+    setBody(localStorage.getItem('email_template_body') || DEFAULT_BODY)
   }, [])
 
   const guardar = () => {
@@ -1336,8 +1330,8 @@ Jacobo.`
           <button 
             className="btn-ghost" 
             onClick={() => {
-              setSubject(defaultSubject)
-              setBody(defaultBody)
+              setSubject(DEFAULT_SUBJECT)
+              setBody(DEFAULT_BODY)
               localStorage.removeItem('email_template_subject')
               localStorage.removeItem('email_template_body')
             }} 

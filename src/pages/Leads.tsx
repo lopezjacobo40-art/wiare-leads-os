@@ -108,6 +108,7 @@ export default function Leads() {
     setLoading(false)
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recargar solo cuando cambia el filtro de extracción
   useEffect(() => { cargar() }, [extraccionFiltro])
 
   // Auto-cerrar la vista rápida si el lead cambió de fase y ya no encaja en el filtro actual
@@ -155,7 +156,7 @@ export default function Leads() {
     else if (orden === 'resenas') res = [...res].sort((a, b) => (b.num_resenas ?? 0) - (a.num_resenas ?? 0))
     else if (orden === 'mrr') res = [...res].sort((a, b) => (b.mrr_estimado ?? 0) - (a.mrr_estimado ?? 0))
     return res
-  }, [leads, busqueda, sectorFiltro, faseFiltro, fuenteFiltro, scoreMin, orden, soloInactivos])
+  }, [leads, busqueda, sectorFiltro, faseFiltro, fuenteFiltro, scoreMin, orden, soloInactivos, soloAnalizados])
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE))
   const paginaActual = Math.min(pagina, totalPaginas)

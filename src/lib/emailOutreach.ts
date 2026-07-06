@@ -10,8 +10,8 @@ import type { Lead } from './supabaseClient'
    3. Plantilla por defecto (icebreaker + puntos del análisis)
    ───────────────────────────────────────────── */
 
-const DEFAULT_SUBJECT = 'pregunta rápida'
-const DEFAULT_BODY = `{{icebreaker}}
+export const DEFAULT_SUBJECT = 'pregunta rápida'
+export const DEFAULT_BODY = `{{icebreaker}}
 
 {{puntos}}
 

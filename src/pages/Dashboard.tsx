@@ -16,6 +16,9 @@ import Skeleton from '../components/Skeleton'
 import { useToast } from '../components/Toast'
 
 const DIAS_7_MS = 7 * 24 * 60 * 60 * 1000
+// Instante de carga del módulo: evita Date.now() durante el render
+// (ventana de 7 días — la precisión al minuto es irrelevante)
+const AHORA = Date.now()
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -124,7 +127,7 @@ export default function Dashboard() {
   const analizados = leads.filter((l) => l.analizado_at != null).length
   const mrrTotal = leads.reduce((acc, l) => acc + (l.mrr_estimado ?? 0), 0)
   const sinAnalizar = leads.filter((l) => l.analizado_at == null).length
-  const nuevosSemana = leads.filter((l) => Date.now() - new Date(l.created_at).getTime() < DIAS_7_MS).length
+  const nuevosSemana = leads.filter((l) => AHORA - new Date(l.created_at).getTime() < DIAS_7_MS).length
 
   const calientesSinTrabajar = leads.filter(
     (l) => (l.score_cualificacion ?? 0) >= 7 && l.fase === 'nuevo'

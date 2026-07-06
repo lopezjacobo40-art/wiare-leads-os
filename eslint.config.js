@@ -29,6 +29,10 @@ export default defineConfig([
     rules: {
       // Permite el idiom `const { campoAExcluir: _, ...resto } = obj`
       '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
+      // Regla de la era React Compiler: marca el patrón fetch-on-mount
+      // (`useEffect(() => { cargar() }, [])`) usado en todo el proyecto.
+      // Sin el compilador activado no aporta; reactivar si se adopta.
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])

@@ -163,7 +163,8 @@ export default function Ideas() {
     setIdeaAbierta((prev) => (prev ? is.find((i) => i.id === prev.id) ?? null : null))
     setLoading(false)
   }
-  useEffect(() => { cargar() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
+  useEffect(() => { cargar() }, [])
 
   const pilarNombreDe = (id: string | null) => pillars.find((p) => p.id === id)?.nombre_pilar
   const pilarActual = pillars.find((p) => p.id === pilarSel)

@@ -1,23 +1,35 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { List } from '@phosphor-icons/react'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Extraccion from './pages/Extraccion'
-import Leads from './pages/Leads'
-import LeadDetalle from './pages/LeadDetalle'
-import Configuracion from './pages/Configuracion'
-import Roadmap from './pages/Roadmap'
-import Consultor from './pages/Consultor'
-import BrandKit from './pages/content/BrandKit'
-import Ideas from './pages/content/Ideas'
-import Historias from './pages/content/Historias'
-import VozMarca from './pages/content/VozMarca'
-import DemoPlayer from './pages/DemoPlayer'
 import Sidebar from './components/Sidebar'
 import BrandKitProvider from './components/BrandKitProvider'
 import { useToast } from './components/Toast'
 import { supabase, usernameFromSession } from './lib/supabaseClient'
+
+/* Páginas cargadas bajo demanda: divide el bundle por ruta
+   (evita un único chunk >1 MB con gsap, framer-motion, etc.) */
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Extraccion = lazy(() => import('./pages/Extraccion'))
+const Leads = lazy(() => import('./pages/Leads'))
+const LeadDetalle = lazy(() => import('./pages/LeadDetalle'))
+const Configuracion = lazy(() => import('./pages/Configuracion'))
+const Roadmap = lazy(() => import('./pages/Roadmap'))
+const Consultor = lazy(() => import('./pages/Consultor'))
+const BrandKit = lazy(() => import('./pages/content/BrandKit'))
+const Ideas = lazy(() => import('./pages/content/Ideas'))
+const Historias = lazy(() => import('./pages/content/Historias'))
+const VozMarca = lazy(() => import('./pages/content/VozMarca'))
+const DemoPlayer = lazy(() => import('./pages/DemoPlayer'))
+
+/* Fallback mínimo mientras carga el chunk de una página */
+function CargandoPagina() {
+  return (
+    <div style={{ minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="spinner" style={{ width: 24, height: 24, borderWidth: 3 }} />
+    </div>
+  )
+}
 
 /* Layout del módulo de Content: provee el brand kit a todas sus páginas. */
 function ContentLayout() {
@@ -66,6 +78,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <img src="/logo-wiare.png" alt="WIARE" style={{ height: 24, objectFit: 'contain' }} />
         </div>
 
+        <Suspense fallback={<CargandoPagina />}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/extraer" element={<Extraccion />} />
@@ -89,6 +102,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           <Route path="/contenido/*" element={<Navigate to="/content/brand-kit" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </main>
     </div>
   )
@@ -120,9 +134,11 @@ export default function App() {
   // Ruta pública para leads (bypass de autenticación)
   if (location.pathname.startsWith('/d/')) {
     return (
-      <Routes>
-        <Route path="/d/:id" element={<DemoPlayer />} />
-      </Routes>
+      <Suspense fallback={<CargandoPagina />}>
+        <Routes>
+          <Route path="/d/:id" element={<DemoPlayer />} />
+        </Routes>
+      </Suspense>
     )
   }
 
