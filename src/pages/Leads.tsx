@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react'
-import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
+import { supabase, type Lead, FASES, FASES_ACTIVAS, FASE_LABELS } from '../lib/supabaseClient'
 import { construirEmail, construirGmailUrl } from '../lib/emailOutreach'
 import { registrarEnvioEmail } from '../lib/followUp'
 import { errMsg } from '../lib/errores'
@@ -972,9 +972,11 @@ export default function Leads() {
         )}
       </div>
 
-      {/* Tabs de fase */}
+      {/* Tabs de fase — activas + las legacy/cierre solo si tienen leads */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        {['todas', ...FASES].map((f) => {
+        {['todas', ...FASES_ACTIVAS, ...FASES.filter(
+          (f) => !(FASES_ACTIVAS as readonly string[]).includes(f) && leads.some((l) => l.fase === f)
+        )].map((f) => {
           const activo = faseFiltro === f
           return (
             <button
@@ -1383,7 +1385,7 @@ export default function Leads() {
                   gap: 2,
                 }}
               >
-                {FASES.map((f) => (
+                {FASES_ACTIVAS.map((f) => (
                   <button
                     key={f}
                     onClick={() => cambiarFaseSeleccionados(f)}

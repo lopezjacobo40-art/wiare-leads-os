@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { CaretDown, Check } from '@phosphor-icons/react'
-import { FASES, FASE_COLOR, FASE_LABELS } from '../lib/supabaseClient'
+import { FASES_ACTIVAS, FASE_COLOR, FASE_LABELS } from '../lib/supabaseClient'
 
 
 interface Props {
@@ -66,7 +66,8 @@ export default function FaseSelector({ fase, onChange }: Props) {
             animation: 'fade-in 150ms cubic-bezier(0.4,0,0.2,1)',
           }}
         >
-          {FASES.filter((f) => f !== 'brechas_detectadas' || f === fase).map((f) => {
+          {/* Fases activas + la fase actual del lead si es legacy/cierre */}
+          {[...FASES_ACTIVAS, ...((FASES_ACTIVAS as readonly string[]).includes(fase) ? [] : [fase])].map((f) => {
             const activo = f === fase
             const c = FASE_COLOR[f]
             return (

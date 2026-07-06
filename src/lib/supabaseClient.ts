@@ -137,6 +137,21 @@ export const FASES = [
   'baja'
 ] as const
 
+/* Fases operativas del día a día + salidas. Las fases de cierre CRM
+   (propuesta_enviada…activo) y 'brechas_detectadas' (legacy) quedan fuera de
+   los selectores para no meter ruido; siguen siendo válidas y aparecen
+   dinámicamente si algún lead está en ellas. */
+export const FASES_ACTIVAS = [
+  'nuevo',
+  'negocio_analizado',
+  'listo_para_enviar',
+  'email_enviado',
+  'respondido',
+  'reunion_agendada',
+  'sin_respuesta',
+  'baja',
+] as const
+
 /* Fases del funnel operativo diario (v6/v7). El Kanban muestra solo estas;
    si un lead está en una fase de cierre (propuesta_enviada…baja) su columna
    aparece dinámicamente para no ocultarlo. 'brechas_detectadas' es legacy. */

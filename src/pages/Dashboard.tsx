@@ -1,11 +1,12 @@
 import { useEffect, useState, useLayoutEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { gsap } from 'gsap'
-import { Users, Fire, MagnifyingGlassPlus, CurrencyEur, Clock, CheckCircle, ArrowRight, CaretRight, ArrowsClockwise, Globe } from '@phosphor-icons/react'
+import { Users, Fire, MagnifyingGlassPlus, CurrencyEur, ArrowRight, ArrowsClockwise } from '@phosphor-icons/react'
 import { supabase, type Lead, type Extraccion } from '../lib/supabaseClient'
 import { syncWebLeads } from '../lib/syncWebLeads'
 import KanbanBoard from '../components/KanbanBoard'
 import CockpitCierre from '../components/CockpitCierre'
+import ColaDelDia from '../components/ColaDelDia'
 import QuickView from '../components/QuickView'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
@@ -25,6 +26,7 @@ export default function Dashboard() {
   const [error, setError] = useState('')
   const [quickViewLead, setQuickViewLead] = useState<Lead | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [enviadosHoy, setEnviadosHoy] = useState(0)
 
   const cargar = async () => {
     try {
@@ -50,6 +52,19 @@ export default function Dashboard() {
       if (extData) setExtracciones(extData as Extraccion[])
     } catch {
       // Silencioso: puede fallar por permisos sin romper el resto
+    }
+    // Cupo diario de envíos (para la cola del día)
+    try {
+      const hoy = new Date()
+      hoy.setHours(0, 0, 0, 0)
+      const { count } = await supabase
+        .from('token_usage_os')
+        .select('id', { count: 'exact', head: true })
+        .eq('accion', 'email_enviado')
+        .gte('created_at', hoy.toISOString())
+      setEnviadosHoy(count ?? 0)
+    } catch {
+      // Silencioso: sin contador el cupo simplemente muestra 0
     }
   }
 
@@ -111,19 +126,9 @@ export default function Dashboard() {
   const sinAnalizar = leads.filter((l) => l.analizado_at == null).length
   const nuevosSemana = leads.filter((l) => Date.now() - new Date(l.created_at).getTime() < DIAS_7_MS).length
 
-  // ── Alertas de "tu lista de hoy" ──
   const calientesSinTrabajar = leads.filter(
     (l) => (l.score_cualificacion ?? 0) >= 7 && l.fase === 'nuevo'
   )
-  const sinActividad = leads.filter(
-    (l) => l.fase === 'nuevo' && Date.now() - new Date(l.created_at).getTime() > DIAS_7_MS
-  )
-  // Leads de wiaresolution.com sin contactar (máxima prioridad), de mayor a menor pérdida.
-  const leadsWebSinContactar = leads
-    .filter((l) => l.fuente === 'web_calculadora' && l.fase === 'nuevo')
-    .sort((a, b) => (b.perdida_mensual_real ?? 0) - (a.perdida_mensual_real ?? 0))
-  const totalAlertas =
-    leadsWebSinContactar.length + calientesSinTrabajar.length + sinActividad.length
 
   const porSector = leads.reduce<Record<string, number>>((acc, l) => {
     acc[l.sector] = (acc[l.sector] ?? 0) + 1
@@ -221,6 +226,14 @@ export default function Dashboard() {
 
 
       {error && <p style={{ color: 'var(--color-error)', marginBottom: 16 }}>Error: {error}</p>}
+
+      {/* Cola del día — lo único que hay que mirar por la mañana */}
+      <ColaDelDia leads={leads} enviadosHoy={enviadosHoy} />
+
+      {/* ── Cockpit de cierre: respuestas/reuniones + toques de hoy + enviados sin seguimiento ── */}
+      <div id="cockpit-cierre">
+        <CockpitCierre leads={leads} onOpenLead={(l) => setQuickViewLead(l)} onRefresh={cargar} />
+      </div>
 
       <div ref={containerRef}>
         {/* Métricas Bento Grid (Gapless / Dense) */}
@@ -331,21 +344,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Tu lista de hoy — alertas */}
-      <AlertasHoy
-        total={totalAlertas}
-        leadsWeb={leadsWebSinContactar.length}
-        leadWebTopPerdida={leadsWebSinContactar[0]?.perdida_mensual_real ?? null}
-        calientes={calientesSinTrabajar.length}
-        sinActividad={sinActividad.length}
-        navigate={navigate}
-      />
-
-      {/* ── Cockpit de cierre: respuestas/reuniones + toques de hoy + enviados sin seguimiento ── */}
-      <CockpitCierre leads={leads} onOpenLead={(l) => setQuickViewLead(l)} onRefresh={cargar} />
-
-      <AuditorPanel />
-
       {/* Pipeline */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 32, marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-body)' }}>Pipeline de leads</h2>
@@ -428,156 +426,10 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <AuditorPanel />
+
       {/* Vista rápida desde el Kanban */}
       <QuickView lead={quickViewLead} onClose={() => setQuickViewLead(null)} onUpdated={cargar} />
     </PageTransition>
-  )
-}
-
-// ── Card de alertas "Tu lista de hoy" ──
-function AlertasHoy({
-  total,
-  leadsWeb,
-  leadWebTopPerdida,
-  calientes,
-  sinActividad,
-  navigate,
-}: {
-  total: number
-  leadsWeb: number
-  leadWebTopPerdida: number | null
-  calientes: number
-  sinActividad: number
-  navigate: (to: string) => void
-}) {
-  const filas = [
-    calientes > 0 && {
-      key: 'calientes',
-      icon: Fire,
-      color: 'var(--color-warning)',
-      bg: 'color-mix(in srgb, var(--color-warning) 10%, transparent)',
-      texto: `${calientes} ${calientes === 1 ? 'lead caliente sin contactar' : 'leads calientes sin contactar'}`,
-      to: '/leads?score_min=7&fase=nuevo',
-    },
-    sinActividad > 0 && {
-      key: 'inactivos',
-      icon: Clock,
-      color: 'var(--color-error)',
-      bg: 'color-mix(in srgb, var(--color-error) 10%, transparent)',
-      texto: `${sinActividad} ${sinActividad === 1 ? 'lead sin actividad en 7+ días' : 'leads sin actividad en 7+ días'}`,
-      to: '/leads?fase=nuevo&inactivo=7',
-    },
-  ].filter(Boolean) as {
-    key: string
-    icon: typeof Fire
-    color: string
-    bg: string
-    texto: string
-    to: string
-  }[]
-
-  return (
-    <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: total ? 14 : 0 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-body)' }}>Tu lista de hoy</h2>
-        {total > 0 && (
-          <span
-            className="badge"
-            style={{ background: 'var(--color-primary-subtle)', color: 'var(--color-primary)', fontVariantNumeric: 'tabular-nums' }}
-          >
-            {total}
-          </span>
-        )}
-      </div>
-
-      {total === 0 ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--color-success)' }}>
-          <CheckCircle size={20} weight="fill" />
-          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>Todo al día · Sin pendientes</span>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {/* Máxima prioridad: leads de wiaresolution.com sin contactar */}
-          {leadsWeb > 0 && (
-            <div
-              onClick={() => navigate('/leads?fuente=web_calculadora&fase=nuevo')}
-              role="button"
-              tabIndex={0}
-              aria-label={`${leadsWeb} leads de wiaresolution.com sin contactar`}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/leads?fuente=web_calculadora&fase=nuevo') }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '14px 16px',
-                background: 'rgba(34,197,94,0.06)',
-                border: '1px solid rgba(34,197,94,0.2)',
-                borderRadius: 10,
-                cursor: 'pointer',
-                transition: 'background 200ms ease-out',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(34,197,94,0.1)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(34,197,94,0.06)')}
-            >
-              <span
-                aria-hidden="true"
-                style={{ width: 8, height: 8, borderRadius: '50%', background: '#22C55E', animation: 'pulse-dot 2s infinite', flexShrink: 0 }}
-              />
-              <Globe size={16} color="#16A34A" weight="fill" />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: '#16A34A' }}>
-                  {leadsWeb} lead{leadsWeb > 1 ? 's' : ''} de wiaresolution.com sin contactar
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                  Ya saben cuánto pierden · Máxima prioridad
-                  {leadWebTopPerdida != null && ` · El más urgente: ${leadWebTopPerdida.toLocaleString('es-ES')}€/mes`}
-                </div>
-              </div>
-              <ArrowRight size={14} color="#16A34A" style={{ flexShrink: 0 }} />
-            </div>
-          )}
-          {filas.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => navigate(f.to)}
-              aria-label={f.texto}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                width: '100%',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                padding: '10px 12px',
-                minHeight: 44,
-                textAlign: 'left',
-                transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              <span
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  background: f.bg,
-                  color: f.color,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <f.icon size={16} weight="bold" />
-              </span>
-              <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>{f.texto}</span>
-              <CaretRight size={16} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   )
 }
