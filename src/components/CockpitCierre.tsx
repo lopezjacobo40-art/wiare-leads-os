@@ -6,6 +6,7 @@ import {
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { construirGmailUrl } from '../lib/emailOutreach'
+import { registrarToqueHecho } from '../lib/followUp'
 import { useToast } from './Toast'
 
 /* ─────────────────────────────────────────────
@@ -183,14 +184,16 @@ export default function CockpitCierre({
 
   const marcarToqueHecho = async (lead: Lead) => {
     setOcupadoId(lead.id)
-    const { error } = await supabase
-      .from('leads_os')
-      .update({ proximo_toque_fecha: null, proximo_toque_tipo: null })
-      .eq('id', lead.id)
+    const r = await registrarToqueHecho(lead)
     setOcupadoId(null)
-    if (error) toast('Error al marcar el toque', 'error')
+    if (r.error) toast('Error al marcar el toque', 'error')
     else {
-      toast(`Toque con ${lead.nombre} completado`, 'success')
+      toast(
+        r.archivado
+          ? `${lead.nombre} → Sin respuesta (secuencia completa)`
+          : `Toque con ${lead.nombre} hecho · siguiente programado`,
+        'success'
+      )
       onRefresh()
     }
   }

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASE_LABELS } from '../lib/supabaseClient'
-import { construirGmailUrl } from '../lib/emailOutreach'
+import { construirEmail, construirGmailUrl } from '../lib/emailOutreach'
+import { registrarEnvioEmail } from '../lib/followUp'
 import { errMsg } from '../lib/errores'
 import { analizarBrechas, toAnalisisBrechas, extraerDatosDecisor } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
@@ -209,15 +210,13 @@ export default function Leads() {
     }
   }
 
-  // Avanza la fase de un lead a 'email_enviado'
+  // Registra el envío: fase, timestamp, copy usado y follow-up auto en 3 días
   const marcarEmailEnviado = async (lead: Lead) => {
-    const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
-    await supabase.from('token_usage_os').insert({ usuario, accion: 'email_enviado', tokens_estimados: 0 })
-    const { error: err } = await supabase.from('leads_os').update({ fase: 'email_enviado' }).eq('id', lead.id)
-    if (err) toast(err.message, 'error')
+    const { error: err } = await registrarEnvioEmail(lead, construirEmail(lead))
+    if (err) toast(err, 'error')
     else {
       await cargar()
-      toast(`${lead.nombre} → Email enviado`, 'success')
+      toast(`${lead.nombre} → Email enviado · follow-up en 3 días`, 'success')
     }
   }
 

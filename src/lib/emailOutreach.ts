@@ -19,7 +19,15 @@ Si te cuadra, ¿te paso un audio de 30 segundos por WhatsApp para que escuches c
 
 Jacobo.`
 
-export function construirGmailUrl(lead: Lead): string | null {
+export interface EmailOutreach {
+  asunto: string
+  cuerpo: string
+  url: string
+}
+
+/* Devuelve el email completo (asunto, cuerpo y URL de Gmail) para poder
+   persistir el copy realmente usado al marcar el envío. */
+export function construirEmail(lead: Lead): EmailOutreach | null {
   if (!lead.email) return null
 
   let asunto: string
@@ -49,5 +57,10 @@ export function construirGmailUrl(lead: Lead): string | null {
     cuerpo = reemplazar(bodyTemplate)
   }
 
-  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`
+  const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`
+  return { asunto, cuerpo, url }
+}
+
+export function construirGmailUrl(lead: Lead): string | null {
+  return construirEmail(lead)?.url ?? null
 }

@@ -71,6 +71,15 @@ export interface Lead {
   demo_audio_url?: string | null
   proximo_toque_fecha?: string | null
   proximo_toque_tipo?: 'Llamada' | 'Email' | 'WhatsApp' | null
+
+  // ── Outreach (copy del email enviado) ──
+  outreach_asunto?: string | null
+  outreach_cuerpo?: string | null
+
+  // ── Tracking cold email (secuencia de toques) ──
+  email_enviado_at?: string | null
+  num_toques?: number | null
+  ultimo_toque_at?: string | null
   
   // ── Análisis de brechas (v6) ──
   analisis_brechas: AnalisisBrechas | null
@@ -124,6 +133,7 @@ export const FASES = [
   'cobrado_setup',
   'en_implementacion',
   'activo',
+  'sin_respuesta',
   'baja'
 ] as const
 
@@ -153,6 +163,7 @@ export const FASE_COLOR: Record<string, string> = {
   cobrado_setup: '#16A34A',
   en_implementacion: '#6366F1',
   activo: '#22C55E',
+  sin_respuesta: '#78716C',
   baja: '#A1A1AA',
 }
 
@@ -169,5 +180,6 @@ export const FASE_LABELS: Record<string, string> = {
   cobrado_setup: 'Setup cobrado',
   en_implementacion: 'En implementación',
   activo: 'Activo',
+  sin_respuesta: 'Sin respuesta',
   baja: 'Pausado/Baja',
 }

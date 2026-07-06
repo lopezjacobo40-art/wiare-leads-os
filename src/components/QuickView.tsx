@@ -6,7 +6,8 @@ import {
   ArrowCounterClockwise,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { construirGmailUrl } from '../lib/emailOutreach'
+import { construirEmail } from '../lib/emailOutreach'
+import { registrarEnvioEmail } from '../lib/followUp'
 import { errMsg } from '../lib/errores'
 import { analizarBrechas, toAnalisisBrechas, generarGuionAudio, type DialogoAudio } from '../lib/claudeApi'
 import ScoreBadge from './ScoreBadge'
@@ -315,16 +316,22 @@ export default function QuickView({
     }
   }
 
-  const redactarGmail = () => {
-    const url = construirGmailUrl(l)
-    if (!url) {
+  const redactarGmail = async () => {
+    const email = construirEmail(l)
+    if (!email) {
       toast('Este lead no tiene email', 'error')
       return
     }
-    window.open(url, '_blank')
+    window.open(email.url, '_blank')
     // Auto-ofrecer el avance de fase para que el funnel no se quede desactualizado
     if (l.fase !== 'email_enviado' && window.confirm(`¿Has enviado el email a ${l.nombre}? Se moverá a "Email enviado".`)) {
-      cambiarFase('email_enviado')
+      const r = await registrarEnvioEmail(l, email)
+      if (r.error) toast(r.error, 'error')
+      else {
+        setLocalLead({ ...l, ...r.campos })
+        onUpdated?.()
+        toast('Email enviado · follow-up en 3 días', 'success')
+      }
     }
   }
 

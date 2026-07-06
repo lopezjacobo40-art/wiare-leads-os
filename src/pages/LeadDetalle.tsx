@@ -9,7 +9,8 @@ import {
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { analizarBrechas, toAnalisisBrechas, generarPropuestaComercial, generarSystemPromptSofia } from '../lib/claudeApi'
-import { construirGmailUrl } from '../lib/emailOutreach'
+import { construirEmail, construirGmailUrl } from '../lib/emailOutreach'
+import { registrarEnvioEmail } from '../lib/followUp'
 import { errMsg } from '../lib/errores'
 import { fetchWithAudit } from '../lib/apiAuditor'
 import { labelFuente } from '../lib/emailFinder'
@@ -303,20 +304,17 @@ export default function LeadDetalle() {
     }
   }
 
-  // Marca el email como enviado: fase 'email_enviado' + registra para el contador diario.
+  // Registra el envío: fase, timestamp, copy usado y follow-up auto en 3 días.
   const marcarEnviado = async () => {
     if (!lead) return
     setMarcandoEnviado(true)
-    const usuario = sessionStorage.getItem('wiare_user') ?? 'desconocido'
-    try {
-      await supabase.from('token_usage_os').insert({ usuario, accion: 'email_enviado', tokens_estimados: 0 })
-      await actualizar({ fase: 'email_enviado' })
-      toast('Marcado como enviado', 'success')
-    } catch {
-      toast('Error al marcar como enviado', 'error')
-    } finally {
-      setMarcandoEnviado(false)
+    const r = await registrarEnvioEmail(lead, construirEmail(lead))
+    if (r.error) toast('Error al marcar como enviado', 'error')
+    else {
+      setLead({ ...lead, ...r.campos })
+      toast('Enviado · follow-up en 3 días', 'success')
     }
+    setMarcandoEnviado(false)
   }
 
   const copiar = async (texto: string, etiqueta: string) => {
