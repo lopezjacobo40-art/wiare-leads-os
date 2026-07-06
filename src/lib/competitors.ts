@@ -147,7 +147,6 @@ export async function scrapeCompetitor(
 ): Promise<{ error: string | null; followers?: number; posts?: number }> {
   const items = await correrActor(ACTOR_IG, {
     usernames: [comp.username],
-    resultsLimit: 1,
   })
   const perfil = items[0] as Record<string, unknown> | undefined
   if (!perfil) {

@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix,
   MapTrifold, ChatCircleDots,
-  Palette, Quotes, InstagramLogo, CalendarBlank, Binoculars, ChartLineUp, Newspaper,
+  Palette, Quotes, InstagramLogo, CalendarBlank, Binoculars, ChartLineUp, Newspaper, FrameCorners,
 } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
 import { getUsoHoy, type UsoHoy } from '../lib/tokenGuard'
@@ -33,6 +33,7 @@ const MI_AGENCIA: NavItem[] = [
 const CONTENIDO: NavItem[] = [
   { to: '/content/instagram', label: 'Instagram', icon: InstagramLogo, end: false },
   { to: '/content/calendario', label: 'Calendario', icon: CalendarBlank, end: false },
+  { to: '/content/historias', label: 'Historias', icon: FrameCorners, end: false },
   { to: '/content/competidores', label: 'Competidores', icon: Binoculars, end: false },
   { to: '/content/analitica', label: 'Analítica', icon: ChartLineUp, end: false },
   { to: '/content/noticias', label: 'Noticias', icon: Newspaper, end: false },

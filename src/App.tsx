@@ -18,6 +18,7 @@ const Roadmap = lazy(() => import('./pages/Roadmap'))
 const Consultor = lazy(() => import('./pages/Consultor'))
 const BrandKit = lazy(() => import('./pages/content/BrandKit'))
 const InstagramManager = lazy(() => import('./pages/content/InstagramManager'))
+const Historias = lazy(() => import('./pages/content/Historias'))
 const Calendario = lazy(() => import('./pages/content/Calendario'))
 const Competidores = lazy(() => import('./pages/content/Competidores'))
 const Analitica = lazy(() => import('./pages/content/Analitica'))
@@ -98,14 +99,14 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             <Route index element={<Navigate to="/content/instagram" replace />} />
             <Route path="instagram" element={<InstagramManager />} />
             <Route path="calendario" element={<Calendario />} />
+            <Route path="historias" element={<Historias />} />
             <Route path="competidores" element={<Competidores />} />
             <Route path="analitica" element={<Analitica />} />
             <Route path="noticias" element={<Noticias />} />
             <Route path="voz" element={<VozMarca />} />
             <Route path="brand-kit" element={<BrandKit />} />
-            {/* Rutas antiguas: Ideas e Historias viven ahora en el Instagram Manager */}
+            {/* Ruta antigua: Ideas vive ahora en el Instagram Manager */}
             <Route path="ideas" element={<Navigate to="/content/instagram" replace />} />
-            <Route path="historias" element={<Navigate to="/content/instagram" replace />} />
           </Route>
           {/* Rutas del módulo de contenido antiguo, retiradas del sidebar (se eliminan al cerrar el nuevo módulo) */}
           <Route path="/contenido/*" element={<Navigate to="/content/brand-kit" replace />} />
