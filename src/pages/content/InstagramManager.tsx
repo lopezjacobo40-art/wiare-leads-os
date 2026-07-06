@@ -19,15 +19,17 @@ import {
 } from '../../lib/contentIdeas'
 
 /* ─────────────────────────────────────────────
-   Instagram Manager — todas las publicaciones por estado:
+   Instagram Manager — publicaciones por estado:
    Backlog → Borrador → Programado → Publicado.
-   Crear a mano, generar con IA por pilar, editar metadatos
-   (caption, tipo, fecha) y abrir el editor de carrusel.
+   Lista densa con una acción primaria (Nueva publicación);
+   la generación IA vive contextualmente en el Backlog.
    ───────────────────────────────────────────── */
 
 const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = {
   carrusel: Rows, video: VideoCamera, reel: FilmSlate, post: ImageSquare, secuencia: Rows, historia: FrameCorners,
 }
+
+const ORDEN_ESTADOS: IdeaEstado[] = ['idea', 'en_progreso', 'listo', 'publicado']
 
 function fechaCorta(iso: string): string {
   return new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -51,7 +53,6 @@ export default function InstagramManager() {
   const indigo = brand?.colores.indigo ?? '#6366F1'
   const cyan = brand?.colores.cyan ?? '#22D3EE'
 
-  // Color de badge por tipo de publicación
   const colorFormato = (f: IdeaFormato): string => {
     if (f === 'carrusel' || f === 'secuencia') return indigo
     if (f === 'reel' || f === 'video') return cyan
@@ -68,14 +69,14 @@ export default function InstagramManager() {
     setDrawerIdea((prev) => (prev ? is.find((i) => i.id === prev.id) ?? null : null))
     setLoading(false)
   }
-   
+
   useEffect(() => { cargar() }, [])
 
   const porEstado = useMemo(() => {
     const m = new Map<IdeaEstado, ContentIdea[]>()
     for (const e of IDEA_ESTADOS) m.set(e.id, [])
     for (const i of ideas) m.get(i.estado)?.push(i)
-    // Programado ordenado por fecha ascendente; el resto por creación desc (ya viene así)
+    // Programado por fecha ascendente (lo más próximo arriba)
     m.set('listo', [...(m.get('listo') ?? [])].sort((a, b) =>
       new Date(a.fecha_publicacion ?? '2999').getTime() - new Date(b.fecha_publicacion ?? '2999').getTime()
     ))
@@ -95,7 +96,6 @@ export default function InstagramManager() {
       })))
       if (error) throw new Error(error)
       toast(`${nuevas.length} ideas nuevas en el backlog`, 'success')
-      setTab('idea')
       await cargar()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Error generando ideas', 'error')
@@ -104,13 +104,11 @@ export default function InstagramManager() {
     }
   }
 
-  // Avanza al siguiente estado. Backlog→Borrador→Programado (exige fecha)→Publicado.
+  // Avanza al siguiente estado. Programar exige fecha → abre el editor.
   const avanzar = async (idea: ContentIdea) => {
-    const orden: IdeaEstado[] = ['idea', 'en_progreso', 'listo', 'publicado']
-    const siguiente = orden[orden.indexOf(idea.estado) + 1]
+    const siguiente = ORDEN_ESTADOS[ORDEN_ESTADOS.indexOf(idea.estado) + 1]
     if (!siguiente) return
     if (siguiente === 'listo' && !idea.fecha_publicacion) {
-      // Programar exige fecha → abre el editor
       setEditando(idea)
       setDialogAbierto(true)
       toast('Ponle fecha de publicación para programarla', 'info')
@@ -124,165 +122,193 @@ export default function InstagramManager() {
     cargar()
   }
 
+  const siguienteLabel = (estado: IdeaEstado): string | null => {
+    const sig = ORDEN_ESTADOS[ORDEN_ESTADOS.indexOf(estado) + 1]
+    return sig ? IDEA_ESTADOS.find((e) => e.id === sig)?.label ?? null : null
+  }
+
   if (loading) {
     return (
       <PageTransition>
-        <PageHeader titulo="Instagram Manager" subtitulo="Publicaciones por estado: backlog, borradores, programadas y publicadas" />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton.Card key={i} />)}
-        </div>
+        <PageHeader titulo="Instagram Manager" subtitulo="Backlog, borradores, programadas y publicadas" />
+        <Skeleton.Line width={320} height={32} style={{ marginBottom: 16 }} />
+        <Skeleton.Rect width="100%" height={380} radius={14} />
       </PageTransition>
     )
   }
+
+  const iconBtn: React.CSSProperties = { padding: 6, minHeight: 30, minWidth: 30 }
 
   return (
     <PageTransition>
       <PageHeader
         titulo="Instagram Manager"
-        subtitulo="Publicaciones por estado: backlog, borradores, programadas y publicadas"
+        subtitulo="Backlog, borradores, programadas y publicadas"
         acciones={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {pillars.length > 0 && (
-              <>
-                <select
-                  value={pilarSel}
-                  onChange={(e) => setPilarSel(e.target.value)}
-                  aria-label="Pilar para generar ideas"
-                  style={{ padding: '8px 10px', fontSize: 13, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: '#fff', maxWidth: 180 }}
-                >
-                  {pillars.map((p) => <option key={p.id} value={p.id}>{p.nombre_pilar}</option>)}
-                </select>
-                <button className="btn-secondary" onClick={generar} disabled={generando} style={{ fontSize: 13 }}>
-                  {generando
-                    ? <><ArrowsClockwise size={14} style={{ animation: 'spin 0.8s linear infinite' }} /> Generando…</>
-                    : <><Sparkle size={14} /> Generar ideas</>}
-                </button>
-              </>
-            )}
-            <button className="btn-primary" onClick={() => { setEditando(null); setDialogAbierto(true) }} style={{ fontSize: 13 }}>
-              <Plus size={14} /> Nueva publicación
-            </button>
-          </div>
+          <button className="btn-primary" onClick={() => { setEditando(null); setDialogAbierto(true) }} style={{ fontSize: 13 }}>
+            <Plus size={14} /> Nueva publicación
+          </button>
         }
       />
 
-      {/* Tabs por estado */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-        {IDEA_ESTADOS.map((e) => {
-          const activo = tab === e.id
-          const n = porEstado.get(e.id)?.length ?? 0
-          return (
-            <button
-              key={e.id}
-              onClick={() => setTab(e.id)}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: 13,
-                fontWeight: 500,
-                border: 'none',
-                minHeight: 'auto',
-                background: activo ? 'var(--color-primary-subtle)' : 'transparent',
-                color: activo ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
-              }}
+      {/* Toolbar: tabs de estado + generación IA contextual (solo Backlog) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {IDEA_ESTADOS.map((e) => {
+            const activo = tab === e.id
+            const n = porEstado.get(e.id)?.length ?? 0
+            return (
+              <button
+                key={e.id}
+                onClick={() => setTab(e.id)}
+                aria-pressed={activo}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: 13,
+                  fontWeight: activo ? 600 : 500,
+                  border: 'none',
+                  minHeight: 'auto',
+                  background: activo ? 'var(--color-primary-subtle)' : 'transparent',
+                  color: activo ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                  transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
+                }}
+              >
+                {e.label}
+                <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.65, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {tab === 'idea' && pillars.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select
+              value={pilarSel}
+              onChange={(e) => setPilarSel(e.target.value)}
+              aria-label="Pilar para generar ideas"
+              style={{ padding: '6px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: '#fff', color: 'var(--color-text-primary)', maxWidth: 180, minHeight: 32 }}
             >
-              {e.label}
-              <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+              {pillars.map((p) => <option key={p.id} value={p.id}>{p.nombre_pilar}</option>)}
+            </select>
+            <button className="btn-secondary" onClick={generar} disabled={generando} style={{ fontSize: 12, padding: '6px 12px', minHeight: 32 }}>
+              {generando
+                ? <><ArrowsClockwise size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> Generando…</>
+                : <><Sparkle size={13} /> Generar ideas</>}
             </button>
-          )
-        })}
+          </div>
+        )}
       </div>
 
-      {/* Grid de publicaciones */}
+      {/* Lista de publicaciones */}
       {visibles.length === 0 ? (
-        <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 14 }}>
-          Nada en {IDEA_ESTADOS.find((e) => e.id === tab)?.label.toLowerCase()} todavía
+        <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+          <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+            Nada en {IDEA_ESTADOS.find((e) => e.id === tab)?.label.toLowerCase()}
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            {tab === 'idea' && 'Genera ideas con IA desde un pilar o crea una publicación a mano.'}
+            {tab === 'en_progreso' && 'Pasa ideas del backlog a borrador cuando empieces a trabajarlas.'}
+            {tab === 'listo' && 'Un borrador con fecha de publicación pasa aquí al programarlo.'}
+            {tab === 'publicado' && 'Cuando publiques en Instagram, marca la pieza como publicada.'}
+          </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-          {visibles.map((idea) => {
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+          {visibles.map((idea, idx) => {
             const c = colorFormato(idea.formato)
             const Icono = FORMATO_ICONO[idea.formato] ?? ImageSquare
             const pilarNombre = pillars.find((p) => p.id === idea.pilar_id)?.nombre_pilar
+            const sigLabel = siguienteLabel(idea.estado)
             return (
               <div
                 key={idea.id}
-                className="card"
-                style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '10px 16px',
+                  borderTop: idx > 0 ? '1px solid var(--color-border)' : 'none',
+                  transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    fontSize: 11, fontWeight: 600, color: c,
+                {/* Tipo */}
+                <span
+                  title={FORMATO_LABELS[idea.formato]}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 28, height: 28, borderRadius: 'var(--radius-sm)',
                     background: `color-mix(in srgb, ${c} 10%, transparent)`,
-                    borderRadius: 'var(--radius-full)', padding: '3px 10px',
-                  }}>
-                    <Icono size={12} weight="fill" /> {FORMATO_LABELS[idea.formato]}
-                  </span>
-                  {idea.origen === 'replicada' && (
-                    <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-warning)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Replicada
-                    </span>
-                  )}
-                </div>
+                    color: c, flexShrink: 0,
+                  }}
+                >
+                  <Icono size={14} weight="fill" />
+                </span>
 
+                {/* Título + meta */}
                 <button
                   onClick={() => { setEditando(idea); setDialogAbierto(true) }}
-                  style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
                   aria-label={`Editar ${idea.titulo}`}
+                  style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', flex: 1, minWidth: 0, cursor: 'pointer' }}
                 >
-                  <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.35 }}>
+                  <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {idea.titulo}
                   </span>
-                  {(idea.caption || idea.gancho) && (
-                    <span style={{
-                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                      fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4, lineHeight: 1.4,
-                    }}>
-                      {idea.caption || idea.gancho}
-                    </span>
-                  )}
+                  <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-text-secondary)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {FORMATO_LABELS[idea.formato]}
+                    {pilarNombre && <> · {pilarNombre}</>}
+                    {idea.origen === 'replicada' && <> · replicada</>}
+                    {(idea.caption || idea.gancho) && <> — {idea.caption || idea.gancho}</>}
+                  </span>
                 </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--color-text-tertiary)', flexWrap: 'wrap' }}>
-                  {idea.fecha_publicacion && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <CalendarBlank size={12} /> {fechaCorta(idea.fecha_publicacion)}
-                    </span>
-                  )}
-                  {pilarNombre && <span>· {pilarNombre}</span>}
-                </div>
+                {/* Fecha programada */}
+                {idea.fecha_publicacion && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                    fontSize: 11.5, fontWeight: 600, color: cyan, fontVariantNumeric: 'tabular-nums',
+                  }}>
+                    <CalendarBlank size={12} weight="fill" /> {fechaCorta(idea.fecha_publicacion)}
+                  </span>
+                )}
 
-                <div style={{ display: 'flex', gap: 6, marginTop: 'auto', borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
+                {/* Acciones */}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                   <button
                     className="btn-ghost"
                     onClick={() => { setEditando(idea); setDialogAbierto(true) }}
-                    style={{ fontSize: 12, padding: '4px 10px', minHeight: 30 }}
+                    aria-label={`Editar ${idea.titulo}`}
+                    title="Editar"
+                    style={iconBtn}
                   >
-                    <PencilSimple size={13} /> Editar
+                    <PencilSimple size={14} />
                   </button>
                   {idea.formato === 'carrusel' && (
                     <button
                       className="btn-ghost"
                       onClick={() => setDrawerIdea(idea)}
-                      style={{ fontSize: 12, padding: '4px 10px', minHeight: 30, color: indigo }}
+                      aria-label={`Editor de carrusel de ${idea.titulo}`}
+                      title="Editor de carrusel"
+                      style={{ ...iconBtn, color: indigo }}
                     >
-                      <Rows size={13} /> Carrusel
+                      <Rows size={14} />
                     </button>
                   )}
-                  {idea.estado !== 'publicado' && (
+                  {sigLabel && (
                     <button
                       className="btn-ghost"
                       onClick={() => avanzar(idea)}
                       disabled={avanzandoId === idea.id}
-                      style={{ fontSize: 12, padding: '4px 10px', minHeight: 30, marginLeft: 'auto', color: 'var(--color-primary)' }}
-                      title={`Pasar a ${IDEA_ESTADOS[['idea', 'en_progreso', 'listo', 'publicado'].indexOf(idea.estado) + 1]?.label ?? ''}`}
+                      aria-label={`Pasar ${idea.titulo} a ${sigLabel}`}
+                      title={`Pasar a ${sigLabel}`}
+                      style={{ ...iconBtn, color: 'var(--color-primary)' }}
                     >
-                      {IDEA_ESTADOS[['idea', 'en_progreso', 'listo', 'publicado'].indexOf(idea.estado) + 1]?.label} <ArrowRight size={13} />
+                      <ArrowRight size={14} weight="bold" />
                     </button>
                   )}
-                </div>
+                </span>
               </div>
             )
           })}
