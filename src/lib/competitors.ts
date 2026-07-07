@@ -116,7 +116,7 @@ export async function fetchCompetitorPosts(competitorId: string): Promise<Compet
 /* Media del CDN de IG servido a través de nuestro proxy (evita bloqueos de hotlinking). */
 export function mediaProxyUrl(url: string | null): string | null {
   if (!url) return null
-  return `/api/ig-media?url=${encodeURIComponent(url)}`
+  return `/api/news?media=${encodeURIComponent(url)}`
 }
 
 export async function addCompetitor(username: string): Promise<{ error: string | null; id?: string }> {
