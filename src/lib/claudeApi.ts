@@ -711,7 +711,7 @@ export async function generarCopyCarrusel(
   idea: { titulo: string; gancho?: string | null; pilar?: string | null },
   ejemplosTono: string[],
   tonoMarca?: string | null,
-  proveedor: ProveedorIA = 'claude'
+  proveedor: ProveedorIA = 'gemini'
 ): Promise<CopySlideGenerado[]> {
   const ejemplosBloque = ejemplosTono.length
     ? `\nEJEMPLOS DE COPY REAL DE WIARE (imita ESTE tono, ritmo y vocabulario; NO los copies literalmente):\n${ejemplosTono.map((e, i) => `[${i + 1}] ${e}`).join('\n')}`
@@ -999,7 +999,7 @@ export async function generarCaption(
   idea: { titulo: string; gancho?: string | null; formato: string; pilar?: string | null },
   ejemplosTono: string[],
   tonoMarca?: string | null,
-  proveedor: ProveedorIA = 'claude'
+  proveedor: ProveedorIA = 'gemini'
 ): Promise<{ gancho: string; caption: string }> {
   const ejemplosBloque = ejemplosTono.length
     ? `\nEJEMPLOS DE COPY REAL DE WIARE (imita ESTE tono, ritmo y vocabulario; NO los copies literalmente):\n${ejemplosTono.slice(0, 5).map((e, i) => `[${i + 1}] ${e}`).join('\n')}`

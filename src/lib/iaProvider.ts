@@ -11,8 +11,9 @@ export const PROVEEDORES_IA: { id: ProveedorIA; label: string; nota: string }[] 
 
 const CLAVE_LS = 'ia_provider'
 
+/* Por defecto Gemini (validado por Jacobo, ~3× más barato); Claude opt-in. */
 export function getProveedorIA(): ProveedorIA {
-  return localStorage.getItem(CLAVE_LS) === 'gemini' ? 'gemini' : 'claude'
+  return localStorage.getItem(CLAVE_LS) === 'claude' ? 'claude' : 'gemini'
 }
 
 export function setProveedorIA(p: ProveedorIA): void {
