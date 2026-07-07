@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '../Toast'
 import { useBrandKit } from '../../lib/brandKit'
 import { generarCopyCarrusel } from '../../lib/claudeApi'
-import { renderCarrusel, descargarZip } from '../../lib/renderCarousel'
+import { renderCarrusel, descargarZip, getEstiloDefault, type EstiloRender } from '../../lib/renderCarousel'
 import { FORMATOS, FORMATO_DEFAULT, type FormatoKey } from '../../lib/formatos'
+import EstiloSelector from './EstiloSelector'
 import { actualizarIdea, SLIDE_ROLES, FORMATO_LABELS, type ContentIdea, type CopySlide, type CarruselImagen, type IdeaFormato } from '../../lib/contentIdeas'
 
 const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = { carrusel: Rows, video: VideoCamera, reel: FilmSlate, post: ImageSquare, secuencia: FrameCorners, historia: FrameCorners }
@@ -35,6 +36,7 @@ export default function IdeaDrawer({
   const [regenIdx, setRegenIdx] = useState<number | null>(null)
   const [descargando, setDescargando] = useState(false)
   const [aspecto, setAspecto] = useState<FormatoKey>(FORMATO_DEFAULT)
+  const [estilo, setEstilo] = useState<EstiloRender>(() => getEstiloDefault())
 
   useEffect(() => {
     setSlides(idea.copy_slides ?? [])
@@ -51,7 +53,7 @@ export default function IdeaDrawer({
     if (!copyCompleto) { toast('Completa y guarda el copy de los 5 slides primero', 'error'); return }
     setGenerandoDiseno(true)
     try {
-      const imgs = await renderCarrusel({ ideaId: idea.id, slides, brand, aspecto })
+      const imgs = await renderCarrusel({ ideaId: idea.id, slides, brand, aspecto, estilo })
       setImagenes(imgs)
       // Persiste copy + imágenes + formato juntos
       await actualizarIdea(idea.id, { copy_slides: slides, imagenes: imgs, aspecto })
@@ -69,7 +71,7 @@ export default function IdeaDrawer({
     if (!brand) return
     setRegenIdx(i)
     try {
-      const [img] = await renderCarrusel({ ideaId: idea.id, slides, brand, onlySlide: i, aspecto })
+      const [img] = await renderCarrusel({ ideaId: idea.id, slides, brand, onlySlide: i, aspecto, estilo })
       const nuevas = imagenes.map((im, idx) => (idx === i ? img : im))
       setImagenes(nuevas)
       await actualizarIdea(idea.id, { imagenes: nuevas })
@@ -237,7 +239,7 @@ export default function IdeaDrawer({
           {/* ── Diseño del carrusel ── */}
           {slides.length > 0 && (
             <div style={{ marginTop: 32, borderTop: '1px solid var(--color-border)', paddingTop: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
                 <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   Diseño
                 </h3>
@@ -257,6 +259,11 @@ export default function IdeaDrawer({
                     {generandoDiseno ? 'Renderizando…' : imagenes.length ? 'Regenerar todo' : 'Generar diseño'}
                   </button>
                 </div>
+              </div>
+
+              {/* Estilo visual del render */}
+              <div style={{ marginBottom: 16 }}>
+                <EstiloSelector valor={estilo} onChange={setEstilo} />
               </div>
 
               {imagenes.length === 0 ? (

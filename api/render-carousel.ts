@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import chromium from '@sparticuz/chromium'
 import puppeteer from 'puppeteer-core'
 import { requireAuth } from './_lib/verifyAuth.js'
-import { buildSlideHtml, type CarouselBrand, type CarouselSlide } from './_lib/carouselTemplate.js'
+import { buildSlideHtml, type CarouselBrand, type CarouselSlide, type EstiloRender } from './_lib/carouselTemplate.js'
 
 /* Renderiza los slides de un carrusel a PNG 1080×1350 con Chromium headless,
    los sube a Supabase Storage (bucket carousels) y devuelve las URLs públicas.
@@ -18,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (!(await requireAuth(req, res))) return
 
-  const { ideaId, slides, brand, logoUrl, onlySlide, width, height } = req.body as {
+  const { ideaId, slides, brand, logoUrl, onlySlide, width, height, estilo } = req.body as {
     ideaId: string
     slides: CarouselSlide[]
     brand: CarouselBrand
@@ -26,7 +26,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     onlySlide?: number
     width?: number
     height?: number
+    estilo?: EstiloRender
   }
+  const estiloRender: EstiloRender = estilo === 'tinta' || estilo === 'marca' ? estilo : 'editorial'
 
   if (!ideaId || !Array.isArray(slides) || slides.length === 0 || !brand || !logoUrl) {
     return res.status(400).json({ error: 'Faltan datos: ideaId, slides, brand o logoUrl' })
@@ -57,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const slide = slides[i]
       const page = await browser.newPage()
       await page.setViewport({ width: W, height: H, deviceScaleFactor: 1 })
-      await page.setContent(buildSlideHtml(slide, i, total, brand, logoUrl, W, H), { waitUntil: 'networkidle0' })
+      await page.setContent(buildSlideHtml(slide, i, total, brand, logoUrl, W, H, estiloRender), { waitUntil: 'networkidle0' })
       // Asegura que las fuentes web estén cargadas antes de la captura
       try { await page.evaluate(() => (document as unknown as { fonts: { ready: Promise<unknown> } }).fonts.ready) } catch { /* noop */ }
 

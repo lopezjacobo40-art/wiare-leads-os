@@ -7,14 +7,35 @@ import { FORMATOS, FORMATO_DEFAULT, type FormatoKey } from './formatos'
 /* Cliente del render de carruseles/historias. Llama a /api/render-carousel
    (Puppeteer server-side) con el brand kit + los slides + el formato.
    onlySlide regenera uno solo. */
+export type EstiloRender = 'editorial' | 'tinta' | 'marca'
+
+export const ESTILOS_RENDER: { id: EstiloRender; label: string }[] = [
+  { id: 'editorial', label: 'Editorial' },
+  { id: 'tinta', label: 'Tinta' },
+  { id: 'marca', label: 'Marca' },
+]
+
+const CLAVE_LS_ESTILO = 'render_estilo'
+
+/* Preferencia de estilo recordada entre sesiones. */
+export function getEstiloDefault(): EstiloRender {
+  const v = localStorage.getItem(CLAVE_LS_ESTILO)
+  return v === 'tinta' || v === 'marca' ? v : 'editorial'
+}
+
+export function setEstiloDefault(e: EstiloRender): void {
+  localStorage.setItem(CLAVE_LS_ESTILO, e)
+}
+
 export async function renderCarrusel(params: {
   ideaId: string
   slides: CopySlide[]
   brand: BrandKit
   onlySlide?: number
   aspecto?: FormatoKey
+  estilo?: EstiloRender
 }): Promise<CarruselImagen[]> {
-  const { ideaId, slides, brand, onlySlide, aspecto } = params
+  const { ideaId, slides, brand, onlySlide, aspecto, estilo } = params
   const fmt = FORMATOS[aspecto ?? FORMATO_DEFAULT] ?? FORMATOS[FORMATO_DEFAULT]
   // El logo puede ser una ruta relativa (/logo-wiare.png): la volvemos absoluta
   const logoUrl = brand.logo_url
@@ -32,6 +53,7 @@ export async function renderCarrusel(params: {
       onlySlide,
       width: fmt.w,
       height: fmt.h,
+      estilo: estilo ?? 'editorial',
     }),
   })
 
