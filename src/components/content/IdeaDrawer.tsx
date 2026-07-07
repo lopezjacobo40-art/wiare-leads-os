@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '../Toast'
 import { useBrandKit } from '../../lib/brandKit'
 import { generarCopyCarrusel } from '../../lib/claudeApi'
+import { getProveedorIA } from '../../lib/iaProvider'
 import { renderCarrusel, descargarZip, getEstiloDefault, type EstiloRender } from '../../lib/renderCarousel'
 import { FORMATOS, FORMATO_DEFAULT, type FormatoKey } from '../../lib/formatos'
 import EstiloSelector from './EstiloSelector'
@@ -104,6 +105,7 @@ export default function IdeaDrawer({
         { titulo: idea.titulo, gancho: idea.gancho, pilar: pilarNombre },
         ejemplosTono,
         brand?.tono_voz,
+        getProveedorIA(),
       )
       setSlides(generado)
       setDirty(true)

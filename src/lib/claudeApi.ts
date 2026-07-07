@@ -6,6 +6,7 @@ import { getNichoBrechas } from './brechasConfig'
 import { errMsg } from './errores'
 import { HORMOZI_ADN_CORE, HORMOZI_ADN_OFERTA } from './hormoziAdn'
 import { callGemini } from './geminiApi'
+import type { ProveedorIA } from './iaProvider'
 import { fetchWithAudit } from './apiAuditor'
 
 const API_URL = '/api/claude'
@@ -695,10 +696,22 @@ export interface CopySlideGenerado {
   texto: string
 }
 
+/* Ejecuta un prompt de contenido con el motor elegido (Claude Haiku o
+   Gemini Flash — más barato). Ambos pasan por el guard de tokens. */
+async function generarTextoContenido(prompt: string, maxTokens: number, proveedor: ProveedorIA): Promise<string> {
+  if (proveedor === 'gemini') {
+    return guardedCall('content', () => callGemini(prompt, { maxOutputTokens: maxTokens }))
+  }
+  return guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', maxTokens, [{ role: 'user', content: prompt }])
+  )
+}
+
 export async function generarCopyCarrusel(
   idea: { titulo: string; gancho?: string | null; pilar?: string | null },
   ejemplosTono: string[],
-  tonoMarca?: string | null
+  tonoMarca?: string | null,
+  proveedor: ProveedorIA = 'claude'
 ): Promise<CopySlideGenerado[]> {
   const ejemplosBloque = ejemplosTono.length
     ? `\nEJEMPLOS DE COPY REAL DE WIARE (imita ESTE tono, ritmo y vocabulario; NO los copies literalmente):\n${ejemplosTono.map((e, i) => `[${i + 1}] ${e}`).join('\n')}`
@@ -724,9 +737,7 @@ Cada slide: 1-2 frases máximo, pensado para leerse en pantalla de móvil. Direc
 Responde SOLO con un array JSON válido, sin markdown, sin texto extra:
 [{"rol":"hook","texto":"..."},{"rol":"problema","texto":"..."},{"rol":"solucion","texto":"..."},{"rol":"prueba_social","texto":"..."},{"rol":"cta","texto":"..."}]`
 
-  const raw = await guardedCall('content', () =>
-    callClaudeChat('claude-haiku-4-5-20251001', 1600, [{ role: 'user', content: prompt }])
-  )
+  const raw = await generarTextoContenido(prompt, 1600, proveedor)
 
   let parsed: unknown
   try {
@@ -977,4 +988,49 @@ Responde SOLO con un array JSON válido, sin markdown, una entrada por titular e
       razon: String(o.razon ?? '').trim(),
     }
   }).filter((c) => c.indice >= 0)
+}
+
+/* ─────────────────────────────────────────────
+   Genera gancho + caption de una publicación (post/reel/historia)
+   directamente desde su tarjeta del Instagram Manager.
+   Acepta motor Claude o Gemini (más barato).
+   ───────────────────────────────────────────── */
+export async function generarCaption(
+  idea: { titulo: string; gancho?: string | null; formato: string; pilar?: string | null },
+  ejemplosTono: string[],
+  tonoMarca?: string | null,
+  proveedor: ProveedorIA = 'claude'
+): Promise<{ gancho: string; caption: string }> {
+  const ejemplosBloque = ejemplosTono.length
+    ? `\nEJEMPLOS DE COPY REAL DE WIARE (imita ESTE tono, ritmo y vocabulario; NO los copies literalmente):\n${ejemplosTono.slice(0, 5).map((e, i) => `[${i + 1}] ${e}`).join('\n')}`
+    : ''
+
+  const prompt = `${HORMOZI_ADN_CORE}
+
+CONTEXTO WIARE: atención automatizada 24/7 para negocios locales — foco en clínicas dentales y restaurantes de Madrid. Dolor central: perder llamadas y clientes por no coger el teléfono. Palabras PROHIBIDAS: "IA", "bot", "algoritmo" (di "atención", "recepción").
+${tonoMarca ? `\nTONO DE MARCA: ${tonoMarca}` : ''}${ejemplosBloque}
+
+PUBLICACIÓN (formato: ${idea.formato}):
+Título: ${idea.titulo}${idea.gancho ? `\nGancho de partida: ${idea.gancho}` : ''}${idea.pilar ? `\nPilar: ${idea.pilar}` : ''}
+
+TAREA:
+- "gancho": la primera línea que para el scroll (máximo 12 palabras).
+- "caption": caption completo listo para Instagram (100-180 palabras): gancho, desarrollo del dolor, giro a la solución sin tecnicismos y UNA llamada a la acción de fricción cero al final. Sin hashtags, sin emojis.
+
+Responde SOLO con un objeto JSON válido, sin markdown:
+{"gancho":"...","caption":"..."}`
+
+  const raw = await generarTextoContenido(prompt, 1200, proveedor)
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+  } catch (err) {
+    console.error('generarCaption parse error. Raw:', raw)
+    throw new Error(`No se pudo generar el caption (respuesta inválida): ${errMsg(err)}`, { cause: err })
+  }
+  const o = parsed as Record<string, unknown>
+  const caption = String(o.caption ?? '').trim()
+  if (!caption) throw new Error('El modelo no devolvió caption')
+  return { gancho: String(o.gancho ?? '').trim(), caption }
 }

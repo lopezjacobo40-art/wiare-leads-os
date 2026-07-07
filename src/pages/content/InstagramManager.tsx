@@ -11,7 +11,8 @@ import IdeaEditDialog from '../../components/content/IdeaEditDialog'
 import { useToast } from '../../components/Toast'
 import { useBrandKit } from '../../lib/brandKit'
 import { fetchVoiceExamples } from '../../lib/brandVoice'
-import { generarIdeasContenido } from '../../lib/claudeApi'
+import { generarIdeasContenido, generarCaption } from '../../lib/claudeApi'
+import { getProveedorIA, setProveedorIA, PROVEEDORES_IA, type ProveedorIA } from '../../lib/iaProvider'
 import {
   fetchPillars, fetchIdeas, crearIdeas, actualizarIdea,
   FORMATO_LABELS, IDEA_ESTADOS,
@@ -19,10 +20,11 @@ import {
 } from '../../lib/contentIdeas'
 
 /* ─────────────────────────────────────────────
-   Instagram Manager — publicaciones por estado:
+   Instagram Manager — cards visuales por estado:
    Backlog → Borrador → Programado → Publicado.
-   Lista densa con una acción primaria (Nueva publicación);
-   la generación IA vive contextualmente en el Backlog.
+   Cada card genera su contenido in situ (caption con IA; los
+   carruseles abren su editor de 5 slides) con motor a elegir:
+   Claude (calidad) o Gemini (~3× más barato).
    ───────────────────────────────────────────── */
 
 const FORMATO_ICONO: Record<IdeaFormato, typeof Rows> = {
@@ -49,6 +51,8 @@ export default function InstagramManager() {
   const [generando, setGenerando] = useState(false)
   const [pilarSel, setPilarSel] = useState('')
   const [avanzandoId, setAvanzandoId] = useState<string | null>(null)
+  const [captionId, setCaptionId] = useState<string | null>(null)
+  const [proveedor, setProveedor] = useState<ProveedorIA>(() => getProveedorIA())
 
   const indigo = brand?.colores.indigo ?? '#6366F1'
   const cyan = brand?.colores.cyan ?? '#22D3EE'
@@ -76,7 +80,6 @@ export default function InstagramManager() {
     const m = new Map<IdeaEstado, ContentIdea[]>()
     for (const e of IDEA_ESTADOS) m.set(e.id, [])
     for (const i of ideas) m.get(i.estado)?.push(i)
-    // Programado por fecha ascendente (lo más próximo arriba)
     m.set('listo', [...(m.get('listo') ?? [])].sort((a, b) =>
       new Date(a.fecha_publicacion ?? '2999').getTime() - new Date(b.fecha_publicacion ?? '2999').getTime()
     ))
@@ -85,7 +88,12 @@ export default function InstagramManager() {
 
   const visibles = porEstado.get(tab) ?? []
 
-  const generar = async () => {
+  const elegirProveedor = (p: ProveedorIA) => {
+    setProveedorIA(p)
+    setProveedor(p)
+  }
+
+  const generarIdeas = async () => {
     const pilar = pillars.find((p) => p.id === pilarSel)
     if (!pilar) { toast('Elige un pilar primero', 'error'); return }
     setGenerando(true)
@@ -104,7 +112,36 @@ export default function InstagramManager() {
     }
   }
 
-  // Avanza al siguiente estado. Programar exige fecha → abre el editor.
+  // Generar contenido desde la card: carrusel → editor de slides; resto → caption in situ
+  const generarContenido = async (idea: ContentIdea) => {
+    if (idea.formato === 'carrusel') {
+      setDrawerIdea(idea)
+      return
+    }
+    setCaptionId(idea.id)
+    try {
+      const r = await generarCaption(
+        {
+          titulo: idea.titulo,
+          gancho: idea.gancho,
+          formato: FORMATO_LABELS[idea.formato],
+          pilar: pillars.find((p) => p.id === idea.pilar_id)?.nombre_pilar,
+        },
+        ejemplosTono,
+        brand?.tono_voz,
+        proveedor
+      )
+      const { error } = await actualizarIdea(idea.id, { caption: r.caption, gancho: r.gancho || idea.gancho })
+      if (error) throw new Error(error)
+      toast(`Caption generado con ${proveedor === 'gemini' ? 'Gemini' : 'Claude'}`, 'success')
+      cargar()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error generando el caption', 'error')
+    } finally {
+      setCaptionId(null)
+    }
+  }
+
   const avanzar = async (idea: ContentIdea) => {
     const siguiente = ORDEN_ESTADOS[ORDEN_ESTADOS.indexOf(idea.estado) + 1]
     if (!siguiente) return
@@ -131,13 +168,12 @@ export default function InstagramManager() {
     return (
       <PageTransition>
         <PageHeader titulo="Instagram Manager" subtitulo="Backlog, borradores, programadas y publicadas" />
-        <Skeleton.Line width={320} height={32} style={{ marginBottom: 16 }} />
-        <Skeleton.Rect width="100%" height={380} radius={14} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton.Card key={i} />)}
+        </div>
       </PageTransition>
     )
   }
-
-  const iconBtn: React.CSSProperties = { padding: 6, minHeight: 30, minWidth: 30 }
 
   return (
     <PageTransition>
@@ -151,8 +187,8 @@ export default function InstagramManager() {
         }
       />
 
-      {/* Toolbar: tabs de estado + generación IA contextual (solo Backlog) */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+      {/* Toolbar: tabs de estado + motor IA + generación por pilar (solo Backlog) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
           {IDEA_ESTADOS.map((e) => {
             const activo = tab === e.id
@@ -181,26 +217,61 @@ export default function InstagramManager() {
           })}
         </div>
 
-        {tab === 'idea' && pillars.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <select
-              value={pilarSel}
-              onChange={(e) => setPilarSel(e.target.value)}
-              aria-label="Pilar para generar ideas"
-              style={{ padding: '6px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: '#fff', color: 'var(--color-text-primary)', maxWidth: 180, minHeight: 32 }}
-            >
-              {pillars.map((p) => <option key={p.id} value={p.id}>{p.nombre_pilar}</option>)}
-            </select>
-            <button className="btn-secondary" onClick={generar} disabled={generando} style={{ fontSize: 12, padding: '6px 12px', minHeight: 32 }}>
-              {generando
-                ? <><ArrowsClockwise size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> Generando…</>
-                : <><Sparkle size={13} /> Generar ideas</>}
-            </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* Motor de generación */}
+          <div
+            role="radiogroup"
+            aria-label="Motor de IA"
+            style={{ display: 'inline-flex', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-full)', padding: 2, background: '#fff' }}
+          >
+            {PROVEEDORES_IA.map((p) => {
+              const activo = proveedor === p.id
+              return (
+                <button
+                  key={p.id}
+                  role="radio"
+                  aria-checked={activo}
+                  onClick={() => elegirProveedor(p.id)}
+                  title={p.nota}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: 'var(--radius-full)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: 'none',
+                    minHeight: 26,
+                    background: activo ? 'var(--color-primary)' : 'transparent',
+                    color: activo ? '#fff' : 'var(--color-text-secondary)',
+                    transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
+                  }}
+                >
+                  {p.label}
+                </button>
+              )
+            })}
           </div>
-        )}
+
+          {tab === 'idea' && pillars.length > 0 && (
+            <>
+              <select
+                value={pilarSel}
+                onChange={(e) => setPilarSel(e.target.value)}
+                aria-label="Pilar para generar ideas"
+                style={{ padding: '6px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: '#fff', color: 'var(--color-text-primary)', maxWidth: 170, minHeight: 32 }}
+              >
+                {pillars.map((p) => <option key={p.id} value={p.id}>{p.nombre_pilar}</option>)}
+              </select>
+              <button className="btn-secondary" onClick={generarIdeas} disabled={generando} style={{ fontSize: 12, padding: '6px 12px', minHeight: 32 }}>
+                {generando
+                  ? <><ArrowsClockwise size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> Generando…</>
+                  : <><Sparkle size={13} /> Generar ideas</>}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Lista de publicaciones */}
+      {/* Cards */}
       {visibles.length === 0 ? (
         <div className="card" style={{ padding: 40, textAlign: 'center' }}>
           <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: 6 }}>
@@ -214,88 +285,104 @@ export default function InstagramManager() {
           </p>
         </div>
       ) : (
-        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          {visibles.map((idea, idx) => {
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+          {visibles.map((idea) => {
             const c = colorFormato(idea.formato)
             const Icono = FORMATO_ICONO[idea.formato] ?? ImageSquare
             const pilarNombre = pillars.find((p) => p.id === idea.pilar_id)?.nombre_pilar
             const sigLabel = siguienteLabel(idea.estado)
+            const portada = idea.imagenes?.[0]?.url ?? null
+            const generandoEsta = captionId === idea.id
             return (
-              <div
+              <article
                 key={idea.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '10px 16px',
-                  borderTop: idx > 0 ? '1px solid var(--color-border)' : 'none',
-                  transition: 'background 150ms cubic-bezier(0.4,0,0.2,1)',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                className="card"
+                style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'box-shadow 200ms cubic-bezier(0.4,0,0.2,1)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = 'var(--shadow-md)')}
+                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '')}
               >
-                {/* Tipo */}
-                <span
-                  title={FORMATO_LABELS[idea.formato]}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: 28, height: 28, borderRadius: 'var(--radius-sm)',
-                    background: `color-mix(in srgb, ${c} 10%, transparent)`,
-                    color: c, flexShrink: 0,
-                  }}
-                >
-                  <Icono size={14} weight="fill" />
-                </span>
-
-                {/* Título + meta */}
+                {/* Portada: primer slide renderizado, o placeholder tipográfico del formato */}
                 <button
                   onClick={() => { setEditando(idea); setDialogAbierto(true) }}
                   aria-label={`Editar ${idea.titulo}`}
-                  style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', flex: 1, minWidth: 0, cursor: 'pointer' }}
+                  style={{ position: 'relative', display: 'block', width: '100%', aspectRatio: '5 / 3', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: portada ? '#09090B' : `color-mix(in srgb, ${c} 7%, var(--color-surface))` }}
                 >
-                  <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {idea.titulo}
+                  {portada ? (
+                    <img src={portada} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    <span aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icono size={40} weight="duotone" color={c} />
+                    </span>
+                  )}
+                  {/* Chips sobre la portada */}
+                  <span style={{
+                    position: 'absolute', top: 10, left: 10,
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    fontSize: 11, fontWeight: 600, color: c,
+                    background: 'rgba(255,255,255,0.92)',
+                    borderRadius: 'var(--radius-full)', padding: '3px 10px',
+                    boxShadow: 'var(--shadow-sm)',
+                  }}>
+                    <Icono size={12} weight="fill" /> {FORMATO_LABELS[idea.formato]}
                   </span>
-                  <span style={{ display: 'block', fontSize: 11.5, color: 'var(--color-text-secondary)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {FORMATO_LABELS[idea.formato]}
-                    {pilarNombre && <> · {pilarNombre}</>}
-                    {idea.origen === 'replicada' && <> · replicada</>}
-                    {(idea.caption || idea.gancho) && <> — {idea.caption || idea.gancho}</>}
-                  </span>
+                  {idea.fecha_publicacion && (
+                    <span style={{
+                      position: 'absolute', top: 10, right: 10,
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: 11, fontWeight: 600, color: 'var(--color-text-primary)',
+                      background: 'rgba(255,255,255,0.92)',
+                      borderRadius: 'var(--radius-full)', padding: '3px 10px',
+                      boxShadow: 'var(--shadow-sm)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>
+                      <CalendarBlank size={12} weight="fill" color={cyan} /> {fechaCorta(idea.fecha_publicacion)}
+                    </span>
+                  )}
                 </button>
 
-                {/* Fecha programada */}
-                {idea.fecha_publicacion && (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
-                    fontSize: 11.5, fontWeight: 600, color: cyan, fontVariantNumeric: 'tabular-nums',
-                  }}>
-                    <CalendarBlank size={12} weight="fill" /> {fechaCorta(idea.fecha_publicacion)}
+                {/* Cuerpo */}
+                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-body)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {idea.titulo}
+                  </h3>
+                  {(idea.caption || idea.gancho) ? (
+                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {idea.caption || idea.gancho}
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+                      Sin contenido aún — genera el caption con IA
+                    </p>
+                  )}
+                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 'auto' }}>
+                    {pilarNombre}{idea.origen === 'replicada' && (pilarNombre ? ' · replicada' : 'replicada')}
                   </span>
-                )}
+                </div>
 
                 {/* Acciones */}
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderTop: '1px solid var(--color-border)' }}>
+                  <button
+                    className={idea.caption || idea.copy_slides?.length ? 'btn-secondary' : 'btn-primary'}
+                    onClick={() => generarContenido(idea)}
+                    disabled={generandoEsta}
+                    title={idea.formato === 'carrusel'
+                      ? 'Abrir el editor de carrusel (copy de 5 slides + diseño)'
+                      : `Generar caption con ${proveedor === 'gemini' ? 'Gemini' : 'Claude'}`}
+                    style={{ fontSize: 12, padding: '5px 12px', minHeight: 32 }}
+                  >
+                    {generandoEsta
+                      ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Generando…</>
+                      : <><Sparkle size={13} weight="fill" /> {idea.formato === 'carrusel' ? 'Carrusel' : idea.caption ? 'Regenerar' : 'Generar'}</>}
+                  </button>
                   <button
                     className="btn-ghost"
                     onClick={() => { setEditando(idea); setDialogAbierto(true) }}
                     aria-label={`Editar ${idea.titulo}`}
                     title="Editar"
-                    style={iconBtn}
+                    style={{ padding: 6, minHeight: 32, minWidth: 32 }}
                   >
                     <PencilSimple size={14} />
                   </button>
-                  {idea.formato === 'carrusel' && (
-                    <button
-                      className="btn-ghost"
-                      onClick={() => setDrawerIdea(idea)}
-                      aria-label={`Editor de carrusel de ${idea.titulo}`}
-                      title="Editor de carrusel"
-                      style={{ ...iconBtn, color: indigo }}
-                    >
-                      <Rows size={14} />
-                    </button>
-                  )}
                   {sigLabel && (
                     <button
                       className="btn-ghost"
@@ -303,13 +390,13 @@ export default function InstagramManager() {
                       disabled={avanzandoId === idea.id}
                       aria-label={`Pasar ${idea.titulo} a ${sigLabel}`}
                       title={`Pasar a ${sigLabel}`}
-                      style={{ ...iconBtn, color: 'var(--color-primary)' }}
+                      style={{ padding: 6, minHeight: 32, minWidth: 32, marginLeft: 'auto', color: 'var(--color-primary)' }}
                     >
                       <ArrowRight size={14} weight="bold" />
                     </button>
                   )}
-                </span>
-              </div>
+                </div>
+              </article>
             )
           })}
         </div>
