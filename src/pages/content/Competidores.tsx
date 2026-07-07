@@ -377,8 +377,36 @@ export default function Competidores() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
                         <span>{p.tipo ?? 'Post'}{p.publicado_en ? ` · ${new Date(p.publicado_en).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}` : ''}</span>
-                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{num(p.likes)} likes · {num(p.comments)} coment.</span>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {p.video_views != null ? `${num(p.video_views)} views · ` : ''}{num(p.likes)} likes · {num(p.comments)} coment.
+                        </span>
                       </div>
+
+                      {/* Media: vídeo reproducible in situ, o imagen. Las URLs del CDN
+                          de Instagram caducan a los días — refrescar el competidor las renueva. */}
+                      {(p.video_url || p.thumbnail_url) && (
+                        <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', background: '#09090B', aspectRatio: '4 / 5' }}>
+                          {p.video_url ? (
+                            <video
+                              src={p.video_url}
+                              poster={p.thumbnail_url ?? undefined}
+                              controls
+                              playsInline
+                              preload="metadata"
+                              style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                            />
+                          ) : (
+                            <img
+                              src={p.thumbnail_url!}
+                              alt={`Post de @${abierto.username}`}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none' }}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                            />
+                          )}
+                        </div>
+                      )}
 
                       {/* Veredicto IA */}
                       {consejo && (
@@ -403,7 +431,7 @@ export default function Competidores() {
 
                       <p style={{
                         fontSize: 12.5, lineHeight: 1.45, color: 'var(--color-text-primary)',
-                        display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
                         whiteSpace: 'pre-line',
                       }}>
                         {p.caption || '(sin caption)'}

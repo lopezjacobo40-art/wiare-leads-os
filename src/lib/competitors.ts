@@ -39,6 +39,7 @@ export interface CompetitorPost {
   comments: number | null
   video_views: number | null
   thumbnail_url: string | null
+  video_url: string | null
   publicado_en: string | null
   capturado_en: string
 }
@@ -137,6 +138,7 @@ interface IgLatestPost {
   commentsCount?: number
   videoViewCount?: number
   displayUrl?: string
+  videoUrl?: string
   timestamp?: string
 }
 
@@ -185,6 +187,7 @@ export async function scrapeCompetitor(
       comments: p.commentsCount ?? null,
       video_views: p.videoViewCount ?? null,
       thumbnail_url: p.displayUrl ?? null,
+      video_url: p.videoUrl ?? null,
       publicado_en: p.timestamp ?? null,
     }))
     const { error: postsErr } = await supabase
