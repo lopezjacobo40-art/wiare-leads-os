@@ -7,7 +7,9 @@ import { requireAuth } from './_lib/verifyAuth.js'
 
 const TEMAS: { id: string; label: string; query: string }[] = [
   { id: 'ia_voz', label: 'IA de voz', query: 'agentes de voz inteligencia artificial atención telefónica' },
-  { id: 'ia_negocio', label: 'IA y pymes', query: 'inteligencia artificial pymes automatización España' },
+  { id: 'ia_soluciones', label: 'Soluciones IA', query: 'inteligencia artificial soluciones negocios locales atención al cliente' },
+  { id: 'automatizacion', label: 'Automatización', query: 'automatización IA pymes citas reservas whatsapp' },
+  { id: 'ia_negocio', label: 'IA y pymes', query: 'inteligencia artificial pymes España adopción herramientas' },
   { id: 'clinicas', label: 'Clínicas', query: 'clínicas dentales digitalización pacientes España' },
   { id: 'hosteleria', label: 'Hostelería', query: 'restaurantes reservas tecnología hostelería España' },
 ]

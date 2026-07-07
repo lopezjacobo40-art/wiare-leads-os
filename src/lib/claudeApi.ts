@@ -925,3 +925,56 @@ Responde SOLO con un array JSON válido, sin markdown, una entrada por post en e
     }
   }).filter((c) => c.indice >= 0)
 }
+
+/* ─────────────────────────────────────────────
+   Noticias — veredicto por titular: ¿sirve para crear contenido
+   de WIARE (soluciones IA para negocios locales) o no?
+   Un solo call para todo el lote.
+   ───────────────────────────────────────────── */
+export interface ConsejoNoticia {
+  indice: number
+  veredicto: 'apto' | 'pasar'
+  razon: string
+}
+
+export async function aconsejarNoticias(
+  noticias: { titulo: string; fuente: string }[],
+  tonoMarca?: string | null
+): Promise<ConsejoNoticia[]> {
+  const listado = noticias.map((n, i) => `[${i}] ${n.titulo} (${n.fuente})`).join('\n')
+
+  const prompt = `Eres el estratega de contenido de WIARE: agencia española que instala soluciones de IA (agente de voz 24/7, WhatsApp automatizado, CRM) para negocios locales — foco en clínicas dentales y restaurantes de Madrid. Su contenido conecta problemas reales de negocios locales (llamadas perdidas, citas sin gestionar, clientes sin respuesta) con soluciones IA.
+${tonoMarca ? `Tono de marca: ${tonoMarca}` : ''}
+
+TITULARES DE HOY:
+
+${listado}
+
+TAREA: Para CADA titular, decide si sirve como base para un post de WIARE. Criterio: ¿permite conectar un problema de un negocio local con una solución IA? ¿aporta un dato, caso o tendencia comentable con autoridad? Noticias corporativas genéricas, bolsa, o IA sin aplicación local = pasar. Sé selectivo.
+
+Responde SOLO con un array JSON válido, sin markdown, una entrada por titular en el mismo orden:
+[{"indice":0,"veredicto":"apto","razon":"máx 12 palabras: el ángulo del post"}, ...]
+"veredicto" es "apto" o "pasar".`
+
+  const raw = await guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', 2000, [{ role: 'user', content: prompt }])
+  )
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+  } catch (err) {
+    console.error('aconsejarNoticias parse error. Raw:', raw)
+    throw new Error(`No se pudieron analizar las noticias (respuesta inválida): ${errMsg(err)}`, { cause: err })
+  }
+  if (!Array.isArray(parsed)) throw new Error('Respuesta inesperada al analizar las noticias')
+
+  return parsed.map((c) => {
+    const o = c as Record<string, unknown>
+    return {
+      indice: Number(o.indice ?? -1),
+      veredicto: o.veredicto === 'apto' ? 'apto' as const : 'pasar' as const,
+      razon: String(o.razon ?? '').trim(),
+    }
+  }).filter((c) => c.indice >= 0)
+}
