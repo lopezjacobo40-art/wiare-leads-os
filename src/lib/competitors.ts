@@ -215,3 +215,30 @@ export async function scrapeCompetitor(
 
   return { error: null, followers: followers ?? undefined, posts: latestPosts.length }
 }
+
+/* ── Datos agregados para Analítica ── */
+
+/* Todos los snapshots de los últimos N días (para las líneas de followers). */
+export async function fetchSnapshotsRecientes(dias = 30): Promise<CompetitorSnapshot[]> {
+  const desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('competitor_snapshots_os')
+    .select('*')
+    .gte('capturado_en', desde)
+    .order('capturado_en', { ascending: true })
+  if (error) { console.error('fetchSnapshotsRecientes:', error.message); return [] }
+  return (data as CompetitorSnapshot[]) ?? []
+}
+
+/* Todos los posts del sector de los últimos N días (formatos, días, top). */
+export async function fetchPostsSector(dias = 30): Promise<CompetitorPost[]> {
+  const desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('competitor_posts_os')
+    .select('*')
+    .gte('publicado_en', desde)
+    .order('likes', { ascending: false, nullsFirst: false })
+    .limit(200)
+  if (error) { console.error('fetchPostsSector:', error.message); return [] }
+  return (data as CompetitorPost[]) ?? []
+}

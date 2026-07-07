@@ -2,6 +2,9 @@
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
+  "crons": [
+    { "path": "/api/apify", "schedule": "0 6 * * *" }
+  ],
   "functions": {
     "api/find-email.ts": {
       "maxDuration": 60
@@ -9,6 +12,9 @@
     "api/render-carousel.ts": {
       "maxDuration": 120,
       "memory": 1024
+    },
+    "api/apify.ts": {
+      "maxDuration": 300
     }
   }
 }
