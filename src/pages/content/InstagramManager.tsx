@@ -145,7 +145,7 @@ export default function InstagramManager() {
         titulo="Instagram Manager"
         subtitulo="Backlog, borradores, programadas y publicadas"
         acciones={
-          <button className="btn-primary" onClick={() => { setEditando(null); setDialogAbierto(true) }} style={{ fontSize: 13 }}>
+          <button className="btn-primary" onClick={() => { setEditando(null); setDialogAbierto(true) }} style={{ fontSize: 13, minHeight: 36 }}>
             <Plus size={14} /> Nueva publicación
           </button>
         }

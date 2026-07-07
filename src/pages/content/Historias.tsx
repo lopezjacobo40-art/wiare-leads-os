@@ -169,12 +169,12 @@ export default function Historias() {
         titulo="Historias"
         subtitulo="Secuencias verticales (9:16) para Stories, generadas según tu objetivo."
         acciones={
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <select value={objetivo} onChange={(e) => setObjetivo(e.target.value)} style={{ height: 40, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <select value={objetivo} onChange={(e) => setObjetivo(e.target.value)} aria-label="Objetivo de la secuencia" style={{ height: 36, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '0 10px', fontSize: 13 }}>
               {OBJETIVOS_HISTORIA.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
-            <button className="btn-primary" onClick={generar} disabled={generando} style={{ minHeight: 40, gap: 6 }}>
-              {generando ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Sparkle size={15} weight="fill" />}
+            <button className="btn-primary" onClick={generar} disabled={generando} style={{ minHeight: 36, gap: 6, fontSize: 13 }}>
+              {generando ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> : <Sparkle size={14} weight="fill" />}
               {generando ? 'Generando…' : 'Generar historias'}
             </button>
           </div>

@@ -155,7 +155,7 @@ export default function Calendario() {
             >
               Hoy
             </button>
-            <button className="btn-primary" onClick={() => setDialogPlan(true)} style={{ fontSize: 13, minHeight: 34 }}>
+            <button className="btn-primary" onClick={() => setDialogPlan(true)} style={{ fontSize: 13, minHeight: 36 }}>
               <CalendarPlus size={14} /> Planificar mes
             </button>
           </div>

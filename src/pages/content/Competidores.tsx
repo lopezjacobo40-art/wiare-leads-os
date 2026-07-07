@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Plus, ArrowsClockwise, TrendUp, TrendDown, CaretUp, CaretDown,
-  Trash, ArrowSquareOut, Sparkle, X, Binoculars,
+  Trash, ArrowSquareOut, Sparkle, X, Binoculars, CheckCircle, MinusCircle, Lightbulb,
 } from '@phosphor-icons/react'
 import PageHeader from '../../components/PageHeader'
 import PageTransition from '../../components/PageTransition'
@@ -10,7 +10,7 @@ import EmptyState from '../../components/EmptyState'
 import { useToast } from '../../components/Toast'
 import { useBrandKit } from '../../lib/brandKit'
 import { fetchVoiceExamples } from '../../lib/brandVoice'
-import { replicarIdeaCompetidor, type IdeaReplicada } from '../../lib/claudeApi'
+import { replicarIdeaCompetidor, aconsejarReplicas, type IdeaReplicada, type ConsejoPost } from '../../lib/claudeApi'
 import { crearIdea } from '../../lib/contentIdeas'
 import {
   fetchCompetitors, fetchCompetitorPosts, addCompetitor, deleteCompetitor, scrapeCompetitor,
@@ -61,6 +61,9 @@ export default function Competidores() {
   const [replicando, setReplicando] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ post: CompetitorPost; idea: IdeaReplicada } | null>(null)
   const [guardandoReplica, setGuardandoReplica] = useState(false)
+  const [consejos, setConsejos] = useState<Record<string, ConsejoPost>>({})
+  const [aconsejando, setAconsejando] = useState(false)
+  const detalleRef = useRef<HTMLDivElement>(null)
 
   const cargar = async () => {
     setComps(await fetchCompetitors())
@@ -125,9 +128,39 @@ export default function Competidores() {
 
   const abrirDetalle = async (comp: CompetitorConMetricas) => {
     setAbierto(comp)
+    setConsejos({})
     setCargandoPosts(true)
+    // El panel de posts se abre justo debajo: llevar la vista hasta él
+    requestAnimationFrame(() =>
+      detalleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    )
     setPosts(await fetchCompetitorPosts(comp.id))
     setCargandoPosts(false)
+  }
+
+  // Veredicto IA por post: qué replicar para WIARE y qué pasar
+  const pedirConsejo = async () => {
+    if (!abierto || posts.length === 0) return
+    setAconsejando(true)
+    try {
+      const resultado = await aconsejarReplicas(
+        posts.map((p) => ({ caption: p.caption, tipo: p.tipo, likes: p.likes, comments: p.comments })),
+        abierto.username,
+        brand?.tono_voz
+      )
+      const mapa: Record<string, ConsejoPost> = {}
+      for (const c of resultado) {
+        const post = posts[c.indice]
+        if (post) mapa[post.id] = c
+      }
+      setConsejos(mapa)
+      const nReplicar = resultado.filter((c) => c.veredicto === 'replicar').length
+      toast(`Consejo listo: ${nReplicar} de ${posts.length} posts merecen replicarse`, 'success')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error analizando los posts', 'error')
+    } finally {
+      setAconsejando(false)
+    }
   }
 
   const replicar = async (post: CompetitorPost) => {
@@ -190,7 +223,7 @@ export default function Competidores() {
         titulo="Competidores"
         subtitulo="Seguimiento de perfiles de Instagram: crecimiento, engagement y contenido que funciona"
         acciones={
-          <button className="btn-primary" onClick={() => setDialogAdd(true)} style={{ fontSize: 13 }}>
+          <button className="btn-primary" onClick={() => setDialogAdd(true)} style={{ fontSize: 13, minHeight: 36 }}>
             <Plus size={14} /> Añadir competidor
           </button>
         }
@@ -274,20 +307,42 @@ export default function Competidores() {
         </div>
       )}
 
-      {/* Detalle: posts recientes del competidor */}
+      {/* Detalle: posts recientes del competidor + consejo IA */}
       {abierto && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-body)' }}>
-              Posts recientes de @{abierto.username}
-            </h2>
-            <button className="btn-ghost" onClick={() => setAbierto(null)} style={{ fontSize: 12, padding: '4px 10px' }}>
-              <X size={13} /> Cerrar
-            </button>
+        <div ref={detalleRef} style={{ marginTop: 24, scrollMarginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-body)' }}>
+                @{abierto.username}
+              </h2>
+              <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                {posts.length > 0 ? `${posts.length} posts recientes` : 'Posts recientes'}
+                {abierto.followers != null && ` · ${num(abierto.followers)} followers`}
+                {abierto.engagement_rate != null && ` · ${abierto.engagement_rate}% engagement`}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {posts.length > 0 && (
+                <button
+                  className="btn-primary"
+                  onClick={pedirConsejo}
+                  disabled={aconsejando}
+                  title="La IA analiza cada post y te dice cuáles merecen replicarse para WIARE"
+                  style={{ fontSize: 13, minHeight: 36 }}
+                >
+                  {aconsejando
+                    ? <><span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> Analizando…</>
+                    : <><Lightbulb size={14} weight="fill" /> Consejo IA</>}
+                </button>
+              )}
+              <button className="btn-ghost" onClick={() => setAbierto(null)} aria-label="Cerrar detalle" style={{ fontSize: 12, padding: '4px 10px', minHeight: 36 }}>
+                <X size={13} /> Cerrar
+              </button>
+            </div>
           </div>
 
           {cargandoPosts ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
               {Array.from({ length: 3 }).map((_, i) => <Skeleton.Card key={i} />)}
             </div>
           ) : posts.length === 0 ? (
@@ -296,43 +351,89 @@ export default function Competidores() {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-              {posts.map((p) => (
-                <div key={p.id} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-                    <span>{p.tipo ?? 'Post'}{p.publicado_en ? ` · ${new Date(p.publicado_en).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}` : ''}</span>
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{num(p.likes)} likes · {num(p.comments)} coment.</span>
-                  </div>
-                  <p style={{
-                    fontSize: 12.5, lineHeight: 1.45, color: 'var(--color-text-primary)',
-                    display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                    whiteSpace: 'pre-line',
-                  }}>
-                    {p.caption || '(sin caption)'}
-                  </p>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 'auto', borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => replicar(p)}
-                      disabled={replicando === p.id || !p.caption}
-                      title={p.caption ? 'Generar idea propia a partir de este post' : 'Sin caption que replicar'}
-                      style={{ fontSize: 12, padding: '5px 10px', minHeight: 30 }}
+              {[...posts]
+                .sort((a, b) => {
+                  // Con consejo: los "replicar" primero
+                  const va = consejos[a.id]?.veredicto === 'replicar' ? 0 : 1
+                  const vb = consejos[b.id]?.veredicto === 'replicar' ? 0 : 1
+                  return va - vb
+                })
+                .map((p) => {
+                  const consejo = consejos[p.id]
+                  const esReplicar = consejo?.veredicto === 'replicar'
+                  return (
+                    <div
+                      key={p.id}
+                      className="card"
+                      style={{
+                        padding: 16,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        border: esReplicar ? '1px solid color-mix(in srgb, var(--color-success) 45%, transparent)' : undefined,
+                        opacity: consejo && !esReplicar ? 0.72 : 1,
+                        transition: 'opacity 200ms cubic-bezier(0.4,0,0.2,1), border-color 200ms cubic-bezier(0.4,0,0.2,1)',
+                      }}
                     >
-                      <Sparkle size={13} /> {replicando === p.id ? 'Generando…' : 'Replicar'}
-                    </button>
-                    {p.url && (
-                      <a
-                        href={p.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn-ghost"
-                        style={{ fontSize: 12, padding: '5px 10px', minHeight: 30, marginLeft: 'auto' }}
-                      >
-                        Ver en IG <ArrowSquareOut size={12} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                        <span>{p.tipo ?? 'Post'}{p.publicado_en ? ` · ${new Date(p.publicado_en).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}` : ''}</span>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{num(p.likes)} likes · {num(p.comments)} coment.</span>
+                      </div>
+
+                      {/* Veredicto IA */}
+                      {consejo && (
+                        <div style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 7,
+                          padding: '8px 10px', borderRadius: 'var(--radius-md)',
+                          background: esReplicar
+                            ? 'color-mix(in srgb, var(--color-success) 8%, transparent)'
+                            : 'var(--color-surface-2)',
+                        }}>
+                          {esReplicar
+                            ? <CheckCircle size={15} weight="fill" color="var(--color-success)" style={{ flexShrink: 0, marginTop: 1 }} />
+                            : <MinusCircle size={15} weight="fill" color="var(--color-text-tertiary)" style={{ flexShrink: 0, marginTop: 1 }} />}
+                          <span style={{ fontSize: 12, lineHeight: 1.4, color: 'var(--color-text-primary)' }}>
+                            <strong style={{ color: esReplicar ? 'var(--color-success)' : 'var(--color-text-secondary)' }}>
+                              {esReplicar ? 'Replicar' : 'Pasar'}
+                            </strong>
+                            {consejo.razon && <> — {consejo.razon}</>}
+                          </span>
+                        </div>
+                      )}
+
+                      <p style={{
+                        fontSize: 12.5, lineHeight: 1.45, color: 'var(--color-text-primary)',
+                        display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                        whiteSpace: 'pre-line',
+                      }}>
+                        {p.caption || '(sin caption)'}
+                      </p>
+
+                      <div style={{ display: 'flex', gap: 6, marginTop: 'auto', borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
+                        <button
+                          className={esReplicar ? 'btn-primary' : 'btn-secondary'}
+                          onClick={() => replicar(p)}
+                          disabled={replicando === p.id || !p.caption}
+                          title={p.caption ? 'Generar idea propia a partir de este post' : 'Sin caption que replicar'}
+                          style={{ fontSize: 12, padding: '5px 12px', minHeight: 32 }}
+                        >
+                          <Sparkle size={13} weight={esReplicar ? 'fill' : 'regular'} /> {replicando === p.id ? 'Generando…' : 'Replicar'}
+                        </button>
+                        {p.url && (
+                          <a
+                            href={p.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn-ghost"
+                            style={{ fontSize: 12, padding: '5px 10px', minHeight: 32, marginLeft: 'auto' }}
+                          >
+                            Ver en IG <ArrowSquareOut size={12} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
             </div>
           )}
         </div>

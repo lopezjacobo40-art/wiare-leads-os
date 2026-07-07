@@ -869,3 +869,59 @@ Responde SOLO con un objeto JSON válido, sin markdown:
     formato,
   }
 }
+
+/* ─────────────────────────────────────────────
+   Competidores — veredicto por post: qué merece replicarse
+   para WIARE y qué no, con una razón corta. Un solo call
+   para todos los posts del competidor.
+   ───────────────────────────────────────────── */
+export interface ConsejoPost {
+  indice: number
+  veredicto: 'replicar' | 'pasar'
+  razon: string
+}
+
+export async function aconsejarReplicas(
+  posts: { caption: string | null; tipo: string | null; likes: number | null; comments: number | null }[],
+  username: string,
+  tonoMarca?: string | null
+): Promise<ConsejoPost[]> {
+  const listado = posts
+    .map((p, i) => `[${i}] (${p.tipo ?? 'Post'} · ${p.likes ?? 0} likes · ${p.comments ?? 0} comentarios)\n${(p.caption ?? '(sin caption)').slice(0, 400)}`)
+    .join('\n\n---\n\n')
+
+  const prompt = `Eres el estratega de contenido de WIARE: agencia española que instala atención automatizada 24/7 (agente de voz IA, WhatsApp, CRM) para negocios locales — foco en clínicas dentales y restaurantes de Madrid. Su contenido busca: demostrar autoridad, tocar el dolor de "pierdes clientes cuando no coges el teléfono", y generar DMs/consultas.
+${tonoMarca ? `Tono de marca: ${tonoMarca}` : ''}
+
+POSTS RECIENTES DE @${username} (competidor):
+
+${listado}
+
+TAREA: Para CADA post, decide si a WIARE le compensa replicar el ÁNGULO (no copiar) o pasar. Criterios: ¿el ángulo encaja con el ICP de WIARE (clínicas/restaurantes)? ¿el engagement sugiere que funciona? ¿aporta algo que WIARE no esté ya haciendo? Sé selectivo: replicar todo diluye la marca.
+
+Responde SOLO con un array JSON válido, sin markdown, una entrada por post en el mismo orden:
+[{"indice":0,"veredicto":"replicar","razon":"máx 12 palabras explicando por qué"}, ...]
+"veredicto" es "replicar" o "pasar".`
+
+  const raw = await guardedCall('content', () =>
+    callClaudeChat('claude-haiku-4-5-20251001', 1500, [{ role: 'user', content: prompt }])
+  )
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+  } catch (err) {
+    console.error('aconsejarReplicas parse error. Raw:', raw)
+    throw new Error(`No se pudo analizar los posts (respuesta inválida): ${errMsg(err)}`, { cause: err })
+  }
+  if (!Array.isArray(parsed)) throw new Error('Respuesta inesperada al analizar los posts')
+
+  return parsed.map((c) => {
+    const o = c as Record<string, unknown>
+    return {
+      indice: Number(o.indice ?? -1),
+      veredicto: o.veredicto === 'replicar' ? 'replicar' as const : 'pasar' as const,
+      razon: String(o.razon ?? '').trim(),
+    }
+  }).filter((c) => c.indice >= 0)
+}
