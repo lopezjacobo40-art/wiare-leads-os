@@ -13,7 +13,7 @@ import { fetchVoiceExamples } from '../../lib/brandVoice'
 import { replicarIdeaCompetidor, aconsejarReplicas, type IdeaReplicada, type ConsejoPost } from '../../lib/claudeApi'
 import { crearIdea } from '../../lib/contentIdeas'
 import {
-  fetchCompetitors, fetchCompetitorPosts, addCompetitor, deleteCompetitor, scrapeCompetitor,
+  fetchCompetitors, fetchCompetitorPosts, addCompetitor, deleteCompetitor, scrapeCompetitor, mediaProxyUrl,
   type CompetitorConMetricas, type CompetitorPost,
 } from '../../lib/competitors'
 
@@ -316,7 +316,7 @@ export default function Competidores() {
                 @{abierto.username}
               </h2>
               <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                {posts.length > 0 ? `${posts.length} posts recientes` : 'Posts recientes'}
+                {posts.length > 0 ? `${posts.length} posts en los últimos 30 días` : 'Contenido de los últimos 30 días'}
                 {abierto.followers != null && ` · ${num(abierto.followers)} followers`}
                 {abierto.engagement_rate != null && ` · ${abierto.engagement_rate}% engagement`}
               </p>
@@ -347,7 +347,7 @@ export default function Competidores() {
             </div>
           ) : posts.length === 0 ? (
             <div className="card" style={{ padding: 28, textAlign: 'center', fontSize: 13, color: 'var(--color-text-tertiary)' }}>
-              Sin posts guardados — pulsa refrescar en la tabla para traerlos
+              Sin posts de los últimos 30 días — pulsa refrescar en la tabla para traer los más recientes
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -382,25 +382,25 @@ export default function Competidores() {
                         </span>
                       </div>
 
-                      {/* Media: vídeo reproducible in situ, o imagen. Las URLs del CDN
-                          de Instagram caducan a los días — refrescar el competidor las renueva. */}
+                      {/* Media vía proxy propio (/api/ig-media): el CDN de IG bloquea el
+                          hotlinking de forma intermitente. Si aun así falla, la URL firmada
+                          ha caducado — refrescar el competidor la renueva. */}
                       {(p.video_url || p.thumbnail_url) && (
                         <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', background: '#09090B', aspectRatio: '4 / 5' }}>
                           {p.video_url ? (
                             <video
-                              src={p.video_url}
-                              poster={p.thumbnail_url ?? undefined}
+                              src={mediaProxyUrl(p.video_url)!}
+                              poster={mediaProxyUrl(p.thumbnail_url) ?? undefined}
                               controls
                               playsInline
-                              preload="metadata"
+                              preload="none"
                               style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
                             />
                           ) : (
                             <img
-                              src={p.thumbnail_url!}
+                              src={mediaProxyUrl(p.thumbnail_url)!}
                               alt={`Post de @${abierto.username}`}
                               loading="lazy"
-                              referrerPolicy="no-referrer"
                               onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none' }}
                               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                             />

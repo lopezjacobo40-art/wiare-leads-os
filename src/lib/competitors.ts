@@ -97,15 +97,26 @@ export async function fetchCompetitors(): Promise<CompetitorConMetricas[]> {
   })
 }
 
+/* Posts de los últimos 30 días (lo que se analiza como "contenido reciente").
+   Nota: el scraper de perfil trae los ~12 últimos posts por refresh; para
+   cuentas muy activas eso puede no cubrir el mes entero. */
 export async function fetchCompetitorPosts(competitorId: string): Promise<CompetitorPost[]> {
+  const hace30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const { data, error } = await supabase
     .from('competitor_posts_os')
     .select('*')
     .eq('competitor_id', competitorId)
+    .gte('publicado_en', hace30d)
     .order('publicado_en', { ascending: false, nullsFirst: false })
-    .limit(24)
+    .limit(36)
   if (error) { console.error('fetchCompetitorPosts:', error.message); return [] }
   return (data as CompetitorPost[]) ?? []
+}
+
+/* Media del CDN de IG servido a través de nuestro proxy (evita bloqueos de hotlinking). */
+export function mediaProxyUrl(url: string | null): string | null {
+  if (!url) return null
+  return `/api/ig-media?url=${encodeURIComponent(url)}`
 }
 
 export async function addCompetitor(username: string): Promise<{ error: string | null; id?: string }> {
