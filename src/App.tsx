@@ -15,7 +15,6 @@ const Leads = lazy(() => import('./pages/Leads'))
 const LeadDetalle = lazy(() => import('./pages/LeadDetalle'))
 const Configuracion = lazy(() => import('./pages/Configuracion'))
 const Roadmap = lazy(() => import('./pages/Roadmap'))
-const Consultor = lazy(() => import('./pages/Consultor'))
 const BrandKit = lazy(() => import('./pages/content/BrandKit'))
 const InstagramManager = lazy(() => import('./pages/content/InstagramManager'))
 const Historias = lazy(() => import('./pages/content/Historias'))
@@ -93,7 +92,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           {/* /simulador y /biblioteca redirigen a sus nuevas ubicaciones integradas */}
           <Route path="/simulador" element={<Navigate to="/roadmap?tab=simulador" replace />} />
           <Route path="/biblioteca" element={<Navigate to="/leads?analizados=1" replace />} />
-          <Route path="/consultor" element={<Consultor />} />
+          {/* Consultor IA retirado (2026-07): no aportaba al flujo */}
+          <Route path="/consultor" element={<Navigate to="/" replace />} />
           {/* ── Panel de gestión de contenidos ── */}
           <Route path="/content" element={<ContentLayout />}>
             <Route index element={<Navigate to="/content/instagram" replace />} />

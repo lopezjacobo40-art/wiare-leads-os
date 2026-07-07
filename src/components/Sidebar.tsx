@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, MagnifyingGlass, Users, SignOut, Warning, GearSix,
-  MapTrifold, ChatCircleDots,
+  MapTrifold,
   Palette, Quotes, InstagramLogo, CalendarBlank, Binoculars, ChartLineUp, Newspaper, FrameCorners,
 } from '@phosphor-icons/react'
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
@@ -25,7 +25,6 @@ const NAV: NavItem[] = [
 // Sección "Mi agencia": construcción y herramientas internas de WIARE.
 const MI_AGENCIA: NavItem[] = [
   { to: '/roadmap', label: 'Roadmap y Formación', icon: MapTrifold, end: false },
-  { to: '/consultor', label: 'Consultor IA', icon: ChatCircleDots, end: false },
 ]
 
 // Sección "Contenido": panel de gestión de contenidos (Instagram, calendario,

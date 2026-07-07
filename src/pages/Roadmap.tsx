@@ -19,6 +19,90 @@ const ESTADO: Record<EstadoFase, { label: string; color: string; bg: string; Ico
 
 const ORDEN_CICLO: EstadoFase[] = ['pendiente', 'en_progreso', 'completado']
 
+type SubTab = 'roadmap' | 'onboarding' | 'simulador'
+
+const TABS: { id: SubTab; label: string; Icon: typeof BookOpen }[] = [
+  { id: 'onboarding', label: 'Onboarding', Icon: BookOpen },
+  { id: 'roadmap', label: 'Roadmap', Icon: Signpost },
+  { id: 'simulador', label: 'Simulador', Icon: Headset },
+]
+
+/* ── Guía de onboarding: el flujo real del OS, paso a paso ── */
+const PASOS_GUIA: { titulo: string; cuerpo: React.ReactNode }[] = [
+  {
+    titulo: 'Dashboard — empieza el día en «Hoy»',
+    cuerpo: (
+      <>El bloque <strong>Hoy</strong> te dice exactamente qué toca: cuántos leads analizar, cuántos emails
+      enviar (cupo de 15/día por deliverability), qué follow-ups vencen y qué respuestas esperan.
+      Debajo, el <strong>Cockpit de cierre</strong> agrupa respuestas, toques del día y enviados sin seguimiento.</>
+    ),
+  },
+  {
+    titulo: 'Extraer leads fríos',
+    cuerpo: (
+      <>En <strong>Extraer leads</strong>, escribe sector y ciudad (p. ej. «clínica dental» en «Valencia»).
+      Apify scrapea negocios reales de Google Maps en segundo plano y los deduplica contra tu pipeline.</>
+    ),
+  },
+  {
+    titulo: 'Enriquecer: email real y decisor',
+    cuerpo: (
+      <>En <strong>Todos los leads</strong>, selecciona en lote y pulsa <strong>Buscar decisores</strong>:
+      el OS localiza al dueño en LinkedIn y busca su email real con una cascada de 5 scrapers
+      (nunca inventa un patrón info@).</>
+    ),
+  },
+  {
+    titulo: 'Analizar brechas con IA',
+    cuerpo: (
+      <>Selecciona leads y pulsa <strong>Analizar brechas</strong>: Claude estima llamadas perdidas,
+      coste mensual y redacta el email frío estilo Hormozi con los puntos de dolor detectados.
+      El lead avanza a <strong>Negocio analizado</strong>.</>
+    ),
+  },
+  {
+    titulo: 'La demo de audio (el momento wow)',
+    cuerpo: (
+      <>Desde la ficha del lead: <strong>Generar guión</strong> (diálogo cliente-Sofía personalizado),
+      corrige lo que quieras y <strong>Generar audio</strong>. Obtienes un enlace público
+      (/d/:id) con telemetría: sabrás cuándo lo escuchan.</>
+    ),
+  },
+  {
+    titulo: 'Outreach con secuencia automática',
+    cuerpo: (
+      <><strong>Abrir Gmail</strong> prerrellena asunto y cuerpo. Al marcar <strong>enviado</strong>, el OS
+      guarda el copy exacto, arranca la secuencia (D0 email → D3 email → D7 WhatsApp → D14 breakup)
+      y programa cada toque solo. Si no responde tras la secuencia, se archiva en «Sin respuesta».</>
+    ),
+  },
+  {
+    titulo: 'Contenido: presencia de marca sin esfuerzo',
+    cuerpo: (
+      <>La sección <strong>Contenido</strong> concentra el Instagram Manager (backlog → borrador →
+      programado → publicado), el calendario con «Planificar mes», las secuencias de Historias por
+      objetivo, los competidores con consejo IA de qué replicar, y las noticias del sector
+      convertibles en ideas con un click. Todo usa tu Brand Kit y tu voz de marca.</>
+    ),
+  },
+  {
+    titulo: 'Cierre y entrega',
+    cuerpo: (
+      <>Cuando el prospecto muestra interés: genera la <strong>propuesta comercial</strong> con IA desde su
+      ficha, vincula su <strong>Retell Agent ID</strong> en la pestaña Agente Sofía (prompt generado en
+      1 click) y sigue el <strong>checklist de entrega</strong> (Twilio, Retell, QA, formación) antes de
+      marcarlo Activo.</>
+    ),
+  },
+  {
+    titulo: 'Entrena tu pitch',
+    cuerpo: (
+      <>El <strong>Simulador</strong> (pestaña de arriba) te enfrenta a un cliente IA que se resiste, por
+      sector y nivel de dureza, y evalúa la llamada al terminar. Úsalo antes de las llamadas reales.</>
+    ),
+  },
+]
+
 export default function Roadmap() {
   const toast = useToast()
   const esAdmin = (sessionStorage.getItem('wiare_user') ?? '') === 'jacobo'
@@ -28,8 +112,8 @@ export default function Roadmap() {
   const [error, setError] = useState('')
   const [editando, setEditando] = useState<number | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialTab = (searchParams.get('tab') as 'roadmap' | 'onboarding' | 'simulador') || 'onboarding'
-  const [subTab, setSubTab] = useState<'roadmap' | 'onboarding' | 'simulador'>(initialTab)
+  const initialTab = (searchParams.get('tab') as SubTab) || 'onboarding'
+  const [subTab, setSubTab] = useState<SubTab>(initialTab)
 
   // Sincronizar el query param al cambiar de tab para deep links
   useEffect(() => {
@@ -109,183 +193,92 @@ export default function Roadmap() {
     <PageTransition>
       <PageHeader
         titulo="Manual y Roadmap WIARE"
-        subtitulo="Onboarding interactivo de la agencia y fases de escalado del negocio."
+        subtitulo="Cómo se trabaja en el OS y en qué fase de escalado está la agencia"
       />
 
       {/* Navegación por pestañas */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--color-border)', paddingBottom: 16 }}>
-        <button
-          onClick={() => setSubTab('onboarding')}
-          className={`btn-ghost ${subTab === 'onboarding' ? 'active' : ''}`}
-          style={{
-            background: subTab === 'onboarding' ? 'var(--color-primary-subtle)' : 'transparent',
-            color: subTab === 'onboarding' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px 16px',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            transition: 'all 150ms ease',
-          }}
-        >
-          <BookOpen size={16} weight={subTab === 'onboarding' ? 'fill' : 'regular'} /> Onboarding (Guía OS)
-        </button>
-        <button
-          onClick={() => setSubTab('roadmap')}
-          className={`btn-ghost ${subTab === 'roadmap' ? 'active' : ''}`}
-          style={{
-            background: subTab === 'roadmap' ? 'var(--color-primary-subtle)' : 'transparent',
-            color: subTab === 'roadmap' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px 16px',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            transition: 'all 150ms ease',
-          }}
-        >
-          <Signpost size={16} weight={subTab === 'roadmap' ? 'fill' : 'regular'} /> Roadmap de la Agencia
-        </button>
-        <button
-          onClick={() => setSubTab('simulador')}
-          className={`btn-ghost ${subTab === 'simulador' ? 'active' : ''}`}
-          style={{
-            background: subTab === 'simulador' ? 'var(--color-primary-subtle)' : 'transparent',
-            color: subTab === 'simulador' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px 16px',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            transition: 'all 150ms ease',
-          }}
-        >
-          <Headset size={16} weight={subTab === 'simulador' ? 'fill' : 'regular'} /> Simulador
-        </button>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24 }}>
+        {TABS.map(({ id, label, Icon }) => {
+          const activo = subTab === id
+          return (
+            <button
+              key={id}
+              onClick={() => setSubTab(id)}
+              aria-pressed={activo}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '7px 14px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: 13,
+                fontWeight: activo ? 600 : 500,
+                border: 'none',
+                minHeight: 'auto',
+                background: activo ? 'var(--color-primary-subtle)' : 'transparent',
+                color: activo ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                transition: 'background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1)',
+              }}
+            >
+              <Icon size={15} weight={activo ? 'fill' : 'regular'} /> {label}
+            </button>
+          )
+        })}
       </div>
 
       {/* ── TAB ONBOARDING ── */}
       {subTab === 'onboarding' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div className="card" style={{ padding: 28 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <BookOpen size={22} weight="fill" style={{ color: 'var(--color-primary)' }} />
-              Guía de Onboarding de Leads OS
-            </h2>
-            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
-              Bienvenido al sistema operativo de WIARE. Esta plataforma centraliza todo tu pipeline comercial: desde la extracción de negocios en Google Maps hasta la entrega de la propuesta, la configuración técnica de la agente de voz inteligente (Sofía) y el checklist de QA. Sigue esta guía paso a paso con tu equipo para dominar el OS.
-            </p>
+        <div style={{ maxWidth: 760 }}>
+          <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 24 }}>
+            WIARE Leads OS centraliza el pipeline completo: de la extracción en Google Maps al cliente
+            activo, pasando por el análisis con IA, el outreach con secuencia automática y el contenido
+            de marca. Este es el flujo de trabajo, en orden.
+          </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {/* Sección 1 */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>1. Dashboard — Tu Centro de Mando Diario</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Empieza cada día en el <strong>Dashboard</strong>. Verás 4 métricas clave:
-                  <ul style={{ margin: '6px 0 0 16px', padding: 0, listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <li><strong>Total leads:</strong> Cuántos negocios hay en el sistema.</li>
-                    <li><strong>Leads calientes:</strong> Score ≥ 7. Con barra de progreso mostrando el porcentaje del total.</li>
-                    <li><strong>Negocios analizados:</strong> Muestra el % del pipeline ya analizado con IA.</li>
-                    <li><strong>MRR potencial:</strong> Suma del ingreso mensual estimado de todos los leads activos.</li>
-                  </ul>
-                  El sidebar también mostrará un <strong>badge naranja</strong> junto a "Dashboard" si tienes <em>toques de nurturing pendientes</em> para hoy.
-                </p>
+          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+            {PASOS_GUIA.map((paso, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  gap: 16,
+                  padding: '18px 20px',
+                  borderTop: i > 0 ? '1px solid var(--color-border)' : 'none',
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: 'var(--color-primary-subtle)',
+                    color: 'var(--color-primary)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontVariantNumeric: 'tabular-nums',
+                    flexShrink: 0,
+                    marginTop: 1,
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <h3 style={{ fontSize: 14.5, fontWeight: 600, fontFamily: 'var(--font-body)', marginBottom: 4, lineHeight: 1.35 }}>
+                    {paso.titulo}
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.55 }}>
+                    {paso.cuerpo}
+                  </p>
+                </div>
               </div>
-
-              {/* Sección 2 */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>2. Extracción de Leads Fríos</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Ve a la pestaña <strong>"Extraer leads"</strong>. Escribe un sector (ej: <em>Clínica podológica</em> o <em>Taller mecánico</em>) y una ciudad (ej: <em>Valencia</em>). El sistema lanzará un robot en Apify para scrapear negocios reales de Google Maps de forma masiva en segundo plano.
-                  <br /><br />
-                  En <strong>producción (Vercel)</strong> los webhooks de Apify están activos, por lo que el sistema recibirá la notificación de extracción completada automáticamente. En local, el modo es polling manual.
-                </p>
-              </div>
-
-              {/* Sección 3 */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>3. Enriquecimiento y Búsqueda de Decisores en Lote</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Una vez extraídos, ve a <strong>"Todos los leads"</strong>. Selecciona en lote los leads que te interesen y haz clic en <strong>"Buscar decisores"</strong> en la barra inferior. El OS buscará de forma automatizada los nombres de los fundadores/dueños en LinkedIn, deducirá su correo electrónico directo e inyectará la información sin que tengas que ir uno por uno.
-                </p>
-              </div>
-
-              {/* Sección 4 */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>4. Calificación de Brechas e Informe IA</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Con tus leads seleccionados, haz clic en <strong>"Analizar brechas"</strong> en lote. Claude analizará sus datos públicos (reseñas, horario, web) y calculará cuántas llamadas pierden a la semana y cuántos euros les cuesta al mes. Además, te redactará de forma automática el correo frío estilo Alex Hormozi.
-                  <br /><br />
-                  Los leads analizados avanzan automáticamente a la fase <strong>"Brechas detectadas"</strong> (naranja en el Kanban) — diferente de "Negocio analizado" (morado) para que siempre distingas los que ya tienen informe completo y email listo.
-                </p>
-              </div>
-
-              {/* Sección 5 */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>5. Preparación de la "Demo Robada" (Paso Crítico)</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Entra en la ficha de detalle de cualquier lead caliente. Haz clic en <strong>"Paso 1: Generar Guión"</strong> para redactar el diálogo. Si necesitas corregir la pronunciación o palabras, modifícalo en el formulario interactivo. Luego, haz clic en <strong>"Paso 2: Generar Audio"</strong>. El sistema sintetizará un audio real simulado en español de España de alta naturalidad usando pausas y respiraciones de Azure/ElevenLabs.
-                </p>
-              </div>
-
-              {/* Sección 6 */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>6. Outreach Casual (Gmail y WhatsApp)</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Haz clic en <strong>"Abrir Gmail"</strong> en la vista detallada del lead. El OS abrirá tu cliente de correo con el asunto y cuerpo de Hormozi ya rellenados. Al enviar, haz clic en <strong>"Marcar como enviado"</strong> para avanzar la fase en el pipeline. Usa los botones rápidos de WhatsApp para pasarle el audio de 30 segundos directamente a su móvil.
-                </p>
-              </div>
-
-              {/* Sección 7 */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>7. Nurturing — El seguimiento que cierra contratos</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  En la ficha de cada lead puedes programar el <strong>próximo toque</strong> (llamada, email o WhatsApp) con fecha. El Dashboard te mostrará en "Tareas de Nurturing" todos los leads que necesitan atención <strong>hoy</strong>. El sidebar mostrará un número naranja junto a Dashboard para que no lo olvides.
-                </p>
-              </div>
-
-              {/* Sección 8 */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>8. Centralización del Cierre y Entrega (Business OS)</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  Cuando el prospecto muestre interés:
-                  <ul style={{ margin: '6px 0 0 16px', padding: 0, listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <li><strong>Propuesta Comercial:</strong> Ve a la pestaña <em>"Propuesta"</em> del cliente. Haz clic en <em>"Generar propuesta con IA"</em>. Podrás ver la previsualización al instante, editarla en Markdown y enviarla al cliente.</li>
-                    <li><strong>Agente de Voz:</strong> Cuando acepte, vincula su <em>Retell Agent ID</em> en la pestaña <em>"Agente Sofía"</em>. Puedes generar su prompt de comportamiento (identidad, FAQ del sector, reglas de reserva) en 1-clic usando la IA.</li>
-                    <li><strong>Checklist de Entrega:</strong> Sigue los pasos técnicos (Twilio, Retell, QA, Setup, Formación) en la pestaña <em>"Checklist"</em> en tiempo real para no dejar ningún cabo suelto antes de marcar al cliente como <strong>Activo</strong>.</li>
-                  </ul>
-                </p>
-              </div>
-
-              {/* Sección 9 - Herramientas internas */}
-              <div style={{ borderLeft: '3px solid var(--color-primary)', paddingLeft: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>9. Herramientas Internas de la Agencia</h3>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                  <ul style={{ margin: '0 0 0 16px', padding: 0, listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <li><strong>Simulador de Ventas:</strong> Practica tu pitch contra un cliente IA que se resiste. Elige sector y dureza. Evalúa la llamada al terminar.</li>
-                    <li><strong>Consultor IA:</strong> Pregunta cualquier duda sobre WIARE: pitch, objeciones, precios. Responde como un experto en cierre de ventas de agencias IA.</li>
-                    <li><strong>Negocios Analizados:</strong> Biblioteca de todos los leads con informe de brechas completo. Útil para buscar referentes por sector.</li>
-                    <li><strong>Contenido (Generador + Calendario + Biblioteca):</strong> Genera posts para Instagram/LinkedIn, programa el mes completo y gestiona el estado de publicación.</li>
-                  </ul>
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       )}
-
 
       {/* ── TAB ROADMAP ── */}
       {subTab === 'roadmap' && (
@@ -334,7 +327,7 @@ export default function Roadmap() {
 
           {/* Timeline vertical */}
           {!loading && !error && (
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', maxWidth: 760 }}>
               {fases.map((fase, i) => {
                 const cfg = ESTADO[fase.estado]
                 const { Icon } = cfg
