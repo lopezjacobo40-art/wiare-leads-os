@@ -721,10 +721,15 @@ export interface CopySlideGenerado {
 }
 
 /* Ejecuta un prompt de contenido con el motor elegido (Claude Haiku o
-   Gemini Flash — más barato). Ambos pasan por el guard de tokens. */
+   Gemini Flash — más barato). Ambos pasan por el guard de tokens.
+   thinkingBudget: 0 — sin esto, gemini-2.5-flash gasta parte de maxOutputTokens
+   "pensando" y puede truncar el JSON de salida a mitad de un string (causa
+   real del "Unterminated string in JSON" en generarCaption/generarCopyCarrusel). */
 async function generarTextoContenido(prompt: string, maxTokens: number, proveedor: ProveedorIA): Promise<string> {
   if (proveedor === 'gemini') {
-    return guardedCall('content', () => callGemini(prompt, { maxOutputTokens: maxTokens }))
+    return guardedCall('content', () =>
+      callGemini(prompt, { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 } })
+    )
   }
   return guardedCall('content', () =>
     callClaudeChat('claude-haiku-4-5-20251001', maxTokens, [{ role: 'user', content: prompt }])
