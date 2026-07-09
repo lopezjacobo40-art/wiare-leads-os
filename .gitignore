@@ -34,6 +34,9 @@ token.json
 skills-lock.json
 .claude/
 
+# graphify (grafo de conocimiento local, regenerable con /graphify . --update)
+graphify-out/
+
 # Proyectos ajenos anidados (no forman parte del OS)
 bocateria-zarautz/
 presentacion_zarautz_netlify/
