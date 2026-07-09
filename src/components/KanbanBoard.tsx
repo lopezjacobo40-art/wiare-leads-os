@@ -17,6 +17,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { MapPin, MagnifyingGlassPlus, DotsNine } from '@phosphor-icons/react'
 import { supabase, type Lead } from '../lib/supabaseClient'
 import { FASES, FASES_KANBAN, FASE_COLOR, FASE_LABELS } from '../lib/supabaseClient'
+import { registrarEnvioEmail } from '../lib/followUp'
+import { construirEmail } from '../lib/emailOutreach'
 import ScoreBadge from './ScoreBadge'
 import FuenteBadge from './FuenteBadge'
 import { useToast } from './Toast'
@@ -320,6 +322,20 @@ export default function KanbanBoard({ leads: leadsProp, onOpenLead }: { leads: L
 
     // Optimista: actualiza UI inmediatamente
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, fase: destinoFase } : l)))
+
+    // Soltar en "Email enviado" registra el envío real: timestamp + copy + follow-up D3.
+    // Un UPDATE crudo dejaría el lead sin secuencia (causa de los 18 huérfanos de julio).
+    if (destinoFase === 'email_enviado') {
+      const r = await registrarEnvioEmail(lead, construirEmail(lead))
+      if (r.error) {
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, fase: lead.fase } : l)))
+        toast(r.error, 'error')
+      } else {
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...r.campos } : l)))
+        toast('Email enviado · follow-up en 3 días', 'success')
+      }
+      return
+    }
 
     const { error } = await supabase.from('leads_os').update({ fase: destinoFase }).eq('id', leadId)
     if (error) {

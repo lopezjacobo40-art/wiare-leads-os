@@ -295,13 +295,11 @@ export default function Leads() {
     toast(`${sinAnalizar.length} negocios analizados`, 'success')
   }
 
-  // ── Analizar solo los seleccionados (barra de lote) ──
+  // ── Analizar los seleccionados (barra de lote). Re-analiza también los ya
+  //    analizados: regenera score, brechas y copy de email con el prompt vigente ──
   const analizarSeleccionados = async () => {
-    const objetivo = seleccionados.filter((l) => l.analizado_at == null)
-    if (objetivo.length === 0) {
-      toast('Los negocios seleccionados ya están analizados', 'info')
-      return
-    }
+    const objetivo = seleccionados
+    if (objetivo.length === 0) return
     setBatch({ actual: 0, total: objetivo.length })
     setError('')
     try {
@@ -1386,7 +1384,9 @@ export default function Leads() {
                   gap: 2,
                 }}
               >
-                {FASES_ACTIVAS.map((f) => (
+                {/* 'email_enviado' excluido: marcar enviado exige registrarEnvioEmail
+                    por lead (timestamp + secuencia + cupo), no un UPDATE en lote */}
+                {FASES_ACTIVAS.filter((f) => f !== 'email_enviado').map((f) => (
                   <button
                     key={f}
                     onClick={() => cambiarFaseSeleccionados(f)}

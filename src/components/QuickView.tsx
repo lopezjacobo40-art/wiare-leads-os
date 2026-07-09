@@ -291,6 +291,17 @@ export default function QuickView({
 
   const cambiarFase = async (fase: string) => {
     if (fase === l.fase) return
+    // 'email_enviado' pasa por registrarEnvioEmail: timestamp + copy + follow-up D3
+    if (fase === 'email_enviado') {
+      const r = await registrarEnvioEmail(l, construirEmail(l))
+      if (r.error) toast(r.error, 'error')
+      else {
+        setLocalLead({ ...l, ...r.campos })
+        onUpdated?.()
+        toast('Email enviado · follow-up en 3 días', 'success')
+      }
+      return
+    }
     const { error } = await supabase.from('leads_os').update({ fase }).eq('id', l.id)
     if (error) toast(error.message, 'error')
     else {
