@@ -261,6 +261,30 @@ export function toAnalisisBrechas(r: ResultadoBrechas): AnalisisBrechas {
   }
 }
 
+/* Campos a persistir tras un análisis de brechas, incluida la fase:
+   - 'contactar' + email → 'listo_para_enviar' (entra solo en la cola de envío)
+   - 'descartar' → 'descartado'
+   Solo promociona desde fases tempranas: re-analizar un lead ya contactado
+   refresca el copy pero nunca lo saca del funnel. */
+export function camposTrasAnalisis(lead: Lead, r: ResultadoBrechas): Partial<Lead> {
+  const esTemprana = lead.fase === 'nuevo' || lead.fase === 'negocio_analizado'
+  let fase = lead.fase === 'nuevo' ? 'negocio_analizado' : lead.fase
+  if (esTemprana) {
+    if (r.recomendacion === 'contactar' && lead.email) fase = 'listo_para_enviar'
+    else if (r.recomendacion === 'descartar') fase = 'descartado'
+  }
+  return {
+    score_cualificacion: r.score,
+    motivo_score: r.resumen,
+    volumen_llamadas: r.volumen,
+    mrr_estimado: r.mrr,
+    analisis_brechas: toAnalisisBrechas(r),
+    analizado_at: new Date().toISOString(),
+    icebreaker: r.icebreaker,
+    fase,
+  }
+}
+
 /* ─────────────────────────────────────────────
    SIMULADOR DE VENTAS
    La IA encarna un cliente resistente de un sector dado.

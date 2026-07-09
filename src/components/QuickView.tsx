@@ -7,9 +7,9 @@ import {
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
 import { construirEmail } from '../lib/emailOutreach'
-import { registrarEnvioEmail } from '../lib/followUp'
+import { registrarEnvioEmail, cambiarFaseLead } from '../lib/followUp'
 import { errMsg } from '../lib/errores'
-import { analizarBrechas, toAnalisisBrechas, generarGuionAudio, type DialogoAudio } from '../lib/claudeApi'
+import { analizarBrechas, camposTrasAnalisis, generarGuionAudio, type DialogoAudio } from '../lib/claudeApi'
 import ScoreBadge from './ScoreBadge'
 import FaseSelector from './FaseSelector'
 import { useToast } from './Toast'
@@ -94,20 +94,17 @@ export default function QuickView({
     setAnalizando(true)
     try {
       const r = await analizarBrechas(l)
-      const campos = {
-        score_cualificacion: r.score,
-        motivo_score: r.resumen,
-        volumen_llamadas: r.volumen,
-        mrr_estimado: r.mrr,
-        analisis_brechas: toAnalisisBrechas(r),
-        analizado_at: new Date().toISOString(),
-        fase: l.fase === 'nuevo' ? 'negocio_analizado' : l.fase,
-      }
+      // La fase avanza sola: 'contactar'+email → listo_para_enviar; 'descartar' → descartado
+      const campos = camposTrasAnalisis(l, r)
       const { error } = await supabase.from('leads_os').update(campos).eq('id', l.id)
       if (error) throw error
       setLocalLead({ ...l, ...campos })
       onUpdated?.()
-      toast(`${l.nombre} analizado`, 'success')
+      const destino =
+        campos.fase === 'listo_para_enviar' ? ' → Listo para enviar'
+        : campos.fase === 'descartado' ? ' → Descartado (recomendación IA)'
+        : ''
+      toast(`${l.nombre} analizado${destino}`, 'success')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Error al analizar', 'error')
     } finally {
@@ -291,23 +288,17 @@ export default function QuickView({
 
   const cambiarFase = async (fase: string) => {
     if (fase === l.fase) return
-    // 'email_enviado' pasa por registrarEnvioEmail: timestamp + copy + follow-up D3
-    if (fase === 'email_enviado') {
-      const r = await registrarEnvioEmail(l, construirEmail(l))
-      if (r.error) toast(r.error, 'error')
-      else {
-        setLocalLead({ ...l, ...r.campos })
-        onUpdated?.()
-        toast('Email enviado · follow-up en 3 días', 'success')
-      }
-      return
-    }
-    const { error } = await supabase.from('leads_os').update({ fase }).eq('id', l.id)
-    if (error) toast(error.message, 'error')
+    const r = await cambiarFaseLead(l, fase)
+    if (r.error) toast(r.error, 'error')
     else {
-      setLocalLead({ ...l, fase })
+      setLocalLead({ ...l, ...r.campos })
       onUpdated?.()
-      toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
+      toast(
+        fase === 'email_enviado'
+          ? 'Email enviado · follow-up en 3 días'
+          : `Fase: ${FASE_LABELS[fase] ?? fase}`,
+        'success'
+      )
     }
   }
 

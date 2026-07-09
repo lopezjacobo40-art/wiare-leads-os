@@ -1,4 +1,5 @@
 import { supabase, usernameFromSession, type Lead } from './supabaseClient'
+import { construirEmail } from './emailOutreach'
 
 /* ─────────────────────────────────────────────
    Secuencia de cold email — 4 toques y archivo.
@@ -13,6 +14,32 @@ import { supabase, usernameFromSession, type Lead } from './supabaseClient'
    ───────────────────────────────────────────── */
 
 export type TipoToque = 'Email' | 'WhatsApp' | 'Llamada'
+
+/* Fases que sacan al lead del outreach activo: al entrar en ellas se detiene
+   la secuencia (si no, el Cockpit muestra follow-ups fantasma de leads que ya
+   respondieron o salieron del funnel). */
+export const FASES_FIN_SECUENCIA = ['respondido', 'reunion_agendada', 'sin_respuesta', 'baja', 'descartado']
+
+/* Cambio de fase canónico — todo cambio de fase individual pasa por aquí:
+   - 'email_enviado' delega en registrarEnvioEmail (timestamp + copy + D3 + cupo).
+   - Fases de fin de secuencia limpian el próximo toque.
+   Devuelve los campos aplicados para refrescar estado local sin re-fetch. */
+export async function cambiarFaseLead(
+  lead: Lead,
+  fase: string
+): Promise<{ error: string | null; campos?: Partial<Lead> }> {
+  if (fase === lead.fase) return { error: null, campos: {} }
+  if (fase === 'email_enviado') return registrarEnvioEmail(lead, construirEmail(lead))
+
+  const campos: Partial<Lead> = { fase }
+  if (FASES_FIN_SECUENCIA.includes(fase)) {
+    campos.proximo_toque_fecha = null
+    campos.proximo_toque_tipo = null
+  }
+  const { error } = await supabase.from('leads_os').update(campos).eq('id', lead.id)
+  if (error) return { error: error.message }
+  return { error: null, campos }
+}
 
 const SECUENCIA: { dias: number; tipo: TipoToque }[] = [
   { dias: 3, tipo: 'Email' },

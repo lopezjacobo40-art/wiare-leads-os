@@ -3,9 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, MagnifyingGlassPlus, X, Sparkle, Star, CaretLeft, CaretRight, DotsThree, MagnifyingGlass, Users, Trash, ArrowRight, Globe, Copy, ArrowClockwise, PaperPlaneTilt, CheckCircle } from '@phosphor-icons/react'
 import { supabase, type Lead, FASES, FASES_ACTIVAS, FASE_LABELS } from '../lib/supabaseClient'
 import { construirEmail, construirGmailUrl } from '../lib/emailOutreach'
-import { registrarEnvioEmail } from '../lib/followUp'
+import { registrarEnvioEmail, FASES_FIN_SECUENCIA } from '../lib/followUp'
 import { errMsg } from '../lib/errores'
-import { analizarBrechas, toAnalisisBrechas, extraerDatosDecisor } from '../lib/claudeApi'
+import { analizarBrechas, camposTrasAnalisis, extraerDatosDecisor } from '../lib/claudeApi'
 import { processBatch, estimarCoste, BATCH_CONFIRM_THRESHOLD } from '../lib/tokenGuard'
 import { buscarDecisorLinkedIn, generarPermutacionesEmail } from '../lib/apifyClient'
 import ScoreBadge from '../components/ScoreBadge'
@@ -221,30 +221,26 @@ export default function Leads() {
     }
   }
 
-  // Guarda el resultado del análisis de brechas en un lead.
+  // Guarda el resultado del análisis en un lead. La fase avanza sola:
+  // 'contactar' + email → listo_para_enviar; 'descartar' → descartado.
   const guardarAnalisis = async (lead: Lead) => {
     const r = await analizarBrechas(lead)
-    await supabase
-      .from('leads_os')
-      .update({
-        score_cualificacion: r.score,
-        motivo_score: r.resumen,
-        volumen_llamadas: r.volumen,
-        mrr_estimado: r.mrr,
-        analisis_brechas: toAnalisisBrechas(r),
-        analizado_at: new Date().toISOString(),
-        fase: lead.fase === 'nuevo' ? 'negocio_analizado' : lead.fase,
-      })
-      .eq('id', lead.id)
+    const campos = camposTrasAnalisis(lead, r)
+    await supabase.from('leads_os').update(campos).eq('id', lead.id)
+    return campos
   }
 
   const analizar = async (lead: Lead) => {
     setScoringId(lead.id)
     setError('')
     try {
-      await guardarAnalisis(lead)
+      const campos = await guardarAnalisis(lead)
       await cargar()
-      toast(`${lead.nombre} analizado`, 'success')
+      const destino =
+        campos.fase === 'listo_para_enviar' ? ' → Listo para enviar'
+        : campos.fase === 'descartado' ? ' → Descartado (recomendación IA)'
+        : ''
+      toast(`${lead.nombre} analizado${destino}`, 'success')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Error al analizar', 'error')
     } finally {
@@ -329,7 +325,12 @@ export default function Leads() {
     setFaseDropdownOpen(false)
     setAplicandoLote(true)
     const ids = [...selectedIds]
-    const { error: err } = await supabase.from('leads_os').update({ fase }).in('id', ids)
+    const campos: Partial<Lead> = { fase }
+    if (FASES_FIN_SECUENCIA.includes(fase)) {
+      campos.proximo_toque_fecha = null
+      campos.proximo_toque_tipo = null
+    }
+    const { error: err } = await supabase.from('leads_os').update(campos).in('id', ids)
     setAplicandoLote(false)
     if (err) toast(err.message, 'error')
     else {

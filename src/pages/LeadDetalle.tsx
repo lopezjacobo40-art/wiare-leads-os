@@ -8,9 +8,9 @@ import {
   ListChecks, IdentificationCard,
 } from '@phosphor-icons/react'
 import { supabase, type Lead, FASE_LABELS } from '../lib/supabaseClient'
-import { analizarBrechas, toAnalisisBrechas, generarPropuestaComercial, generarSystemPromptSofia } from '../lib/claudeApi'
+import { analizarBrechas, camposTrasAnalisis, generarPropuestaComercial, generarSystemPromptSofia } from '../lib/claudeApi'
 import { construirEmail, construirGmailUrl } from '../lib/emailOutreach'
-import { registrarEnvioEmail } from '../lib/followUp'
+import { registrarEnvioEmail, cambiarFaseLead } from '../lib/followUp'
 import { errMsg } from '../lib/errores'
 import { fetchWithAudit } from '../lib/apiAuditor'
 import { labelFuente } from '../lib/emailFinder'
@@ -204,17 +204,14 @@ export default function LeadDetalle() {
     setError('')
     try {
       const r = await analizarBrechas(lead)
-      await actualizar({
-        score_cualificacion: r.score,
-        motivo_score: r.resumen,
-        volumen_llamadas: r.volumen,
-        mrr_estimado: r.mrr,
-        analisis_brechas: toAnalisisBrechas(r),
-        analizado_at: new Date().toISOString(),
-        fase: lead.fase === 'nuevo' ? 'negocio_analizado' : lead.fase,
-        icebreaker: r.icebreaker,
-      })
-      toast('Brechas analizadas', 'success')
+      // La fase avanza sola: 'contactar'+email → listo_para_enviar; 'descartar' → descartado
+      const campos = camposTrasAnalisis(lead, r)
+      await actualizar(campos)
+      const destino =
+        campos.fase === 'listo_para_enviar' ? ' → Listo para enviar'
+        : campos.fase === 'descartado' ? ' → Descartado (recomendación IA)'
+        : ''
+      toast(`Brechas analizadas${destino}`, 'success')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error analizando brechas'
       setError(msg)
@@ -281,8 +278,15 @@ export default function LeadDetalle() {
 
   const cambiarFase = async (fase: string) => {
     if (!lead || fase === lead.fase) return
-    await actualizar({ fase })
-    toast(`Fase: ${FASE_LABELS[fase] ?? fase}`, 'success')
+    const r = await cambiarFaseLead(lead, fase)
+    if (r.error) { setError(r.error); toast(r.error, 'error'); return }
+    setLead({ ...lead, ...r.campos })
+    toast(
+      fase === 'email_enviado'
+        ? 'Enviado · follow-up en 3 días'
+        : `Fase: ${FASE_LABELS[fase] ?? fase}`,
+      'success'
+    )
   }
 
   // Listo para enviar → pasa la fase a 'listo_para_enviar'.

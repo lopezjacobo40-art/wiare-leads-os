@@ -15,10 +15,9 @@ import {
 import { useSortable, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { MapPin, MagnifyingGlassPlus, DotsNine } from '@phosphor-icons/react'
-import { supabase, type Lead } from '../lib/supabaseClient'
+import type { Lead } from '../lib/supabaseClient'
 import { FASES, FASES_KANBAN, FASE_COLOR, FASE_LABELS } from '../lib/supabaseClient'
-import { registrarEnvioEmail } from '../lib/followUp'
-import { construirEmail } from '../lib/emailOutreach'
+import { cambiarFaseLead } from '../lib/followUp'
 import ScoreBadge from './ScoreBadge'
 import FuenteBadge from './FuenteBadge'
 import { useToast } from './Toast'
@@ -323,27 +322,21 @@ export default function KanbanBoard({ leads: leadsProp, onOpenLead }: { leads: L
     // Optimista: actualiza UI inmediatamente
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, fase: destinoFase } : l)))
 
-    // Soltar en "Email enviado" registra el envío real: timestamp + copy + follow-up D3.
-    // Un UPDATE crudo dejaría el lead sin secuencia (causa de los 18 huérfanos de julio).
-    if (destinoFase === 'email_enviado') {
-      const r = await registrarEnvioEmail(lead, construirEmail(lead))
-      if (r.error) {
-        setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, fase: lead.fase } : l)))
-        toast(r.error, 'error')
-      } else {
-        setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...r.campos } : l)))
-        toast('Email enviado · follow-up en 3 días', 'success')
-      }
-      return
-    }
-
-    const { error } = await supabase.from('leads_os').update({ fase: destinoFase }).eq('id', leadId)
-    if (error) {
+    // Transición canónica: 'email_enviado' registra el envío real (timestamp +
+    // copy + follow-up D3) y las fases de salida limpian el próximo toque.
+    const r = await cambiarFaseLead(lead, destinoFase)
+    if (r.error) {
       // Revertir si falla
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, fase: lead.fase } : l)))
       toast('Error al mover el lead', 'error')
     } else {
-      toast(`Movido a ${FASE_LABELS[destinoFase] ?? destinoFase}`, 'success')
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...r.campos } : l)))
+      toast(
+        destinoFase === 'email_enviado'
+          ? 'Email enviado · follow-up en 3 días'
+          : `Movido a ${FASE_LABELS[destinoFase] ?? destinoFase}`,
+        'success'
+      )
     }
   }
 
