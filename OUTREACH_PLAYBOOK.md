@@ -1,3 +1,7 @@
+> **Archivo histórico — no ejecutar esta secuencia.** La guía vigente del experimento dental está en [VALIDACION_COMERCIAL_14D.md](./VALIDACION_COMERCIAL_14D.md). Los porcentajes de conversión, ingresos por llamada, garantías y afirmaciones legales de este documento no han sido verificados. La llamada previa, por sí sola, no autoriza enviar publicidad por email o WhatsApp. No usar el WhatsApp de D+7 sin una solicitud/autorización válida del destinatario.
+
+---
+
 # WIARE — Playbook de Outreach Multicanal
 ### Objetivo: 3 clientes en 30 días · Equipo: Jacobo + socio
 
